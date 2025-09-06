@@ -108,7 +108,7 @@ class Test_Container:
 
     @pytest.mark.parametrize(
         "k",
-        [
+        sorted(
             k
             for k in set(dir(System))
             - set(dir(BaseModel))
@@ -117,7 +117,7 @@ class Test_Container:
             - {"DF_ATOMS", "DF_BONDS", "THERMO", "THERMO_ATOMS", "Z"}
             - {"connected_components_number", "natoms", "nbonds", "symbols"}
             if not k.startswith("_") and not callable(getattr(System, k))
-        ],
+        ),
     )
     def test_property_is_cached(self, system: System, k: str) -> None:
         v1, v2 = getattr(system, k), getattr(system, k)
