@@ -28,7 +28,6 @@ dependencies = [
     "rdkit>=2024.9",
     "rustworkx>=0.16",                                # NetworkX-like graph library based on Rust
     "scikit-learn",
-    "scikit-optimize>=0.10.2",
     "scipy",
     "sparse",
     "torch_geometric",
