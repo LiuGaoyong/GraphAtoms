@@ -25,8 +25,6 @@ dependencies = [
     "numpydantic",
     "pandas",
     "pydantic>=2.11",
-    "pygfn0>=0.0.2",
-    "pygfnff>=0.0.2",
     "rdkit>=2024.9",
     "rustworkx>=0.16",                                # NetworkX-like graph library based on Rust
     "scikit-learn",
