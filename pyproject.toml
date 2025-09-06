@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["GraphAtoms"]
+namespaces = true
+
+[project]
+name = "GraphAtoms"
+version = "0.0.1"
+description = "The Chemical Core Class for Graph Theory Analysis & Graph Neural Network."
+readme = "README.md"
+authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "ase",
+    "igraph>=0.11",                                   # high performance graph library based on C
+    "networkit==11.1; sys_platform != 'linux'",       # high performance graph library based on C++
+    "networkit==11.1.post1; sys_platform == 'linux'", # high performance graph library based on C++
+    "networkx>=3.3",                                  # General-purpose graph library by pure Python
+    "numpy",
+    "numba>=0.61",
+    "numpydantic",
+    "pandas",
+    "pydantic>=2.11",
+    "rdkit>=2024.9",
+    "rustworkx>=0.16",                                # NetworkX-like graph library based on Rust
+    "scikit-learn",
+    "scikit-optimize>=0.10.2",
+    "scipy",
+    "sparse",
+    "torch_geometric",
+    "torch",
+    "typing-extensions",
+]
+[dependency-groups]
+dev = ["ruff>=0.11", "pytest>=8.3", "pytest-xdist", "ipython"]
+
+# uv config
+[tool.uv]
+package = true
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple" # TUNA
+default = true
+
+# pytest config
+[tool.pytest.ini_options]
+addopts = '--maxfail=1 -rf' # exit after 1 failures, report fail info
+testpaths = ["tests"]
+filterwarnings = [
+    "error", # All other warnings are transformed into errors.
+    # ignore the following warnings that matching a regex
+]
+
+# ruff config
+[tool.ruff]
+line-length = 80
+indent-width = 4
+select = ["F", "E", "W", "UP", "D"]
+ignore = ["F722", 'UP038', 'D100']
+[tool.ruff.pydocstyle]
+convention = "google"
