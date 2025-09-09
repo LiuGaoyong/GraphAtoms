@@ -11,6 +11,7 @@ from string import ascii_lowercase
 from typing import Annotated, Literal
 
 import pydantic
+import snappy
 from ase.db.core import convert_str_to_int_float_bool_or_str
 
 
@@ -20,7 +21,7 @@ class CompressorAndDecompressor:
     @pydantic.validate_call
     def __init__(  # noqa: D107
         self,
-        format: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+        format: Literal["z", "gz", "bz2", "xz", "lzma", "snappy"] = "xz",
         compresslevel: Annotated[int, pydantic.Field(ge=0, le=9)] = 0,
     ) -> None:
         if format == "z":
@@ -41,8 +42,13 @@ class CompressorAndDecompressor:
                 compresslevel=compresslevel if compresslevel != 0 else 9,
             )
             self.__func_decompress: Callable[..., bytes] = bz2.decompress
+        elif format == "snappy":
+            self.__func_compress: Callable[..., bytes] = snappy.compress
+            self.__func_decompress: Callable[..., bytes] = partial(
+                snappy.uncompress, decoding=None
+            )  # type: ignore
         else:
-            import lzma  # Added in Python 3.3
+            import lzma
 
             self.__func_compress: Callable[..., bytes] = partial(
                 lzma.compress,
@@ -63,7 +69,7 @@ class CompressorAndDecompressor:
 
 def compress_string(
     str_value: str,
-    format: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+    format: Literal["z", "gz", "bz2", "xz", "lzma", "snappy"] = "xz",
     encoding: str = "utf-8",
     compresslevel: int = 0,
 ) -> bytes:
@@ -76,7 +82,7 @@ def compress_string(
 
 def decompress_string(
     value: bytes,
-    format: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+    format: Literal["z", "gz", "bz2", "xz", "lzma", "snappy"] = "xz",
     encoding: str = "utf-8",
 ) -> str:
     """Return the decompressed string of the given bytes."""

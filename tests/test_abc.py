@@ -59,6 +59,7 @@ class Test_ABC_Pydantic_Model:
     [
         # ("xz", 0),
         # ("lzma", 0),
+        ("snappy", 0),
     ]
     + sorted(
         itertools.product(

@@ -1,7 +1,7 @@
 # ruff: noqa: D100 D102
 import sys
 from collections.abc import Sequence
-from typing import Annotated, Literal, override
+from typing import Annotated, override
 
 import numpy as np
 import pydantic
@@ -103,13 +103,13 @@ class BaseModel(pydantic.BaseModel):
     @pydantic.validate_call
     def as_bytes(
         self,
-        compressformat: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+        compressformat: str = "snappy",
         compresslevel: Annotated[int, pydantic.Field(ge=0, le=9)] = 0,
     ) -> bytes:
         """Return the json bytes of this object."""
         return compress_string(
             self.model_dump_json(exclude_none=True),
-            format=compressformat,
+            format=compressformat,  # type: ignore
             compresslevel=compresslevel,
         )
 
@@ -118,9 +118,14 @@ class BaseModel(pydantic.BaseModel):
     def from_bytes(
         cls,
         data: bytes,
-        compressformat: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+        compressformat: str = "snappy",
     ) -> Self:
-        return cls.model_validate_json(decompress_string(data, compressformat))
+        return cls.model_validate_json(
+            decompress_string(
+                data,
+                format=compressformat,  # type: ignore
+            )
+        )
 
     @pydantic.validate_call
     def write_json(
