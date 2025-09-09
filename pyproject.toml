@@ -39,6 +39,10 @@ dependencies = [
     # Data Model
     "numpydantic",
     "pydantic>=2.11",
+    "pyyaml",                         # YAML parser & writer
+    "sqlmodel",                       # SQL + pydantic
+    "tomli-w",                        # TOML writer
+    "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "typing-extensions",
 ]
 [dependency-groups]

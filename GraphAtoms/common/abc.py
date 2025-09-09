@@ -1,13 +1,22 @@
 # ruff: noqa: D100 D102
+import sys
 from collections.abc import Sequence
-from typing import override
+from typing import Annotated, Literal, override
 
 import numpy as np
 import pydantic
+import tomli_w as toml_w
+import yaml
 from joblib import dump, load
 from numpy.typing import ArrayLike
 from typing_extensions import Self
 
+from GraphAtoms.common.string import compress_string, decompress_string
+
+if sys.version_info < (3, 11):
+    import tomli as tomllib
+else:
+    import tomllib
 __all__ = [
     "BaseModel",
     "NpzPklBaseModel",
@@ -15,6 +24,8 @@ __all__ = [
 
 
 class BaseMixin:
+    """The base mixin class which provides some useful classmethods."""
+
     @staticmethod
     def get_mask_or_index(k: ArrayLike, n: int) -> np.ndarray:
         if np.isscalar(k):
@@ -90,6 +101,28 @@ class BaseModel(pydantic.BaseModel):
         return f(fname, **kwargs)
 
     @pydantic.validate_call
+    def as_bytes(
+        self,
+        compressformat: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+        compresslevel: Annotated[int, pydantic.Field(ge=0, le=9)] = 0,
+    ) -> bytes:
+        """Return the json bytes of this object."""
+        return compress_string(
+            self.model_dump_json(exclude_none=True),
+            format=compressformat,
+            compresslevel=compresslevel,
+        )
+
+    @classmethod
+    @pydantic.validate_call
+    def from_bytes(
+        cls,
+        data: bytes,
+        compressformat: Literal["z", "gz", "bz2", "xz", "lzma"] = "xz",
+    ) -> Self:
+        return cls.model_validate_json(decompress_string(data, compressformat))
+
+    @pydantic.validate_call
     def write_json(
         self,
         filename: pydantic.FilePath | pydantic.NewPath,
@@ -97,7 +130,11 @@ class BaseModel(pydantic.BaseModel):
         **kwargs,
     ) -> pydantic.FilePath:
         filename.write_text(
-            self.model_dump_json(indent=indent, **kwargs),
+            self.model_dump_json(
+                indent=indent,
+                exclude_none=True,
+                **kwargs,
+            ),
             encoding="utf-8",
         )
         return filename
@@ -111,6 +148,64 @@ class BaseModel(pydantic.BaseModel):
     def read(cls, fname: pydantic.FilePath, **kwargs) -> Self:
         f = getattr(cls, f"read_{cls.__get_format(fname)}")
         return f(fname, **kwargs)
+
+
+class ExtendedBaseModel(BaseModel):
+    """A extended base class for creating Pydantic models.
+
+    This class support many file formats:
+        json        by `pydantic`
+        yaml/yml    by `pyyaml`
+        toml        by `tomli_w`, `tomli`, & `toml`
+    """
+
+    @pydantic.validate_call
+    def write_toml(
+        self,
+        filename: pydantic.FilePath | pydantic.NewPath,
+        indent: int = 4,
+        **kwargs,
+    ) -> pydantic.FilePath:
+        kwargs["exclude_none"] = True
+        with filename.open("wb") as f:
+            toml_w.dump(
+                self.model_dump(mode="python", **kwargs),
+                f,
+                indent=indent,
+                multiline_strings=True,
+            )
+        return filename
+
+    @pydantic.validate_call
+    def write_yaml(
+        self,
+        filename: pydantic.FilePath | pydantic.NewPath,
+        indent: int | None = 2,
+        **kwargs,
+    ) -> pydantic.FilePath:
+        with filename.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                self.model_dump(mode="python", **kwargs),
+                f,
+                encoding="utf-8",
+                default_flow_style=False,
+                indent=indent,
+            )
+        return filename
+
+    @classmethod
+    @pydantic.validate_call
+    def read_yaml(cls, filename: pydantic.FilePath, **kwargs) -> Self:
+        with filename.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls.model_validate(data, **kwargs)
+
+    @classmethod
+    @pydantic.validate_call
+    def read_toml(cls, filename: pydantic.FilePath, **kwargs) -> Self:
+        with filename.open("rb") as f:
+            data = tomllib.load(f)
+        return cls.model_validate(data, **kwargs)
 
 
 class NpzPklBaseModel(BaseModel):
