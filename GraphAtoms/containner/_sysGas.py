@@ -15,11 +15,11 @@ class Gas(GraphContainner):
 
     @model_validator(mode="after")
     def __some_keys_should_xxx(self) -> Self:
-        assert self.move_fix_tag is None
-        assert self.coordination is None
-        assert self.pressure is not None
-        assert self.box is None
-        assert self.is_nonmetal
+        assert self.move_fix_tag is None, "move_fix_tag should be None for Gas."
+        assert self.coordination is None, "coordination should be None for Gas."
+        assert self.pressure is not None, "pressure should not be None for Gas."
+        assert self.box is None, "box should be None for Gas."
+        assert self.is_nonmetal, "is_nonmetal should be True for Gas."
         return self
 
     @classmethod

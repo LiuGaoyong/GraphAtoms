@@ -20,8 +20,8 @@ class Cluster(GraphContainner):
     @override
     def _string(self) -> str:
         result = f"{super()._string()}"
-        result += f",NCORE={np.sum(self.iscore)}"
-        result += f",NFIX={np.sum(self.isfix)}"
+        result += f",NCORE={np.sum(self.ncore)}"
+        result += f",NFIX={np.sum(self.nfix)}"
         return result
 
     @classmethod

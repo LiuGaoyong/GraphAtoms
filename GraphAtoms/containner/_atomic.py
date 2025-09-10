@@ -133,6 +133,10 @@ class AtomicAttrMixin(NpzPklBaseModel, Sized):
         return self.numbers.shape[0]
 
     @property
+    def nfix(self) -> int:
+        return int(self.isfix.sum())
+
+    @property
     def isfix(self) -> np.ndarray:
         if self.move_fix_tag is None:
             raise KeyError("Cannot get `isfix` for `move_fix_tag` is None.")
@@ -140,11 +144,19 @@ class AtomicAttrMixin(NpzPklBaseModel, Sized):
         return self.move_fix_tag < 0  # type: ignore
 
     @property
+    def ncore(self) -> int:
+        return int(self.iscore.sum())
+
+    @property
     def iscore(self) -> np.ndarray:
         if self.move_fix_tag is None:
             raise KeyError("Cannot get `isfix` for `move_fix_tag` is None.")
             return np.empty_like(self.numbers, dtype=bool)
         return self.move_fix_tag == 0
+
+    @property
+    def nmoved(self) -> int:
+        return self.natoms - self.nfix - self.ncore
 
     @property
     def isfirstmoved(self) -> np.ndarray:
