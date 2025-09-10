@@ -1,6 +1,7 @@
 # ruff: noqa: D100 D102
 import sys
 from collections.abc import Sequence
+from pickle import dumps, loads
 from typing import Annotated, override
 
 import numpy as np
@@ -11,7 +12,11 @@ from joblib import dump, load
 from numpy.typing import ArrayLike
 from typing_extensions import Self
 
-from GraphAtoms.common.string import compress_string, decompress_string
+from GraphAtoms.common.string import (
+    SUPPORTED_COMPRESS_FORMATS,
+    compress,
+    decompress,
+)
 
 if sys.version_info < (3, 11):
     import tomli as tomllib
@@ -103,12 +108,12 @@ class BaseModel(pydantic.BaseModel):
     @pydantic.validate_call
     def as_bytes(
         self,
-        compressformat: str = "snappy",
+        compressformat: SUPPORTED_COMPRESS_FORMATS = "snappy",
         compresslevel: Annotated[int, pydantic.Field(ge=0, le=9)] = 0,
     ) -> bytes:
         """Return the json bytes of this object."""
-        return compress_string(
-            self.model_dump_json(exclude_none=True),
+        return compress(
+            dumps(self.model_dump(exclude_none=True)),
             format=compressformat,  # type: ignore
             compresslevel=compresslevel,
         )
@@ -118,12 +123,14 @@ class BaseModel(pydantic.BaseModel):
     def from_bytes(
         cls,
         data: bytes,
-        compressformat: str = "snappy",
+        compressformat: SUPPORTED_COMPRESS_FORMATS = "snappy",
     ) -> Self:
-        return cls.model_validate_json(
-            decompress_string(
-                data,
-                format=compressformat,  # type: ignore
+        return cls.model_validate(
+            loads(
+                decompress(
+                    data,
+                    format=compressformat,  # type: ignore
+                )
             )
         )
 

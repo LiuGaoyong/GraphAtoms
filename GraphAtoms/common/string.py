@@ -14,6 +14,8 @@ import pydantic
 import snappy
 from ase.db.core import convert_str_to_int_float_bool_or_str
 
+SUPPORTED_COMPRESS_FORMATS = Literal["z", "gz", "bz2", "snappy"]
+
 
 class CompressorAndDecompressor:
     """The Compressor and Decompressor."""
@@ -21,7 +23,7 @@ class CompressorAndDecompressor:
     @pydantic.validate_call
     def __init__(  # noqa: D107
         self,
-        format: Literal["z", "gz", "bz2", "xz", "lzma", "snappy"] = "xz",
+        format: SUPPORTED_COMPRESS_FORMATS = "snappy",
         compresslevel: Annotated[int, pydantic.Field(ge=0, le=9)] = 0,
     ) -> None:
         if format == "z":
@@ -67,30 +69,47 @@ class CompressorAndDecompressor:
         return self.__func_decompress(value)
 
 
+def compress(
+    value: bytes,
+    format: SUPPORTED_COMPRESS_FORMATS = "snappy",
+    compresslevel: int = 0,
+) -> bytes:
+    """Return the compressed bytes of the given bytes."""
+    return CompressorAndDecompressor(
+        format=format,
+        compresslevel=compresslevel,
+    ).compress(value)
+
+
 def compress_string(
     str_value: str,
-    format: Literal["z", "gz", "bz2", "xz", "lzma", "snappy"] = "xz",
+    format: SUPPORTED_COMPRESS_FORMATS = "snappy",
     encoding: str = "utf-8",
     compresslevel: int = 0,
 ) -> bytes:
     """Return the compressed bytes of the given string."""
-    return CompressorAndDecompressor(
+    return compress(
+        str_value.encode(encoding),
         format=format,
         compresslevel=compresslevel,
-    ).compress(str_value.encode(encoding))
+    )
+
+
+def decompress(
+    value: bytes,
+    format: SUPPORTED_COMPRESS_FORMATS = "snappy",
+) -> bytes:
+    """Return the decompressed bytes of the given bytes."""
+    return CompressorAndDecompressor(format=format).decompress(value)
 
 
 def decompress_string(
     value: bytes,
-    format: Literal["z", "gz", "bz2", "xz", "lzma", "snappy"] = "xz",
+    format: SUPPORTED_COMPRESS_FORMATS = "snappy",
     encoding: str = "utf-8",
 ) -> str:
     """Return the decompressed string of the given bytes."""
-    return (
-        CompressorAndDecompressor(format=format)
-        .decompress(value)
-        .decode(encoding)
-    )
+    return decompress(value, format=format).decode(encoding)
 
 
 def random_string(length: int = 6) -> str:
