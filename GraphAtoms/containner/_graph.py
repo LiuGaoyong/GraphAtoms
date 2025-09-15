@@ -17,16 +17,17 @@ from scipy import sparse as sp
 from torch_geometric.data import Data as DataPyG
 from typing_extensions import Self
 
+from GraphAtoms.common.string import hash_string
+from GraphAtoms.containner import _mRDKit as rdutils
 from GraphAtoms.containner._atomic import ATOM_KEY, TOTAL_KEY, AtomicContainner
 from GraphAtoms.containner._bonded import BOND_KEY, BondAttrMixin
+from GraphAtoms.containner._ioDataPyG import GraphMixinPyG
+from GraphAtoms.containner._ioIGraph import GraphMixinIGraph
+from GraphAtoms.containner._ioNetworkX import GraphMixinNetworkX
+from GraphAtoms.containner._ioRustworkX import GraphMixinRustworkX
 from GraphAtoms.containner._mConnComp import GraphMixinConnectedComponents
-from GraphAtoms.containner._mDataPyG import GraphMixinPyG
 from GraphAtoms.containner._mFreeE import FreeEnergyMixin
-from GraphAtoms.containner._mIGraph import GraphMixinIGraph
 from GraphAtoms.containner._mNetworKit import GraphMixinNetworKit
-from GraphAtoms.containner._mNetworkX import GraphMixinNetworkX
-from GraphAtoms.containner._mRustworkX import GraphMixinRustworkX
-from GraphAtoms.common.string import hash_string
 
 
 class __KEY:
@@ -61,6 +62,7 @@ class GraphContainner(
     GraphMixinNetworkX,
     GraphMixinNetworKit,
     GraphMixinRustworkX,
+    rdutils.GraphMixinRDKit,
     FreeEnergyMixin,
     Hashable,
 ):
@@ -127,6 +129,19 @@ class GraphContainner(
         result.info[TOTAL_KEY.PRESSURE] = self.pressure
         result.info["nsymmetry"] = self.nsymmetry
         return result
+
+    @cached_property
+    @override
+    def RDMol(self) -> rdutils.RDMol:
+        return rdutils._get_rdmol_with_bonds(
+            numbers=self.Z,
+            geometry=self.R,
+            source=self.conn[:, 0],
+            target=self.conn[:, 1],
+            order=self.order if self.order is not None else None,
+            infer_order=False,
+            charge=0,
+        )
 
     @override
     def _string(self) -> str:
@@ -354,7 +369,7 @@ class GraphContainner(
         } | {f"{GRAPH_KEY.ATOM.POSITION}_{i}": float for i in "xyz"}
 
     @override
-    def as_networkit(self) -> NetworKitGraph:
+    def _as_networkit(self) -> NetworKitGraph:
         G = NetworKitGraph(
             n=self.natoms,
             weighted=False,
@@ -383,7 +398,7 @@ class GraphContainner(
 
     @classmethod
     @override
-    def from_networkit(
+    def _from_networkit(
         cls,
         graph: NetworKitGraph,
         infer_conn: bool = True,

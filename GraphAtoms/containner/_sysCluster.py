@@ -15,6 +15,7 @@ class Cluster(GraphContainner):
         assert self.move_fix_tag is not None, "`move_fix_tag` is None"
         assert self.coordination is not None, "`coordination` is None"
         assert self.pressure is None, "`pressure` is not None"
+        assert self.sticking is None, "`sticking` is not None"
         return self
 
     @override

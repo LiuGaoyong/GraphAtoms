@@ -1,3 +1,5 @@
+"""The function mixin class of GraphContainer for `scipy.sparse.csgraph`."""
+
 from abc import ABC, abstractmethod
 from functools import cached_property
 

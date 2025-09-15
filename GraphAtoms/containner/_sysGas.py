@@ -18,8 +18,9 @@ class Gas(GraphContainner):
         assert self.move_fix_tag is None, "move_fix_tag should be None for Gas."
         assert self.coordination is None, "coordination should be None for Gas."
         assert self.pressure is not None, "pressure should not be None for Gas."
-        assert self.box is None, "box should be None for Gas."
+        assert self.sticking is not None, "sticking should not be None for Gas."
         assert self.is_nonmetal, "is_nonmetal should be True for Gas."
+        assert self.box is None, "box should be None for Gas."
         return self
 
     @classmethod
@@ -32,6 +33,7 @@ class Gas(GraphContainner):
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        sticking: float = 1.0,
         energy: float = np.nan,
         pressure: float = 101325.0,
         frequencies: ArrayLike = np.array([]),
@@ -46,6 +48,7 @@ class Gas(GraphContainner):
             charge=charge,
         )
         dct = obj.model_dump(mode="python", exclude_none=True)
+        dct[GRAPH_KEY.GRAPH.STICKING] = float(sticking)
         dct[GRAPH_KEY.GRAPH.PRESSURE] = float(pressure)
         dct[GRAPH_KEY.GRAPH.ENERGY] = float(energy)
         dct[GRAPH_KEY.GRAPH.FREQS] = freqs

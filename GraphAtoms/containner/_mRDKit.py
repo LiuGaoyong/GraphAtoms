@@ -1,17 +1,15 @@
 from abc import ABC, abstractmethod
-from functools import reduce
+from functools import cached_property, reduce
 from io import StringIO
 
-import networkx as nx
 import numpy as np
 from ase import Atoms
 from ase.data import chemical_symbols as AN2ELEM
 from ase.io.xyz import read_xyz
 from rdkit import Chem, RDLogger
-from rdkit.Chem import AllChem, rdDetermineBonds
+from rdkit.Chem import AllChem, rdDetermineBonds, rdFreeSASA
 from rdkit.Chem import Mol as RDMol
 from scipy import sparse as sp
-from typing_extensions import Self
 
 
 def _handle_with_bond_order(value) -> int:
@@ -330,8 +328,11 @@ def get_adjacency_by_rdkit(
 #############################################################################
 # The Graph Mixin Class for RDKit.
 class GraphMixinRDKit(ABC):
+    @cached_property
     @abstractmethod
-    def as_rdkit(self) -> nx.Graph: ...
-    @classmethod
-    @abstractmethod
-    def from_rdkit(cls, graph: nx.Graph) -> Self: ...
+    def RDMol(self) -> Chem.Mol: ...
+
+    def get_atomic_sasa(self) -> list[float]:
+        rdmol: RDMol = self.RDMol.__copy__()
+        rdFreeSASA.CalcSASA(rdmol, rdFreeSASA.classifyAtoms(rdmol))
+        return [float(a.GetProp("SASA")) for a in rdmol.GetAtoms()]

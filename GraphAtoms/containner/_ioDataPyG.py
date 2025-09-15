@@ -1,3 +1,5 @@
+"""The io mixin class of GraphContainer for PyG Data."""
+
 from abc import ABC, abstractmethod
 
 from numpy import asarray, isin, ndarray

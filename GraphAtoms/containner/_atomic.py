@@ -24,6 +24,7 @@ ArrayLike = NpyArrayLike | sparray | spmatrix
 
 
 class __GraphKey:
+    STICKING = "sticking"
     PRESSURE = "pressure"
     FMAX = "fmax_nonconstraint"
     FMAXC = "fmax_constraint"
@@ -53,6 +54,7 @@ TOTAL_KEY, ATOM_KEY = __GraphKey(), __AtomKey()
 
 
 class GraphAttrMixin(NpzPklBaseModel):
+    sticking: pydantic.PositiveFloat | None = None
     pressure: pydantic.PositiveFloat | None = None
     box: NDArray[Shape["6"], float] | None = None  # type: ignore
     frequencies: NDArray[Shape["*"], float] | None = None  # type: ignore

@@ -99,6 +99,7 @@ class Test_Container:
                 not k.startswith("_")
                 and (k not in ["isfix", "isfirstmoved"])
                 and (k not in ["iscore", "islastmoved"])
+                and (k not in ["ncore", "nfix", "nmoved"])
                 and not callable(getattr(system, k))
             ):
                 v1, v2 = getattr(system, k), getattr(system, k)
@@ -113,7 +114,8 @@ class Test_Container:
             for k in set(dir(System))
             - set(dir(BaseModel))
             - set(System.__pydantic_fields__)
-            - {"isfix", "iscore", "islastmoved", "isfirstmoved"}
+            - {"ncore", "nfix", "nmoved", "isfix"}
+            - {"iscore", "islastmoved", "isfirstmoved"}
             - {"DF_ATOMS", "DF_BONDS", "THERMO", "THERMO_ATOMS", "Z"}
             - {"connected_components_number", "natoms", "nbonds", "symbols"}
             if not k.startswith("_") and not callable(getattr(System, k))

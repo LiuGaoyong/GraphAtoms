@@ -1,4 +1,4 @@
-"""Calculate free energy on the given temperature."""
+"""The function mixin class of GraphContainer for `ase.thermochemistry`."""
 
 from abc import ABC, abstractmethod
 
@@ -108,7 +108,6 @@ class FreeEnergyMixin(ABC):
                 temperature=temperature,
                 verbose=verbose,
             )
-            HarmonicThermo._vibrational_entropy_contribution
         else:
             return self.THERMO.get_gibbs_energy(
                 pressure=self.__pressure,
