@@ -61,7 +61,7 @@ class Bonds(NpzPklBaseModel):
         assert set(fields) >= set(self._convert().keys()), (
             "Invalid _convert dictionary."
         )
-        for k in fields:
+        for k in BOND_KEY._DICT.values():
             v = getattr(self, k, None)
             if v is not None:
                 assert isinstance(v, np.ndarray), f"Invalid {k}."
@@ -93,7 +93,8 @@ class Bonds(NpzPklBaseModel):
 
     @property
     def DF_BONDS(self) -> DataFrame:
-        return DataFrame(self.model_dump(exclude_none=True))
+        inc: set[str] = set(BOND_KEY._DICT.values())
+        return DataFrame(self.model_dump(include=inc))
 
     @property
     def MATRIX(self) -> sp.csr_array:
@@ -136,7 +137,7 @@ class BondsInitializer:
             cov_plus_factor=plus_factor,
             geometry=obj.positions,
             numbers=obj.numbers,
-            cell=obj.box.CELL,
+            cell=obj.ase_cell,
         ).astype(bool, copy=False)
         return sp.csr_array(sp.triu(m, k=1))
 

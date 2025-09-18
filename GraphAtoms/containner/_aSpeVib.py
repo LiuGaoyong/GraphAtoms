@@ -44,12 +44,10 @@ class Energetics(NpzPklBaseModel):
         )
         return self
 
-    @pydantic.computed_field
     @cached_property
     def is_minima(self) -> bool:
         return min(self.fmax_constraint, self.fmax_nonconstraint) < 0.05
 
-    @pydantic.computed_field
     @cached_property
     def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
         if self.frequencies is None:
@@ -59,11 +57,10 @@ class Energetics(NpzPklBaseModel):
             vib_energies = freq * invcm  # in eV
             return vib_energies[vib_energies > 1e-5]  # type: ignore
 
-    @pydantic.computed_field
     @cached_property
     def ZPE(self) -> float:
         """Returns the zero-point vibrational energy correction in eV."""
-        return 0.5 * np.sum(self.vib_energies)
+        return float(np.sum(self.vib_energies) / 2.0)
 
     @pydantic.validate_call
     def get_vibrational_energy_contribution(
@@ -79,8 +76,8 @@ class Energetics(NpzPklBaseModel):
         Returns:
             float: the internal energy change 0->T in eV.
         """
-        v = np.exp(self.vib_energies / (kB * temperature)) - 1.0
-        return np.sum(self.vib_energies / v).item()
+        x = self.vib_energies / (kB * temperature)  # type: ignore
+        return float(np.sum(self.vib_energies / (np.exp(x) - 1.0)))
 
     @pydantic.validate_call
     def get_vibrational_entropy_contribution(
@@ -96,7 +93,7 @@ class Energetics(NpzPklBaseModel):
         Returns:
             float: the entropy change 0->T in eV/K.
         """
-        x = self.vib_energies / (kB * temperature)
+        x = self.vib_energies / (kB * temperature)  # type: ignore
         Sv0 = x / (np.exp(x) - 1.0)
         Sv1 = np.log(1.0 - np.exp(-x))
         return np.sum(kB * (Sv0 - Sv1)).item()
@@ -139,3 +136,25 @@ class Energetics(NpzPklBaseModel):
             float: the entropy in eV/K.
         """
         return self.get_vibrational_entropy_contribution(temperature)
+
+    @pydantic.validate_call
+    def get_free_energy(
+        self,
+        temperature: pydantic.NonNegativeFloat = 300,
+    ) -> float:
+        """Calculates the free energy in in the harmonic approximation.
+
+        Note: a) In the harmonic approximation, the free energy is equal the
+            Helmholtz free energy. b) In the ideal gas approximation, the
+            free energy is equal the Gibbs free energy.
+
+        Args:
+            temperature (pydantic.NonNegativeFloat, optional):
+                a temperature given in Kelvin. Defaults to 300.
+
+        Returns:
+            float: the free energy in eV.
+        """
+        H = self.get_enthalpy(temperature)
+        S = self.get_entropy(temperature)
+        return H - temperature * S

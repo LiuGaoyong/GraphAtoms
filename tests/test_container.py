@@ -8,9 +8,10 @@ import pytest
 from ase.build import molecule
 from ase.cluster import Octahedron
 
-from GraphAtoms.common._abc import BaseModel
-from GraphAtoms.containner import AtomicContainner, Cluster, Gas, System
-from GraphAtoms.containner._graph import GRAPH_KEY, GraphContainner
+from GraphAtoms.common import BaseModel
+from GraphAtoms.containner import AtomsWithBoxEng as AtomicContainner
+from GraphAtoms.containner import Cluster, Gas, System
+from GraphAtoms.containner._graph import Graph as GraphContainner
 
 THIS_DIR = Path(__file__).parent
 
@@ -19,9 +20,9 @@ def pytest_AtomicContainner() -> None:
     pprint(AtomicContainner.model_json_schema())
     atoms = molecule("H2O")
     obj = AtomicContainner.from_ase(atoms)
-    print(obj, obj.box)
+    print(obj, obj.ase_cell)
     print(repr(obj))
-    new_atoms = obj.as_ase()
+    new_atoms = obj.to_ase()
     print(new_atoms)
     new_obj = AtomicContainner.from_ase(new_atoms)
     print(repr(new_obj), "\n", repr(obj))
@@ -39,7 +40,8 @@ class Test_Container:
     def test_eq(self, system: System) -> None:
         assert system.__eq__(system), "System equality test fail!!!"
 
-    def test_hash(self, system) -> None:
+    def test_hash(self, system: System) -> None:
+        print(system.__hash__)
         lst = [hash(i) for i in [system] * 5]
         assert len(set(lst)) == 1, "Hash value conflict!!!"
 
@@ -57,7 +59,7 @@ class Test_Container:
     def test_convert(self, system: System, mode: str) -> None:
         obj = system
         print("-" * 64)
-        _obj = obj.convert_as(mode.lower())  # type: ignore
+        _obj = obj.convert_to(mode.lower())  # type: ignore
         new_obj = obj.convert_from(
             _obj,
             mode.lower(),  # type: ignore
@@ -183,14 +185,14 @@ def test_graph_basic() -> None:
     )
     for obj in (obj_smp, obj_conn, obj_order):
         print("#" * 32)
-        print(obj, obj.box)
+        print(obj, obj.ase_cell)
         print(repr(obj))
-        new_atoms = obj.as_ase()
+        new_atoms = obj.to_ase()
         print(new_atoms)
         print(obj.MATRIX)
 
     print("*" * 32, "Test PyGData from obj_order")
-    pygdata = obj_order.as_pygdata()
+    pygdata = obj_order.to_pygdata()
     print(pygdata, pygdata.num_edges, pygdata.num_nodes)
     assert pygdata.num_nodes == obj_order.natoms
     assert pygdata.num_edges == obj_order.nbonds, obj_order.MATRIX.toarray()
@@ -205,7 +207,7 @@ def test_graph_basic() -> None:
     new_obj_order = GraphContainner.from_pygdata(pygdata)
     print(repr(new_obj_order), "\n", repr(obj_order))
     if new_obj_order != obj_order:
-        for k in set(GRAPH_KEY._DICT):
+        for k in obj_order.__pydantic_fields__:
             print(k, getattr(obj_order, k), getattr(new_obj_order, k))
         raise ValueError  # Shouldn't raise ValueError
 
@@ -242,7 +244,7 @@ def test_gas_thermo() -> None:
         frequencies=[0, 0, 0, 12.6, 12.6, 2206.3],
         pressure=101325.0,
     )
-    print(gas.get_free_energy(200, verbose=True))
+    print(gas.get_free_energy(200))
 
 
 def test_select_cluster() -> None:

@@ -11,7 +11,7 @@ from scipy.sparse import csr_array
 from typing_extensions import Self
 
 from GraphAtoms.common._abc import BaseMixin
-from GraphAtoms.containner._atmMix import ATOM_KEY
+from GraphAtoms.containner._aMixin import ATOM_KEY
 from GraphAtoms.utils.string import hash as hash_string
 
 

@@ -21,22 +21,22 @@ class Event(BaseModel):
     ts: GraphContainner
     gas: Gas | None = None
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def is_adsorption(self) -> bool:
         return self.gas is not None and self.p.natoms > self.r.natoms
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def is_desorption(self) -> bool:
         return self.gas is not None and self.p.natoms < self.r.natoms
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def is_reaction(self) -> bool:
         return self.gas is None
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def hash(self) -> str:
         features = sorted([self.r.hash, self.p.hash]) + [self.ts.hash]

@@ -7,8 +7,8 @@ from ase.data import covalent_radii as COV_R
 from ase.visualize import view
 from scipy.spatial.distance import cdist
 
-from GraphAtoms.common.geometry import distance_factory as DIST_FAC
-from GraphAtoms.common.geometry import inverse_3d_sphere_surface_sampling
+from GraphAtoms.utils.geometry import distance_factory as DIST_FAC
+from GraphAtoms.utils.geometry import inverse_3d_sphere_surface_sampling
 
 
 @pytest.mark.skip("Run once enough.")

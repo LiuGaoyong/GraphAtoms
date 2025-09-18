@@ -116,7 +116,4 @@ def hash(
         value = value.encode("utf-8")
     h = hashlib.new(algo)
     h.update(value)
-    result = h.digest()
-    if return_string:
-        result = result.decode("ascii")
-    return result
+    return h.hexdigest() if return_string else h.digest()

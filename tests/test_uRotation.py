@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from ase.build import molecule
 
-from GraphAtoms.common.rotation import Rot, kabsch, rotate
+from GraphAtoms.utils.rotation import Rot, kabsch, rotate
 
 
 def test_rotation() -> None:  # noqa: D103

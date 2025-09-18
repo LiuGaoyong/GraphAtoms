@@ -1,20 +1,16 @@
 from pydantic import model_validator
 from typing_extensions import Self
 
-from GraphAtoms.containner._graph import GraphContainner
+from GraphAtoms.containner._atomic import ATOM_KEY
+from GraphAtoms.containner._graph import Graph
 
 
-class System(GraphContainner):
+class System(Graph):
     """The whole system."""
 
     @model_validator(mode="after")
     def __some_keys_should_xxx(self) -> Self:
-        assert self.pressure is None, "pressure should be None for System."
-        assert self.sticking is None, "sticking should be None for System."
-        assert self.move_fix_tag is None, (
-            "move_fix_tag should be None for System."
-        )
-        assert self.coordination is None, (
-            "coordination should be None for System."
-        )
+        msg = "The key of `{:s}` should be None for System."
+        for k in (ATOM_KEY.MOVE_FIX_TAG, ATOM_KEY.COORDINATION):
+            assert getattr(self, k) is None, msg.format(k)
         return self

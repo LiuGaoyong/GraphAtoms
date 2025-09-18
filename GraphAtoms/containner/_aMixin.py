@@ -75,6 +75,10 @@ class Atoms(NpzPklBaseModel, Sized):
     def __len__(self) -> int:
         return self.numbers.shape[0]
 
+    @override
+    def __hash__(self) -> int:
+        return NpzPklBaseModel.__hash__(self)
+
     @property
     def natoms(self) -> int:
         return self.numbers.shape[0]
@@ -126,7 +130,7 @@ class Atoms(NpzPklBaseModel, Sized):
         R_KEYS = [f"{ATOM_KEY.POSITION}_{k}" for k in "xyz"]
         assert all(k in df.columns for k in R_KEYS), df.columns
         dct = {ATOM_KEY.NUMBER: df[ATOM_KEY.NUMBER].to_numpy()}
-        dct[ATOM_KEY.POSITION] = df[R_KEYS].to_numpy()
+        dct[ATOM_KEY.POSITION] = df[R_KEYS].to_numpy()  # type: ignore
         for k in set(df.columns[4:]) & set(ATOM_KEY._DICT.values()):
             dct[k] = df[k].to_numpy()
         return dct
@@ -137,10 +141,11 @@ class Atoms(NpzPklBaseModel, Sized):
         for i, k in enumerate("xyz"):
             k = f"{ATOM_KEY.POSITION}_{k}"
             df[k] = self.positions[:, i]
-        if self.is_outer is not None:
-            df[ATOM_KEY.IS_OUTER] = self.is_outer
-        if self.coordination is not None:
-            df[ATOM_KEY.COORDINATION] = self.coordination
+        for k in set(ATOM_KEY._DICT.values()):
+            if k not in (ATOM_KEY.POSITION, ATOM_KEY.NUMBER):
+                v = getattr(self, k, None)
+                if v is not None:
+                    df[k] = v
         return df
 
     @property

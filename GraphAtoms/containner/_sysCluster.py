@@ -2,20 +2,21 @@ import numpy as np
 from pydantic import model_validator
 from typing_extensions import Self, override
 
-from GraphAtoms.containner._graph import GRAPH_KEY, GraphContainner
+from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
+from GraphAtoms.containner._atomic import ATOM_KEY
+from GraphAtoms.containner._graph import Graph
 from GraphAtoms.containner._system import System
 from GraphAtoms.utils.geometry import distance_factory
 
 
-class Cluster(GraphContainner):
+class Cluster(Graph):
     """The select cluster from the whole system."""
 
     @model_validator(mode="after")
     def __some_keys_should_xxx(self) -> Self:
-        assert self.move_fix_tag is not None, "`move_fix_tag` is None"
-        assert self.coordination is not None, "`coordination` is None"
-        assert self.pressure is None, "`pressure` is not None"
-        assert self.sticking is None, "`sticking` is not None"
+        msg = "The key of `{:s}` should be not None for Cluster."
+        for k in (ATOM_KEY.MOVE_FIX_TAG, ATOM_KEY.COORDINATION):
+            assert getattr(self, k) is not None, msg.format(k)
         return self
 
     @override
@@ -45,15 +46,10 @@ class Cluster(GraphContainner):
         dct = system.get_induced_subgraph(sub_idxs).model_dump(
             mode="python",
             exclude_none=True,
-            exclude={
-                GRAPH_KEY.GRAPH.ENERGY,
-                GRAPH_KEY.GRAPH.FMAX,
-                GRAPH_KEY.GRAPH.FMAXC,
-                GRAPH_KEY.GRAPH.FREQS,
-            },
+            exclude=set(ENERGETICS_KEY._DICT.values()),
         ) | {
-            GRAPH_KEY.ATOM.MOVE_FIX_TAG: movefixtag,
-            GRAPH_KEY.ATOM.COORDINATION: system.CN_MATRIX[sub_idxs],
+            ATOM_KEY.MOVE_FIX_TAG: movefixtag,
+            ATOM_KEY.COORDINATION: system.CN_MATRIX[sub_idxs],
         }
         return cls.model_validate(dct)
 
@@ -111,7 +107,7 @@ class Cluster(GraphContainner):
         d = distance_factory.get_distance_reduce_array(
             p1=system.positions[kidxs],
             p2=system.positions,
-            cell=system.CELL,
+            cell=system.ase_cell,
             max_distance=float(env_distance),
             reduce_axis=0,
         )

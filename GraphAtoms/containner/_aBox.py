@@ -3,9 +3,9 @@ from typing import Annotated
 
 import numpy as np
 import pydantic
-from ase import Atoms
 from ase.cell import Cell
 from ase.geometry import cell as cellutils
+from pymatgen.core.lattice import Lattice
 from typing_extensions import Self, override
 
 from GraphAtoms.common import BaseModel, XxxKeyMixin
@@ -49,25 +49,24 @@ class Box(BaseModel):
         return "PBC" if self.is_periodic else "NOPBC"
 
     @cached_property
-    def CELL(self) -> NDArray[Shape["3,3"], float]:  # type: ignore
+    def __matrix_3x3(self) -> NDArray[Shape["3,3"], float]:  # type: ignore
         """The numpy.ndarray of `ase.Cell` after minkowski-reduce."""
         par = [self.a, self.b, self.c, self.alpha, self.beta, self.gamma]
         return Cell.new(par).minkowski_reduce()[0].array  # type: ignore
 
-    @pydantic.computed_field
+    @cached_property
+    def ase_cell(self) -> Cell:
+        return Cell(self.__matrix_3x3)
+
+    @cached_property
+    def pmg_lattice(self) -> Lattice:
+        return Lattice(self.__matrix_3x3)
+
     @cached_property
     def is_periodic(self) -> bool:
         v = np.array([self.a, self.b, self.c])
-        return bool(np.all(np.abs(v) < 1e-7))
+        return not np.all(np.abs(v) < 1e-7)
 
-    @pydantic.computed_field
     @cached_property
     def is_orthorhombic(self) -> bool:
-        return cellutils.is_orthorhombic(self.CELL)
-
-    @classmethod
-    def from_ase(cls, ase_object: Cell | Atoms) -> Self:
-        if not isinstance(ase_object, Cell):
-            ase_object = ase_object.cell
-        a, b, c, alpha, beta, gamma = ase_object.cellpar()
-        return cls(a=a, b=b, c=c, alpha=alpha, beta=beta, gamma=gamma)
+        return cellutils.is_orthorhombic(self.__matrix_3x3)

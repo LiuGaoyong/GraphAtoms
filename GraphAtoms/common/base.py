@@ -1,5 +1,5 @@
 # ruff: noqa: D100 D102
-from collections.abc import Hashable, Sequence
+from collections.abc import Hashable, Mapping, Sequence
 from pickle import dumps, loads
 from sys import version_info
 from typing import Annotated, override
@@ -102,10 +102,6 @@ class __Yaml(pydantic.BaseModel):
 
 
 class __Npz(pydantic.BaseModel):
-    @classmethod
-    def _npz_available(cls) -> bool:
-        return False
-
     @pydantic.validate_call
     def write_npz(
         self,
@@ -113,11 +109,6 @@ class __Npz(pydantic.BaseModel):
         compress: bool = True,
         **kwargs,
     ) -> pydantic.FilePath:
-        if not self._npz_available():
-            raise RuntimeError(
-                "Subclass must have class method named"
-                " `_npz_available()` to be True."
-            )
         kwargs["exclude_none"] = True
         kwargs["exclude_defaults"] = False
         f_savez = np.savez_compressed if compress else np.savez
@@ -136,11 +127,6 @@ class __Npz(pydantic.BaseModel):
     @classmethod
     @pydantic.validate_call
     def read_npz(cls, filename: pydantic.FilePath, **kwargs) -> Self:
-        if not cls._npz_available():
-            raise RuntimeError(
-                "Subclass must have class method named"
-                " `_npz_available()` to be True."
-            )
         return cls.model_validate(np.load(filename), **kwargs)
 
 
@@ -339,11 +325,11 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
         data: np.ndarray | Sequence,
         shape: Sequence[int | None],
         dtype: str,
-    ) -> bytes:
+    ) -> np.ndarray:
         assert shape.count(None) <= 1, (type(shape), shape)
         shape = tuple(int(i) if i is not None else -1 for i in shape)
         data = np.asarray(data) if not isinstance(data, np.ndarray) else data
-        return np.asarray(data, dtype).reshape(shape).tobytes()
+        return np.asarray(data, dtype).reshape(shape)  # .tobytes()
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -361,7 +347,7 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
 
     @override
     def __repr__(self) -> str:
-        return repr(self)
+        return super().__repr__()
 
     @override
     def __hash__(self) -> int:
@@ -372,12 +358,35 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
         if not isinstance(other, self.__class__):
             return False
         for k in self.__pydantic_fields__:
-            v0 = getattr(other, k, None)
-            v1 = getattr(self, k, None)
-            if type(v0) is not type(v1):
+            v0 = getattr(self, k, None)
+            v1 = getattr(other, k, None)
+            if (v0 is None) != (v1 is None):
                 return False
-            elif v0 != v1:
+            elif v0 is None and v1 is None:
+                continue
+            elif np.isscalar(v0) and np.isscalar(v1):
+                if abs(v0 - v1) > 1e-9:  # type: ignore
+                    return False
+                else:
+                    continue
+
+            type0, type1 = type(v0), type(v1)
+            if type0 is not type1:
                 return False
+            elif issubclass(type0, pydantic.BaseModel | Sequence | Mapping):
+                if not v0.__eq__(v1):
+                    return False
+            elif type0 is np.ndarray:
+                assert isinstance(v0, np.ndarray)
+                assert isinstance(v1, np.ndarray)
+                if v0.shape != v1.shape:
+                    return False
+                if not np.allclose(v0, v1):
+                    return False
+            else:
+                raise NotImplementedError(
+                    "Unsupported type for __eq__: ", type0
+                )
         return True
 
 
@@ -400,6 +409,10 @@ class ExtendedBaseModel(BaseModel, __Yaml, __Toml, __Pickle):
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("yaml", "yml", "toml", "pickle", "pkl")  # type: ignore
 
+    @override
+    def __hash__(self) -> int:
+        return hash(bytesutils.hash(self.to_bytes()))
+
 
 class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
     """A extended base class for creating Pydantic models.
@@ -420,3 +433,7 @@ class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("npz", "pickle", "pkl")  # type: ignore
+
+    @override
+    def __hash__(self) -> int:
+        return hash(bytesutils.hash(self.to_bytes()))

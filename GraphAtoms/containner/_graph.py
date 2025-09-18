@@ -3,11 +3,9 @@ from functools import cached_property
 from typing import Any, Literal, override
 
 import numpy as np
-import pydantic
 import torch
 from ase import Atoms
 from igraph import Graph as IGraph
-from networkit import Graph as NetworKitGraph
 from networkx import Graph as NetworkXGraph
 from pandas import DataFrame
 from pandas import concat as pd_concat
@@ -17,7 +15,8 @@ from scipy import sparse as sp
 from torch_geometric.data import Data as DataPyG
 from typing_extensions import Self
 
-from GraphAtoms.containner._atmMix import ATOM_KEY
+from GraphAtoms.containner._aBox import BOX_KEY
+from GraphAtoms.containner._aMixin import ATOM_KEY
 from GraphAtoms.containner._atomic import AtomsWithBoxEng
 from GraphAtoms.containner._g2DataPyG import GraphMixinPyG
 from GraphAtoms.containner._g2IGraph import GraphMixinIGraph
@@ -27,13 +26,6 @@ from GraphAtoms.containner._gBonded import BOND_KEY, BondsWithComp
 from GraphAtoms.utils import rdtool as rdutils
 from GraphAtoms.utils.ndarray import NDArray, Shape
 from GraphAtoms.utils.string import hash as hash_string
-
-_OBJ_TYPE_0 = Atoms | DataPyG | IGraph
-_OBJ_TYPE_1 = NetworkXGraph | RustworkXGraph
-_OBJ_TYPE = _OBJ_TYPE_0 | _OBJ_TYPE_1 | NetworKitGraph
-_MODE_TYPE_1 = Literal["networkit", "networkx", "rustworkx"]
-_MODE_TYPE_0 = Literal["ase", "pygdata", "igraph"]
-_MODE_TYPE = _MODE_TYPE_0 | _MODE_TYPE_1
 
 
 class Graph(
@@ -71,7 +63,10 @@ class Graph(
         else:
             return self.hash == other.hash
 
-    @pydantic.computed_field
+    @override
+    def __hash__(self) -> int:
+        return AtomsWithBoxEng.__hash__(self)
+
     @cached_property
     def hash(self) -> str:
         labels = sorted(self.get_weisfeiler_lehman_hashes())
@@ -97,7 +92,6 @@ class Graph(
             charge=0,
         )
 
-    @pydantic.computed_field
     @cached_property
     def SASA(self) -> NDArray[Shape["*"], float]:  # type: ignore
         return np.asarray(rdutils.get_atomic_sasa(self.RDMol))  # type: ignore
@@ -214,13 +208,8 @@ class Graph(
         charge: int = 0,
         **kw,
     ) -> Self:
-        _allowed_keys_set = set(cls.__pydantic_fields__.keys())
-        _allowed_keys_set -= set(AtomsWithBoxEng.__pydantic_fields__.keys())
         obj = AtomsWithBoxEng.from_ase(atoms)
-        dct = obj.model_dump(exclude_none=True)
-        for k, v in atoms.info.items():
-            if k in _allowed_keys_set:
-                dct[k] = v
+        dct = obj.model_dump(exclude_none=True, exclude_defaults=True)
         if any([infer_conn, infer_order]):
             dct.update(
                 BondsWithComp.infer_bond_as_dict(
@@ -263,8 +252,8 @@ class Graph(
                 exclude_none=True,
                 exclude=(
                     {ATOM_KEY.NUMBER, ATOM_KEY.POSITION}
-                    | self.box.__pydantic_fields__.keys()
-                    | BOND_KEY._DICT.keys()
+                    | set(BOND_KEY._DICT.values())
+                    | set(BOX_KEY._DICT.values())
                 ),
             ).items():
                 if isinstance(v, np.ndarray):
@@ -278,9 +267,9 @@ class Graph(
                     result[k] = v
                 else:
                     raise TypeError(f"{k}(type={type(v)}: {v}")
-            if self.box.is_periodic:
-                for k in self.box.__pydantic_fields__.keys():
-                    result[f"box_{k}"] = getattr(self.box, k)
+            if self.is_periodic:
+                for k in BOX_KEY._DICT.values():
+                    result[k] = getattr(self, k)
         result.validate(raise_on_error=True)
         return result
 
@@ -540,53 +529,46 @@ if __name__ == "__main__":
         ):
             with timer(f"Natoms={obj.natoms:05d},==>{mode}"):
                 for _ in range(N):
-                    _obj = obj.convert_as(mode.lower())  # type: ignore
+                    _obj = obj.convert_to(mode.lower())  # type: ignore
     # Timing:                        incl.     excl.
     # -----------------------------------------------------
-    # Natoms=00344,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=00344,==>IGraph:        0.012     0.012   0.1% |
-    # Natoms=00344,==>NetworKit:     0.026     0.026   0.3% |
-    # Natoms=00344,==>NetworkX:      0.035     0.035   0.4% |
-    # Natoms=00344,==>PyGData:       0.001     0.001   0.0% |
-    # Natoms=00344,==>RustworkX:     0.021     0.021   0.3% |
-    # Natoms=01156,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=01156,==>IGraph:        0.021     0.021   0.3% |
-    # Natoms=01156,==>NetworKit:     0.036     0.036   0.4% |
-    # Natoms=01156,==>NetworkX:      0.104     0.104   1.3% ||
-    # Natoms=01156,==>PyGData:       0.002     0.002   0.0% |
-    # Natoms=01156,==>RustworkX:     0.055     0.055   0.7% |
-    # Natoms=02736,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=02736,==>IGraph:        0.037     0.037   0.5% |
-    # Natoms=02736,==>NetworKit:     0.056     0.056   0.7% |
-    # Natoms=02736,==>NetworkX:      0.335     0.335   4.1% |-|
-    # Natoms=02736,==>PyGData:       0.003     0.003   0.0% |
-    # Natoms=02736,==>RustworkX:     0.112     0.112   1.4% ||
-    # Natoms=05340,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=05340,==>IGraph:        0.067     0.067   0.8% |
-    # Natoms=05340,==>NetworKit:     0.092     0.092   1.1% |
-    # Natoms=05340,==>NetworkX:      0.479     0.479   5.8% |-|
-    # Natoms=05340,==>PyGData:       0.007     0.007   0.1% |
-    # Natoms=05340,==>RustworkX:     0.233     0.233   2.8% ||
-    # Natoms=10425,==>ASE:           0.001     0.001   0.0% |
-    # Natoms=10425,==>IGraph:        0.126     0.126   1.5% ||
-    # Natoms=10425,==>NetworKit:     0.161     0.161   1.9% ||
-    # Natoms=10425,==>NetworkX:      1.024     1.024  12.4% |----|
-    # Natoms=10425,==>PyGData:       0.011     0.011   0.1% |
-    # Natoms=10425,==>RustworkX:     0.432     0.432   5.2% |-|
-    # Natoms=21856,==>ASE:           0.002     0.002   0.0% |
-    # Natoms=21856,==>IGraph:        0.263     0.263   3.2% ||
-    # Natoms=21856,==>NetworKit:     0.322     0.322   3.9% |-|
-    # Natoms=21856,==>NetworkX:      2.732     2.732  33.1% |------------|
-    # Natoms=21856,==>PyGData:       0.022     0.022   0.3% |
-    # Natoms=21856,==>RustworkX:     1.069     1.069  12.9% |----|
-    # Other:                         0.366     0.366   4.4% |-|
+    # Natoms=00344,==>ASE:           0.001     0.001   0.0% |
+    # Natoms=00344,==>IGraph:        0.126     0.126   0.5% |
+    # Natoms=00344,==>NetworkX:      0.119     0.119   0.5% |
+    # Natoms=00344,==>PyGData:       0.004     0.004   0.0% |
+    # Natoms=00344,==>RustworkX:     0.091     0.091   0.4% |
+    # Natoms=01156,==>ASE:           0.002     0.002   0.0% |
+    # Natoms=01156,==>IGraph:        0.154     0.154   0.6% |
+    # Natoms=01156,==>NetworkX:      0.355     0.355   1.4% ||
+    # Natoms=01156,==>PyGData:       0.006     0.006   0.0% |
+    # Natoms=01156,==>RustworkX:     0.227     0.227   0.9% |
+    # Natoms=02736,==>ASE:           0.002     0.002   0.0% |
+    # Natoms=02736,==>IGraph:        0.308     0.308   1.2% |
+    # Natoms=02736,==>NetworkX:      0.998     0.998   3.9% |-|
+    # Natoms=02736,==>PyGData:       0.007     0.007   0.0% |
+    # Natoms=02736,==>RustworkX:     0.467     0.467   1.8% ||
+    # Natoms=05340,==>ASE:           0.003     0.003   0.0% |
+    # Natoms=05340,==>IGraph:        0.584     0.584   2.3% ||
+    # Natoms=05340,==>NetworkX:      1.670     1.670   6.5% |--|
+    # Natoms=05340,==>PyGData:       0.011     0.011   0.0% |
+    # Natoms=05340,==>RustworkX:     1.002     1.002   3.9% |-|
+    # Natoms=10425,==>ASE:           0.005     0.005   0.0% |
+    # Natoms=10425,==>IGraph:        1.289     1.289   5.0% |-|
+    # Natoms=10425,==>NetworkX:      3.061     3.061  12.0% |----|
+    # Natoms=10425,==>PyGData:       0.024     0.024   0.1% |
+    # Natoms=10425,==>RustworkX:     1.737     1.737   6.8% |--|
+    # Natoms=21856,==>ASE:           0.012     0.012   0.0% |
+    # Natoms=21856,==>IGraph:        2.384     2.384   9.3% |---|
+    # Natoms=21856,==>NetworkX:      6.324     6.324  24.8% |---------|
+    # Natoms=21856,==>PyGData:       0.044     0.044   0.2% |
+    # Natoms=21856,==>RustworkX:     3.742     3.742  14.7% |-----|
+    # Other:                         0.771     0.771   3.0% ||
     # -----------------------------------------------------
-    # Total:                                   8.265 100.0%
+    # Total:                                  25.528 100.0%
     # Conclusion:
     #   if      ==> ASE             as  1                   1e4 atoms/ms
     #           ==> PyGData:            11      slower      1e3 atoms/ms
     #           ==> IGraph:             132     slower      1e2 atoms/ms
     #           ==> RustworkX:          534     slower       50 atoms/ms
-    #           ==> NetworKit:          ---     slower        ? atoms/ms
     #           ==> NetworkX:           1366    slower        7 atoms/ms
     timer.write()

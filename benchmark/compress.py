@@ -5,8 +5,9 @@ from time import perf_counter_ns
 
 import pandas as pd
 
-from GraphAtoms.common.string import compress, compress_string
 from GraphAtoms.containner import Cluster
+from GraphAtoms.utils.bytes import compress
+from GraphAtoms.utils.string import compress as compress_string
 
 f = pathlib.Path(__file__).parent / "./OctCu8_Cluster.csv"
 df = pd.read_csv(f, index_col=0)
