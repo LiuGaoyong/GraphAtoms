@@ -9,19 +9,19 @@ from torch_geometric import utils as pygutils
 from torch_geometric.data import Data as DataPyG
 from typing_extensions import Self
 
-from GraphAtoms.common.abc import BaseMixin
+from GraphAtoms.common._abc import BaseMixin
 
 
 class GraphMixinPyG(ABC, BaseMixin):
     @abstractmethod
-    def as_pygdata(self) -> DataPyG: ...
+    def to_pygdata(self) -> DataPyG: ...
     @classmethod
     @abstractmethod
     def from_pygdata(cls, data: DataPyG) -> Self: ...
 
     def get_active_subgraph(self, k: ArrayLike) -> Self:
         """Return the edge subgraph only active nodes included."""
-        data = self.as_pygdata()
+        data = self.to_pygdata()
         na, nb = data.num_nodes, data.num_edges
         if na is None or na == 0:
             # raise KeyError(f"Got zero node PyG Data object: {data}")
@@ -39,7 +39,7 @@ class GraphMixinPyG(ABC, BaseMixin):
             return self.from_pygdata(data=subpygdata)
 
     def get_edge_subgraph(self, k: ArrayLike) -> Self:
-        data = self.as_pygdata()
+        data = self.to_pygdata()
         n = data.num_edges
         if n is None or n == 0:
             # raise KeyError(f"Got zero edge PyG Data object: {data}")
@@ -50,7 +50,7 @@ class GraphMixinPyG(ABC, BaseMixin):
             return self.from_pygdata(data=subpygdata)
 
     def get_induced_subgraph(self, k: ArrayLike) -> Self:
-        data = self.as_pygdata()
+        data = self.to_pygdata()
         n = data.num_nodes
         if n is None or n == 0:
             # raise KeyError(f"Got zero node PyG Data object: {data}")
@@ -71,7 +71,7 @@ class GraphMixinPyG(ABC, BaseMixin):
             return self.get_k_hop_subgraph(k_hop_neighbor)
 
     def get_k_hop_neighbor(self, k: ArrayLike, num_hops: int = 1) -> ndarray:
-        data = self.as_pygdata()
+        data = self.to_pygdata()
         n = data.num_nodes
         if data.edge_index is None or n is None or n == 0:
             # raise KeyError("Unsupported: PyG.Data without edge.")

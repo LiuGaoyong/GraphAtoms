@@ -2,9 +2,9 @@ import numpy as np
 from pydantic import model_validator
 from typing_extensions import Self, override
 
-from GraphAtoms.common.geometry import distance_factory
 from GraphAtoms.containner._graph import GRAPH_KEY, GraphContainner
 from GraphAtoms.containner._system import System
+from GraphAtoms.utils.geometry import distance_factory
 
 
 class Cluster(GraphContainner):

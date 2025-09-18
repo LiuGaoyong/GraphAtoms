@@ -8,7 +8,7 @@ import pytest
 from ase.build import molecule
 from ase.cluster import Octahedron
 
-from GraphAtoms.common.abc import BaseModel
+from GraphAtoms.common._abc import BaseModel
 from GraphAtoms.containner import AtomicContainner, Cluster, Gas, System
 from GraphAtoms.containner._graph import GRAPH_KEY, GraphContainner
 

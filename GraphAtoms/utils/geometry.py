@@ -12,7 +12,7 @@ from scipy import sparse as sp
 from scipy.linalg import norm, pinv
 from sklearn.neighbors import NearestNeighbors
 
-from GraphAtoms.common.rotation import kabsch, rotate
+from GraphAtoms.utils.rotation import kabsch, rotate
 
 rigid_transform_3D = kabsch
 __all__ = [

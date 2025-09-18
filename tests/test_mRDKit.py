@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from rdkit import Chem
 
-from GraphAtoms.containner._mRDKit import (
+from GraphAtoms.utils.rdtool import (
     _get_adjacency,
     _get_structure,
     get_smiles,
