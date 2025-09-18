@@ -12,6 +12,7 @@ from typing_extensions import Self
 
 from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
 from GraphAtoms.containner._system import System
+from GraphAtoms.utils.ndarray import NDArray, Shape
 
 
 class Gas(System):
@@ -117,7 +118,22 @@ class Gas(System):
         else:
             return 0.0
 
+    @property
+    @override
+    def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
+        vib_energies: np.ndarray = super().vib_energies
+        if self.__geometry_type == "nonlinear":
+            vib_energies = vib_energies[-(3 * self.natoms - 6) :]
+        elif self.__geometry_type == "linear":
+            vib_energies = vib_energies[-(3 * self.natoms - 5) :]
+        elif self.__geometry_type == "monatomic":
+            vib_energies = np.array([])
+        else:
+            raise ValueError(f"Unsupported geometry: {self.__geometry_type}")
+        return vib_energies
+
     @pydantic.validate_call
+    @override
     def get_enthalpy(
         self,
         temperature: pydantic.NonNegativeFloat = 300,
@@ -143,9 +159,10 @@ class Gas(System):
         Cv_t = 1.5 * units.kB  # translational heat capacity (3-d gas)
         Cp_corr = units.kB  # correction term for heat capacity
         h0 = (Cv_t + Cv_r + Cp_corr) * temperature
-        return self.energy + self.ZPE + h0 + hvib
+        return self.energy_plus_zpe + h0 + hvib
 
     @pydantic.validate_call
+    @override
     def get_entropy(
         self,
         temperature: pydantic.NonNegativeFloat = 300,

@@ -1,7 +1,9 @@
+import warnings
 from functools import cached_property
 
 import numpy as np
 import pydantic
+from ase.thermochemistry import _clean_vib_energies
 from ase.units import invcm, kB
 from typing_extensions import Self, override
 
@@ -49,19 +51,25 @@ class Energetics(NpzPklBaseModel):
         fmaxs = (self.fmax_constraint, self.fmax_nonconstraint)
         return min((f if f is not None else np.inf) for f in fmaxs) < 0.05
 
-    @cached_property
+    @property
     def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
         if self.frequencies is None:
             result = np.array([], float)
         else:
-            vib_energies = np.asarray(self.frequencies, float) * invcm  # in eV
-            result = vib_energies[vib_energies > 1e-5]
-        return result  # type: ignore
+            result = np.asarray(self.frequencies, float) * invcm  # in eV
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return _clean_vib_energies(result, True)[0]  # type: ignore
 
     @cached_property
     def ZPE(self) -> float:
         """Returns the zero-point vibrational energy correction in eV."""
         return float(np.sum(self.vib_energies) / 2.0)
+
+    @property
+    def energy_plus_zpe(self) -> float:
+        """Returns the energy plus the zero-point vibrational energy in eV."""
+        return np.inf if self.energy is None else self.energy + self.ZPE
 
     @pydantic.validate_call
     def get_vibrational_energy_contribution(
@@ -119,11 +127,8 @@ class Energetics(NpzPklBaseModel):
         if self.energy is None:
             return np.inf
         else:
-            return (
-                self.energy
-                + self.ZPE
-                + self.get_vibrational_energy_contribution(temperature)
-            )
+            v = self.get_vibrational_energy_contribution(temperature)
+            return float(self.energy_plus_zpe + v)
 
     @pydantic.validate_call
     def get_entropy(

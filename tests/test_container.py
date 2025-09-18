@@ -1,4 +1,5 @@
 # ruff: noqa: D100, D101, D102, D103, D104
+import warnings
 from pathlib import Path
 from pprint import pprint
 from tempfile import TemporaryDirectory
@@ -242,13 +243,73 @@ def test_graph_convert(obj: GraphContainner, mode: str) -> None:
 
 
 def test_gas_thermo() -> None:
+    from ase.thermochemistry import IdealGasThermo
+    from ase.units import invcm
+
+    e, T, p = 0.138, 200, 101325.0
     gas = Gas.from_molecule(
         "CO",
-        energy=0.138,  # GFNFF by XTB@6.7.1
+        energy=e,  # GFNFF by XTB@6.7.1
         frequencies=[0, 0, 0, 12.6, 12.6, 2206.3],
-        pressure=101325.0,
+        pressure=p,
     )
-    print(gas.get_free_energy(200))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        thermo = IdealGasThermo(
+            vib_energies=gas.frequencies * invcm,  # type: ignore
+            geometry="linear",
+            potentialenergy=0.138,
+            atoms=gas.to_ase(),
+            spin=0,
+            symmetrynumber=1,
+        )
+    print(thermo.vib_energies)
+    print(gas.vib_energies)
+
+    v0 = gas.get_vibrational_energy_contribution(T)
+    v00 = thermo._vibrational_energy_contribution(T)
+    assert np.isclose(v0, v00)
+
+    v0 = gas.get_enthalpy(T)
+    v00 = thermo.get_enthalpy(T)
+    assert np.isclose(v0, v00)
+
+    v1 = gas.get_entropy(T)
+    v11 = thermo.get_entropy(T, p)
+    assert np.isclose(v1, v11)
+
+    v1 = gas.get_free_energy(T)
+    v11 = thermo.get_gibbs_energy(T, p)
+    assert np.isclose(v1, v11)
+
+
+def test_harmonic_thermo() -> None:
+    from ase.thermochemistry import HarmonicThermo
+
+    from GraphAtoms.containner._aSpeVib import Energetics
+
+    e, T, p = 0.138, 200, 101325.0
+    gas = Energetics(frequencies=[0, 0, 0, 12.6, 12.6, 2206.3], energy=e)  # type: ignore
+    thermo = HarmonicThermo(vib_energies=gas.vib_energies, potentialenergy=e)  # type: ignore
+    print(thermo.vib_energies)
+    print(gas.vib_energies)
+
+    v0 = gas.get_vibrational_energy_contribution(T)
+    v00 = thermo._vibrational_energy_contribution(T)
+    assert np.isclose(v0, v00)
+
+    v0 = gas.get_enthalpy(T)
+    v00 = thermo.get_internal_energy(T)
+    assert np.isclose(v0, v00)
+
+    v1 = gas.get_entropy(T)
+    v11 = thermo.get_entropy(T)
+    assert np.isclose(v1, v11)
+
+    v1 = gas.get_free_energy(T)
+    v11 = thermo.get_helmholtz_energy(T)
+    assert np.isclose(v1, v11)
 
 
 def test_select_cluster() -> None:
