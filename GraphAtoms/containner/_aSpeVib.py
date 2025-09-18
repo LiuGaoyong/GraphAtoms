@@ -21,10 +21,10 @@ __all__ = ["ENERGETICS_KEY", "Energetics"]
 
 
 class Energetics(NpzPklBaseModel):
-    frequencies: NDArray[Shape["*"], float] = np.array([])  # type: ignore
-    fmax_nonconstraint: pydantic.NonNegativeFloat = float("inf")
-    fmax_constraint: pydantic.NonNegativeFloat = float("inf")
-    energy: float = float("inf")
+    frequencies: NDArray[Shape["*"], float] | None = None  # type: ignore
+    fmax_nonconstraint: pydantic.NonNegativeFloat | None = None
+    fmax_constraint: pydantic.NonNegativeFloat | None = None
+    energy: float | None = None
 
     @classmethod
     @override
@@ -46,12 +46,17 @@ class Energetics(NpzPklBaseModel):
 
     @cached_property
     def is_minima(self) -> bool:
-        return min(self.fmax_constraint, self.fmax_nonconstraint) < 0.05
+        fmaxs = (self.fmax_constraint, self.fmax_nonconstraint)
+        return min((f if f is not None else np.inf) for f in fmaxs) < 0.05
 
     @cached_property
     def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
-        vib_energies = np.asarray(self.frequencies, float) * invcm  # in eV
-        return vib_energies[vib_energies > 1e-5]  # type: ignore
+        if self.frequencies is None:
+            result = np.array([], float)
+        else:
+            vib_energies = np.asarray(self.frequencies, float) * invcm  # in eV
+            result = vib_energies[vib_energies > 1e-5]
+        return result  # type: ignore
 
     @cached_property
     def ZPE(self) -> float:
@@ -111,8 +116,14 @@ class Energetics(NpzPklBaseModel):
         Returns:
             float: the enthalpy in eV.
         """
-        v = self.get_vibrational_energy_contribution(temperature)
-        return self.energy + self.ZPE + v
+        if self.energy is None:
+            return np.inf
+        else:
+            return (
+                self.energy
+                + self.ZPE
+                + self.get_vibrational_energy_contribution(temperature)
+            )
 
     @pydantic.validate_call
     def get_entropy(

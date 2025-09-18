@@ -230,7 +230,7 @@ def test_graph_basic() -> None:
 )
 def test_graph_convert(obj: GraphContainner, mode: str) -> None:
     print("-" * 64)
-    _obj = obj.convert_as(mode.lower())  # type: ignore
+    _obj = obj.convert_to(mode.lower())  # type: ignore
     new_obj = obj.convert_from(
         _obj,
         mode.lower(),  # type: ignore
