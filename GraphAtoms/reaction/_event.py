@@ -10,15 +10,15 @@ from scipy.spatial.transform import Rotation
 from typing_extensions import Self
 
 from GraphAtoms.common.base import BaseModel
-from GraphAtoms.containner import Gas, GraphContainner, System
+from GraphAtoms.containner import Cluster, Gas, Graph, System
 from GraphAtoms.utils.rotation import kabsch, rotate
 from GraphAtoms.utils.string import hash as hash_string
 
 
 class Event(BaseModel):
-    r: GraphContainner
-    p: GraphContainner
-    ts: GraphContainner
+    r: Cluster | System
+    p: Cluster | System
+    ts: Cluster | System
     gas: Gas | None = None
 
     # type: ignore[prop-decorator] # ignore for mypy
@@ -115,7 +115,7 @@ class Event(BaseModel):
     def __check_type(self) -> Self:
         cls = type(self.ts)
         try:
-            assert cls != GraphContainner
+            assert issubclass(cls, Graph)
             assert isinstance(self.r, cls)
             assert isinstance(self.p, cls)
         except Exception:
@@ -184,10 +184,10 @@ class Event(BaseModel):
             s_p = self.p.get_atomic_sasa()
             if len(s_r) < len(s_p):
                 safterads = np.asarray(s_p)
-                sbeforeads = np.asarray(s_r + s_gas)
+                sbeforeads = np.append(s_r, s_gas)
             else:
                 safterads = np.asarray(s_r)
-                sbeforeads = np.asarray(s_p + s_gas)
+                sbeforeads = np.append(s_p, s_gas)
             assert safterads.ndim == sbeforeads.ndim == 1
             assert safterads.shape == sbeforeads.shape
             return sum((sbeforeads - safterads)[: -len(s_gas)]) / 2

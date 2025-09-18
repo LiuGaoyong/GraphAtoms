@@ -38,12 +38,11 @@ class Gas(System):
         plus_factor: float = 0.5,
         charge: int = 0,
         sticking: float = 1.0,
-        energy: float = np.nan,
         pressure: float = 101325.0,
-        frequencies: ArrayLike = np.array([]),
+        energy: float | None = None,
+        frequencies: ArrayLike | None = None,
         **kw,
     ) -> Self:
-        freqs = np.asarray(frequencies, float).flatten()
         obj = System.from_ase(
             atoms,
             infer_conn,
@@ -55,17 +54,20 @@ class Gas(System):
         dct = obj.model_dump(mode="python", exclude_none=True)
         dct["sticking"] = float(sticking)
         dct["pressure"] = float(pressure)
-        dct[ENERGETICS_KEY.ENERGY] = float(energy)
-        dct[ENERGETICS_KEY.FREQS] = freqs
+        if energy is not None:
+            dct[ENERGETICS_KEY.ENERGY] = float(energy)
+        if frequencies is not None:
+            dct[ENERGETICS_KEY.FREQS] = np.asarray(frequencies, float).flatten()
         return cls.model_validate(dct)
 
     @classmethod
     def from_molecule(
         cls,
         name: str,
-        energy: float,
-        frequencies: ArrayLike,
+        sticking: float = 1.0,
         pressure: float = 101325.0,
+        energy: float | None = None,
+        frequencies: ArrayLike | None = None,
         infer_order: bool = False,
         infer_conn: bool = True,
     ) -> Self:

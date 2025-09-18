@@ -93,8 +93,11 @@ class Graph(
         )
 
     @cached_property
-    def SASA(self) -> NDArray[Shape["*"], float]:  # type: ignore
+    def __SASA(self) -> NDArray[Shape["*"], float]:  # type: ignore
         return np.asarray(rdutils.get_atomic_sasa(self.RDMol))  # type: ignore
+
+    def get_atomic_sasa(self) -> np.ndarray:
+        return self.__SASA
 
     @override
     def _string(self) -> str:

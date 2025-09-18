@@ -1,5 +1,6 @@
 # ruff: noqa: D100 D102
 from collections.abc import Hashable, Mapping, Sequence
+from functools import cached_property
 from pickle import dumps, loads
 from sys import version_info
 from typing import Annotated, override
@@ -330,6 +331,18 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
                     data[key] = cls.__validate_ndarray_and_convert(**kw)  # type: ignore
         return data
 
+    @cached_property
+    def _data_hash(self) -> str:
+        return bytesutils.hash(
+            self.to_bytes(),
+            return_string=True,
+            algo="blake2b",
+        )  # type: ignore
+
+    @override
+    def __hash__(self) -> int:
+        return hash(self._data_hash)
+
     @override
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self._string()})"
@@ -337,10 +350,6 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
     @override
     def __repr__(self) -> str:
         return super().__repr__()
-
-    @override
-    def __hash__(self) -> int:
-        return hash(bytesutils.hash(self.to_bytes()))
 
     @override
     def __eq__(self, other) -> bool:
