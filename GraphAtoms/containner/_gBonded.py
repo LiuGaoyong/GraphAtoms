@@ -88,13 +88,14 @@ class Bonds(NpzPklBaseModel):
             BOND_KEY.TARGET: df[df.columns[1]].to_numpy(),
         }
         for k in set(df.columns[2:]) & set(BOND_KEY._DICT.values()):
-            dct[k] = df[k].to_numpy()
+            if not df[k].isnull().all():
+                dct[k] = df[k].to_numpy()
         return dct
 
     @property
     def DF_BONDS(self) -> DataFrame:
         inc: set[str] = set(BOND_KEY._DICT.values())
-        return DataFrame(self.model_dump(include=inc))
+        return DataFrame(self.model_dump(include=inc, exclude_none=True))
 
     @property
     def MATRIX(self) -> sp.csr_array:

@@ -36,7 +36,6 @@ class Test_ABC_Pydantic_Model:
     def __run(obj: BaseModel, cls: type[BaseModel], format: str) -> None:
         with TemporaryDirectory(delete=False) as tmp:
             fname = Path(tmp) / f"data.{format}"
-            fname.touch()
             fname2 = obj.write(fname)
             assert fname.exists()
             assert fname2 == fname

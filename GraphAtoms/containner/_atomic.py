@@ -48,7 +48,6 @@ class AtomsWithBoxEng(AtomsMixin, Energetics, Box):
             info=self.model_dump(
                 mode="python",
                 exclude_none=True,
-                exclude_defaults=True,
                 exclude=(
                     {ATOM_KEY.NUMBER, ATOM_KEY.POSITION}
                     | set(BOX_KEY._DICT.values())

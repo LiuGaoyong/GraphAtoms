@@ -194,7 +194,12 @@ class Graph(
     #########################################################################
     @override
     def to_ase(self) -> Atoms:
-        return super().to_ase()
+        atoms = super().to_ase()
+        for k in BOND_KEY._DICT.values():
+            v = getattr(self, k, None)
+            if v is not None:
+                atoms.info[k] = v
+        return atoms
 
     @classmethod
     @override
@@ -209,7 +214,10 @@ class Graph(
         **kw,
     ) -> Self:
         obj = AtomsWithBoxEng.from_ase(atoms)
-        dct = obj.model_dump(exclude_none=True, exclude_defaults=True)
+        dct = obj.model_dump(exclude_none=True)
+        for k in BOND_KEY._DICT.values():
+            if k in atoms.info:
+                dct[k] = atoms.info[k]
         if any([infer_conn, infer_order]):
             dct.update(
                 BondsWithComp.infer_bond_as_dict(
@@ -220,8 +228,9 @@ class Graph(
                     charge=charge,
                 )
             )
-        elif set([BOND_KEY.SOURCE, BOND_KEY.TARGET]) < set(dct.keys()):
-            raise ValueError(f"Missing {BOND_KEY.SOURCE} or {BOND_KEY.TARGET}.")
+        for k in (BOND_KEY.SOURCE, BOND_KEY.TARGET):
+            if k not in dct:
+                raise ValueError(f"Missing `{k}`.")
         return cls.model_validate(dct)
 
     #########################################################################
@@ -494,6 +503,8 @@ class Graph(
         }
         dct |= cls.DF_ATOMS_PARSER(graph.get_vertex_dataframe())
         dct |= cls.DF_BONDS_PARSER(graph.get_edge_dataframe())
+        for k, v in dct.items():
+            print(k, v)
         obj = cls.model_validate(dct)
         if infer_order:
             order = cls.infer_bond_as_dict(

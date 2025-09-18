@@ -9,7 +9,6 @@ import pydantic
 import tomli_w as toml_w
 import yaml
 from joblib import dump, load
-from numpy.typing import ArrayLike
 from typing_extensions import Any, Self
 
 from GraphAtoms.utils import bytes as bytesutils
@@ -33,14 +32,9 @@ class __Json(pydantic.BaseModel):
         indent: int | None = 4,
         **kwargs,
     ) -> pydantic.FilePath:
-        filename.write_text(
-            self.model_dump_json(
-                indent=indent,
-                exclude_none=True,
-                **kwargs,
-            ),
-            encoding="utf-8",
-        )
+        kwargs["exclude_none"] = True
+        text = self.model_dump_json(indent=indent, **kwargs)
+        filename.write_text(text, encoding="utf-8")
         return filename
 
     @classmethod
@@ -83,6 +77,7 @@ class __Yaml(pydantic.BaseModel):
         indent: int | None = 2,
         **kwargs,
     ) -> pydantic.FilePath:
+        kwargs["exclude_none"] = True
         with filename.open("w", encoding="utf-8") as f:
             yaml.safe_dump(
                 self.model_dump(mode="python", **kwargs),
@@ -110,14 +105,7 @@ class __Npz(pydantic.BaseModel):
         **kwargs,
     ) -> pydantic.FilePath:
         kwargs["exclude_none"] = True
-        kwargs["exclude_defaults"] = False
-        f_savez = np.savez_compressed if compress else np.savez
-        data = self.model_dump(mode="python", **kwargs)
-        dct: dict[str, ArrayLike] = {}
-        for k, v in data.items():
-            if not isinstance(v, dict):
-                dct[k] = v
-        f_savez(
+        (np.savez_compressed if compress else np.savez)(
             filename,
             allow_pickle=False,
             **self.model_dump(mode="python", **kwargs),
@@ -168,7 +156,6 @@ class __Pickle(pydantic.BaseModel):
                 from 0 to 9, corresponding to the compression level.
         """
         kwargs["exclude_none"] = True
-        kwargs["exclude_defaults"] = False
         dump(
             self.model_dump(mode="python", **kwargs),
             filename,
@@ -208,7 +195,11 @@ class _IoFactoryMixin(__Json):
         return format
 
     @pydantic.validate_call
-    def write(self, fname: pydantic.FilePath, **kwargs) -> pydantic.FilePath:
+    def write(
+        self,
+        fname: pydantic.FilePath | pydantic.NewPath,
+        **kwargs,
+    ) -> pydantic.FilePath:
         """The factory method for writing file of this object.
 
         Support: json, yml/yaml, toml, pkl(pickle).
@@ -233,13 +224,12 @@ class __Bytes(pydantic.BaseModel):
         self,
         compressformat: str = "snappy",
         compresslevel: Annotated[int, pydantic.Field(ge=0, le=9)] = 0,
-        **kw,
+        **kwargs,
     ) -> bytes:
         """Return the json bytes of this object."""
-        if "exclude_none" not in kw:
-            kw["exclude_none"] = True
+        kwargs["exclude_none"] = True
         return bytesutils.compress(
-            dumps(self.model_dump_json(**kw)),
+            dumps(self.model_dump_json(**kwargs)),
             format=compressformat,  # type: ignore
             compresslevel=compresslevel,
         )
@@ -265,11 +255,10 @@ class __Bytes(pydantic.BaseModel):
 
 class __Str(pydantic.BaseModel):
     @pydantic.validate_call
-    def to_str(self, **kw) -> str:
+    def to_str(self, **kwargs) -> str:
         """Return the json string of this object."""
-        if "exclude_none" not in kw:
-            kw["exclude_none"] = True
-        return self.model_dump_json(**kw)
+        kwargs["exclude_none"] = True
+        return self.model_dump_json(**kwargs)
 
     @classmethod
     @pydantic.validate_call

@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
+from ase import Atoms
 from ase.build import molecule
 from ase.cluster import Octahedron
 
@@ -22,7 +23,7 @@ def pytest_AtomicContainner() -> None:
     obj = AtomicContainner.from_ase(atoms)
     print(obj, obj.ase_cell)
     print(repr(obj))
-    new_atoms = obj.to_ase()
+    new_atoms: Atoms = obj.to_ase()
     print(new_atoms)
     new_obj = AtomicContainner.from_ase(new_atoms)
     print(repr(new_obj), "\n", repr(obj))
@@ -60,6 +61,9 @@ class Test_Container:
         obj = system
         print("-" * 64)
         _obj = obj.convert_to(mode.lower())  # type: ignore
+        if mode.lower() == "ase":
+            assert isinstance(_obj, Atoms), "ASE object expected!!!"
+            print(_obj.info.keys())
         new_obj = obj.convert_from(
             _obj,
             mode.lower(),  # type: ignore
@@ -70,7 +74,7 @@ class Test_Container:
         print(f"Convert to/from {mode} OK!!!")
 
     # "npz": P1: cannot for str; P2: not for nest dict ...
-    @pytest.mark.parametrize("fmt", ["json", "pkl"])
+    @pytest.mark.parametrize("fmt", ["json", "pkl", "npz"])
     def test_io(self, system: System, fmt: str) -> None:
         obj = system
         print("-" * 64)

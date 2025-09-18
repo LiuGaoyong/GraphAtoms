@@ -21,7 +21,7 @@ __all__ = ["ENERGETICS_KEY", "Energetics"]
 
 
 class Energetics(NpzPklBaseModel):
-    frequencies: NDArray[Shape["*"], float] | None = None  # type: ignore
+    frequencies: NDArray[Shape["*"], float] = np.array([])  # type: ignore
     fmax_nonconstraint: pydantic.NonNegativeFloat = float("inf")
     fmax_constraint: pydantic.NonNegativeFloat = float("inf")
     energy: float = float("inf")
@@ -50,12 +50,8 @@ class Energetics(NpzPklBaseModel):
 
     @cached_property
     def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
-        if self.frequencies is None:
-            return np.array([])  # type: ignore
-        else:
-            freq = np.asarray(self.frequencies, dtype=float)  # in cm-1
-            vib_energies = freq * invcm  # in eV
-            return vib_energies[vib_energies > 1e-5]  # type: ignore
+        vib_energies = np.asarray(self.frequencies, float) * invcm  # in eV
+        return vib_energies[vib_energies > 1e-5]  # type: ignore
 
     @cached_property
     def ZPE(self) -> float:
