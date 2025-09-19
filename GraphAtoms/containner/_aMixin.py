@@ -4,7 +4,6 @@ from typing import override
 
 import numpy as np
 import pydantic
-from pydantic import conbytes
 from ase.symbols import Symbols
 from pandas import DataFrame
 from typing_extensions import Self

@@ -14,8 +14,8 @@ dependencies = [
     "ase",
     "pymatgen>2023.6",
     "rdkit>=2025",
-    "dscribe>=2.1", # transforming atomic structures into fixed-size numerical fingerprints
-    "vesin", # fast neighbor lists for atomistic systems (C++ & TorchScript)
+    "dscribe>=2.1",    # transforming atomic structures into fixed-size numerical fingerprints
+    "vesin",           # fast neighbor lists for atomistic systems (C++ & TorchScript)
     # "ase-extension>=0.5; sys_platform != 'win32'", # fast neighborlist(Rust)
     # Scientific Computing
     "numba>=0.61",
@@ -27,23 +27,23 @@ dependencies = [
     "sparse",
     # Graph Theory
     "torch_geometric", # PyTorch Based Graph Neural Network Library
-    "igraph>=0.11", # high performance graph library based on C
-    "networkx>=3.3", # General-purpose graph library by pure Python
+    "igraph>=0.11",    # high performance graph library based on C
+    "networkx>=3.3",   # General-purpose graph library by pure Python
     "rustworkx>=0.16", # NetworkX-like graph library based on Rust
     # Data Model
     "numpydantic",
     "pydantic>=2.11",
     "pydantic-to-pyarrow>=0.1.6",
-    "python-snappy>=0.7.3", # More Fase Data Compression
-    "pyyaml", # YAML parser & writer
-    "sqlmodel", # SQL + pydantic
-    "tomli-w", # TOML writer
+    "python-snappy>=0.7.3",           # More Fase Data Compression
+    "pyyaml",                         # YAML parser & writer
+    "sqlmodel",                       # SQL + pydantic
+    "tomli-w",                        # TOML writer
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "typing-extensions",
     "chardet>=5.2.0",
 ]
 [dependency-groups]
-dev = ["ruff>=0.11", "pytest>=8.3", "pytest-xdist", "ipython"]
+dev = ["ruff>=0.11", "pytest>=8.3", "pytest-xdist", "jupyter"]
 
 # uv config
 [tool.uv]
@@ -74,5 +74,5 @@ line-length = 80
 indent-width = 4
 select = ["F", "E", "W", "UP", "D"]
 ignore = ["F722", "D100"]
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"

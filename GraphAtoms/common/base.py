@@ -376,7 +376,7 @@ class ExtendedBaseModel(BaseModel, __Yaml, __Toml, __Pickle):
 
     @override
     def __hash__(self) -> int:
-        return hash(bytesutils.hash(self.to_bytes()))
+        return hash(self._data_hash)
 
 
 class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
@@ -420,3 +420,7 @@ class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("npz", "pickle", "pkl")  # type: ignore
+
+    @override
+    def __hash__(self) -> int:
+        return hash(self._data_hash)
