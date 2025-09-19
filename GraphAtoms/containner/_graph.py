@@ -24,7 +24,6 @@ from GraphAtoms.containner._g2NetworkX import GraphMixinNetworkX
 from GraphAtoms.containner._g2RustworkX import GraphMixinRustworkX
 from GraphAtoms.containner._gBonded import BOND_KEY, BondsWithComp
 from GraphAtoms.utils import rdtool as rdutils
-from GraphAtoms.utils.ndarray import NDArray, Shape
 from GraphAtoms.utils.string import hash as hash_string
 
 
@@ -93,8 +92,8 @@ class Graph(
         )
 
     @cached_property
-    def __SASA(self) -> NDArray[Shape["*"], float]:  # type: ignore
-        return np.asarray(rdutils.get_atomic_sasa(self.RDMol))  # type: ignore
+    def __SASA(self) -> np.ndarray:
+        return np.asarray(rdutils.get_atomic_sasa(self.RDMol))
 
     def get_atomic_sasa(self) -> np.ndarray:
         return self.__SASA
@@ -506,8 +505,6 @@ class Graph(
         }
         dct |= cls.DF_ATOMS_PARSER(graph.get_vertex_dataframe())
         dct |= cls.DF_BONDS_PARSER(graph.get_edge_dataframe())
-        for k, v in dct.items():
-            print(k, v)
         obj = cls.model_validate(dct)
         if infer_order:
             order = cls.infer_bond_as_dict(

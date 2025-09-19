@@ -13,7 +13,6 @@ from typing_extensions import Self, override
 
 from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
 from GraphAtoms.containner._system import System, _PyArrowItemABC
-from GraphAtoms.utils.ndarray import NDArray, Shape
 
 
 class Gas(System):
@@ -123,7 +122,7 @@ class Gas(System):
 
     @property
     @override
-    def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
+    def vib_energies(self) -> np.ndarray:
         vib_energies: np.ndarray = super().vib_energies
         if self.__geometry_type == "nonlinear":
             vib_energies = vib_energies[-(3 * self.natoms - 6) :]

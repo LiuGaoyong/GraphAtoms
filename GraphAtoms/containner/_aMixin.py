@@ -1,6 +1,6 @@
 from collections.abc import Sized
 from functools import cached_property
-from typing import override
+from typing import Annotated, override
 
 import numpy as np
 import pydantic
@@ -9,7 +9,7 @@ from pandas import DataFrame
 from typing_extensions import Self
 
 from GraphAtoms.common import NpzPklBaseModel, XxxKeyMixin
-from GraphAtoms.utils.ndarray import NDArray, Shape
+from GraphAtoms.utils.ndarray import NDArray, numpy_validator
 
 
 class __AtomKey(XxxKeyMixin):
@@ -25,45 +25,24 @@ __all__ = ["ATOM_KEY", "Atoms"]
 
 
 class Atoms(NpzPklBaseModel, Sized):
-    numbers: NDArray[Shape["*"], np.uint8]  # type: ignore
-    positions: NDArray[Shape["*,3"], float]  # type: ignore
-    is_outer: NDArray[Shape["*"], bool] | None = None  # type: ignore
-    move_fix_tag: NDArray[Shape["*"], np.int8] | None = None  # type: ignore
-    coordination: NDArray[Shape["*"], np.uint8] | None = None  # type: ignore
-
-    @classmethod
-    @override
-    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
-        result: dict[str, tuple[tuple, str]] = super()._convert()
-        result["positions"] = ((-1, 3), "float64")
-        result["coordination"] = ((-1,), "uint8")
-        result["move_fix_tag"] = ((-1,), "int8")
-        result["numbers"] = ((-1,), "uint8")
-        result["is_outer"] = ((-1,), "bool")
-        assert set(result.keys()) <= set(cls.__pydantic_fields__.keys()), (
-            "Invalid _convert dictionary."
-        )
-        return result
+    numbers: Annotated[NDArray, numpy_validator("uint8")]
+    positions: Annotated[NDArray, numpy_validator(float, (-1, 3))]
+    is_outer: Annotated[NDArray, numpy_validator(bool)] | None = None
+    move_fix_tag: Annotated[NDArray, numpy_validator("int8")] | None = None
+    coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None
 
     @pydantic.model_validator(mode="after")
     def __check_keys_and_shape(self) -> Self:
         assert self.numbers.shape == (self.natoms,), self.numbers.shape
         assert self.positions.shape == (self.natoms, 3), self.positions.shape
-        if self.is_outer is not None:
-            assert self.is_outer.shape == (self.natoms,), (
-                "Invalid shape for `is_outer`."
-            )
-        if self.coordination is not None:
-            assert self.coordination.shape == (self.natoms,), (
-                "Invalid shape for `coordination`."
-            )
-        if self.move_fix_tag is not None:
-            assert self.move_fix_tag.shape == (self.natoms,), (
-                "Invalid shape for `move_fix_tag`."
-            )
-            assert self.isfix.sum() != 0, "`isfix` sum == 0"
-            assert self.iscore.sum() != 0, "`iscore` sum == 0"
-            assert self.isfix.sum != len(self), "`ismoved` sum == 0"
+        for k in ("is_outer", "coordination", "move_fix_tag"):
+            v = getattr(self, k, None)
+            if v is not None:
+                assert v.shape == (self.natoms,), f"Invalid shape for `{k}`."
+                if k == "move_fix_tag":
+                    assert self.isfix.sum() != 0, "`isfix` sum == 0"
+                    assert self.iscore.sum() != 0, "`iscore` sum == 0"
+                    assert self.isfix.sum != len(self), "`ismoved` sum == 0"
         return self
 
     @override

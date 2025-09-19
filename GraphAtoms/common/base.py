@@ -1,15 +1,17 @@
 # ruff: noqa: D100 D102
-from collections.abc import Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from functools import cached_property
 from pickle import dumps, loads
 from sys import version_info
-from typing import Annotated, override
+from typing import Annotated, Literal, override
 
 import numpy as np
 import pydantic
 import tomli_w as toml_w
 import yaml
 from joblib import dump, load
+from pyarrow import Schema
+from pydantic_to_pyarrow import get_pyarrow_schema
 from typing_extensions import Any, Self
 
 from GraphAtoms.utils import bytes as bytesutils
@@ -278,11 +280,12 @@ class _ConvertFactoryMixin(__Bytes, __Str):
         return getattr(cls, f"from_{format}")(data, **kw)
 
 
-class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
+class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable, __Pickle):
     """A base class for creating Pydantic models.
 
     This class support many file formats:
         json        by `pydantic`
+        pickle      by `joblib`
     And it support many object format:
         bytes
         str
@@ -298,6 +301,44 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
         """
         return "object"
 
+    @override
+    def model_dump(
+        self,
+        *,
+        mode: Literal["json", "python"] | str = "python",
+        include: pydantic.main.IncEx | None = None,
+        exclude: pydantic.main.IncEx | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        fallback: Callable[[Any], Any] | None = None,
+        serialize_as_any: bool = False,
+    ) -> dict[str, Any]:
+        result = super().model_dump(
+            mode=mode,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            fallback=fallback,
+            serialize_as_any=serialize_as_any,
+        )
+        if mode == "python":
+            for k, v0 in result.items():
+                v1 = getattr(self, k, None)
+                if type(v0) is not type(v1) and isinstance(v1, np.ndarray):
+                    result[k] = v1
+        return result
+
     @cached_property
     def _data_hash(self) -> str:
         return bytesutils.hash(
@@ -305,6 +346,17 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
             return_string=True,
             algo="blake2b",
         )  # type: ignore
+
+    @classmethod
+    def get_pyarrow_schema(cls) -> Schema:
+        """Get the pyarrow schema of this class."""
+        return get_pyarrow_schema(cls)
+
+    @classmethod
+    @override
+    def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
+        result: tuple[str] = super().SUPPORTED_IO_FORMATS()
+        return result + ("pickle", "pkl")  # type: ignore
 
     @override
     def __hash__(self) -> int:
@@ -355,7 +407,7 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
         return True
 
 
-class ExtendedBaseModel(BaseModel, __Yaml, __Toml, __Pickle):
+class ExtendedBaseModel(BaseModel, __Yaml, __Toml):
     """A extended base class for creating Pydantic models.
 
     This class support many file formats:
@@ -372,14 +424,14 @@ class ExtendedBaseModel(BaseModel, __Yaml, __Toml, __Pickle):
     @override
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
-        return result + ("yaml", "yml", "toml", "pickle", "pkl")  # type: ignore
+        return result + ("yaml", "yml", "toml")  # type: ignore
 
     @override
     def __hash__(self) -> int:
         return hash(self._data_hash)
 
 
-class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
+class NpzPklBaseModel(BaseModel, __Npz):
     """A extended base class for creating Pydantic models.
 
     This class support many file formats:
@@ -394,32 +446,37 @@ class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
     """
 
     @classmethod
-    @pydantic.validate_call
-    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
-        """Override if needed to specify the dtype and shape of attributes.
+    @override
+    def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
+        result: tuple[str] = super().SUPPORTED_IO_FORMATS()
+        return result + ("npz",)  # type: ignore
 
-        Note: must be implemented by children class.
+    @override
+    def __hash__(self) -> int:
+        return hash(self._data_hash)
 
-        Example:
-            return dict(a=((-1, 3), "uint8"))
-        """
-        return {}
 
-    @pydantic.model_validator(mode="before")
-    @classmethod
-    def __convert_numpy_ndarray(cls, data) -> dict[str, Any]:
-        if isinstance(data, dict):
-            for k, (shape, dtype) in cls._convert().items():
-                if k in data and data[k] is not None:
-                    v = np.asarray(data[k], dtype)
-                    data[k] = v.reshape(shape)
-        return data
+class AllBaseModel(ExtendedBaseModel, __Npz):
+    """A extended base class for creating Pydantic models.
+
+    This class support many file formats:
+        json        by `pydantic`
+        npz         by `numpy`
+        pickle      by `joblib`
+        yaml/yml    by `pyyaml`
+        toml        by `tomli_w`, `tomli`, & `toml`
+    And it support many object format:
+        bytes
+        str
+
+    Note: only numpy ndarray & numpy-compatible scalar value supported.
+    """
 
     @classmethod
     @override
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
-        return result + ("npz", "pickle", "pkl")  # type: ignore
+        return result + ("npz",)  # type: ignore
 
     @override
     def __hash__(self) -> int:

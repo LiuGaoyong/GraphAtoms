@@ -1,14 +1,14 @@
 import warnings
 from functools import cached_property
+from typing import Annotated
 
 import numpy as np
 import pydantic
 from ase.thermochemistry import _clean_vib_energies
 from ase.units import invcm, kB
-from typing_extensions import Self, override
 
 from GraphAtoms.common import NpzPklBaseModel, XxxKeyMixin
-from GraphAtoms.utils.ndarray import NDArray, Shape
+from GraphAtoms.utils.ndarray import NDArray, numpy_validator
 
 
 class __EnergeticsKey(XxxKeyMixin):
@@ -23,28 +23,10 @@ __all__ = ["ENERGETICS_KEY", "Energetics"]
 
 
 class Energetics(NpzPklBaseModel):
-    frequencies: NDArray[Shape["*"], float] | None = None  # type: ignore
+    frequencies: Annotated[NDArray, numpy_validator()] | None = None
     fmax_nonconstraint: pydantic.NonNegativeFloat | None = None
     fmax_constraint: pydantic.NonNegativeFloat | None = None
     energy: float | None = None
-
-    @classmethod
-    @override
-    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
-        result: dict[str, tuple[tuple, str]] = super()._convert()
-        result[ENERGETICS_KEY.FREQS] = ((-1,), "float64")
-        return result
-
-    @pydantic.model_validator(mode="after")
-    def __check_keys(self) -> Self:
-        fields = self.__pydantic_fields__.keys()
-        assert set(fields) >= set(ENERGETICS_KEY._DICT.values()), (
-            "Invalid fields or ENERGETICS_KEY."
-        )
-        assert set(fields) >= set(self._convert().keys()), (
-            "Invalid _convert dictionary."
-        )
-        return self
 
     @cached_property
     def is_minima(self) -> bool:
@@ -52,7 +34,7 @@ class Energetics(NpzPklBaseModel):
         return min((f if f is not None else np.inf) for f in fmaxs) < 0.05
 
     @property
-    def vib_energies(self) -> NDArray[Shape["*"], float]:  # type: ignore
+    def vib_energies(self) -> np.ndarray:  # type: ignore
         if self.frequencies is None:
             result = np.array([], float)
         else:

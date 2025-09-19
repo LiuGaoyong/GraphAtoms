@@ -7,9 +7,9 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
+from numpydantic import NDArray
 
 from GraphAtoms.common import BaseModel, ExtendedBaseModel, NpzPklBaseModel
-from GraphAtoms.utils.ndarray import NDArray
 
 
 class MockNpzBaseModel(NpzPklBaseModel):

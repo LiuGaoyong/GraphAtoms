@@ -13,7 +13,7 @@ from typing_extensions import Self, override
 from GraphAtoms.common import NpzPklBaseModel, XxxKeyMixin
 from GraphAtoms.containner._atomic import AtomsWithBoxEng
 from GraphAtoms.utils.geometry import get_adjacency_sparse_matrix
-from GraphAtoms.utils.ndarray import NDArray, Shape
+from GraphAtoms.utils.ndarray import NDArray, numpy_validator
 from GraphAtoms.utils.rdtool import get_adjacency_by_rdkit
 
 
@@ -32,35 +32,16 @@ __all__ = ["BOND_KEY", "Bonds"]
 
 
 class Bonds(NpzPklBaseModel):
-    source: NDArray[Shape["*"], np.int32]  # type: ignore
-    target: NDArray[Shape["*"], np.int32]  # type: ignore
-    shift_x: NDArray[Shape["*"], np.int8] | None = None  # type: ignore
-    shift_y: NDArray[Shape["*"], np.int8] | None = None  # type: ignore
-    shift_z: NDArray[Shape["*"], np.int8] | None = None  # type: ignore
-    order: NDArray[Shape["*"], np.float16] | None = None  # type: ignore
-
-    @classmethod
-    @override
-    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
-        result: dict[str, tuple[tuple, str]] = super()._convert()
-        result[BOND_KEY.ORDER] = ((-1,), "float16")
-        result[BOND_KEY.SOURCE] = ((-1,), "int32")
-        result[BOND_KEY.TARGET] = ((-1,), "int32")
-        result[BOND_KEY.SHIFT_X] = ((-1,), "int8")
-        result[BOND_KEY.SHIFT_Y] = ((-1,), "int8")
-        result[BOND_KEY.SHIFT_Z] = ((-1,), "int8")
-        return result
+    source: Annotated[NDArray, numpy_validator("int32")]
+    target: Annotated[NDArray, numpy_validator("int32")]
+    shift_x: Annotated[NDArray, numpy_validator("int8")] | None = None
+    shift_y: Annotated[NDArray, numpy_validator("int8")] | None = None
+    shift_z: Annotated[NDArray, numpy_validator("int8")] | None = None
+    order: Annotated[NDArray, numpy_validator("float16")] | None = None
 
     @pydantic.model_validator(mode="after")
     def __check_keys(self) -> Self:
         assert self.nbonds != 0, "No bonds"
-        fields = self.__pydantic_fields__.keys()
-        assert set(fields) >= set(BOND_KEY._DICT.values()), (
-            "Invalid fields or BOND_KEY."
-        )
-        assert set(fields) >= set(self._convert().keys()), (
-            "Invalid _convert dictionary."
-        )
         for k in BOND_KEY._DICT.values():
             v = getattr(self, k, None)
             if v is not None:
@@ -104,18 +85,15 @@ class Bonds(NpzPklBaseModel):
     @cached_property
     def __MATRIX(self) -> sp.csr_array:
         if self.order is None:
-            return sp.csr_array(
-                (np.ones(self.nbonds, bool), (self.source, self.target)),
-                shape=(self.natoms, self.natoms),
-            )
+            order = np.ones(self.nbonds, bool)
         else:
             # scipy.sparse does not support dtype float16(self.order.dtype)
             # so we use single float numbers(float32) in the return statement
-            return sp.csr_array(
-                (self.order, (self.source, self.target)),
-                shape=(self.natoms, self.natoms),
-                dtype="f4",  # single float numbers(float32)
-            )
+            order = np.asarray(self.order, dtype="f4")
+        return sp.csr_array(
+            (order, (self.source, self.target)),
+            shape=(self.natoms, self.natoms),
+        )
 
     @cached_property
     def CN_MATRIX(self) -> np.ndarray:

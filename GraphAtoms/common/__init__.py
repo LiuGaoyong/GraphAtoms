@@ -4,9 +4,10 @@ Many other modules depend on this module.
 """
 
 from ._abc import BaseMixin, XxxKeyMixin
-from .base import BaseModel, ExtendedBaseModel, NpzPklBaseModel
+from .base import AllBaseModel, BaseModel, ExtendedBaseModel, NpzPklBaseModel
 
 __all__ = [
+    "AllBaseModel",
     "BaseMixin",
     "BaseModel",
     "ExtendedBaseModel",

@@ -8,8 +8,7 @@ from ase.geometry import cell as cellutils
 from pymatgen.core.lattice import Lattice
 from typing_extensions import Self, override
 
-from GraphAtoms.common import BaseModel, XxxKeyMixin
-from GraphAtoms.utils.ndarray import NDArray, Shape
+from GraphAtoms.common import AllBaseModel, XxxKeyMixin
 
 
 class __BoxKey(XxxKeyMixin):
@@ -25,7 +24,7 @@ BOX_KEY = __BoxKey()
 __all__ = ["BOX_KEY", "Box"]
 
 
-class Box(BaseModel):
+class Box(AllBaseModel):
     a: pydantic.NonNegativeFloat = 0.0
     b: pydantic.NonNegativeFloat = 0.0
     c: pydantic.NonNegativeFloat = 0.0
@@ -39,9 +38,6 @@ class Box(BaseModel):
         assert set(fields) >= set(BOX_KEY._DICT.values()), (
             "Invalid fields or ENERGETICS_KEY."
         )
-        assert set(fields) >= set(self._convert().keys()), (
-            "Invalid _convert dictionary."
-        )
         return self
 
     @override
@@ -49,7 +45,7 @@ class Box(BaseModel):
         return "PBC" if self.is_periodic else "NOPBC"
 
     @cached_property
-    def __matrix_3x3(self) -> NDArray[Shape["3,3"], float]:  # type: ignore
+    def __matrix_3x3(self) -> np.ndarray:  # type: ignore
         """The numpy.ndarray of `ase.Cell` after minkowski-reduce."""
         par = [self.a, self.b, self.c, self.alpha, self.beta, self.gamma]
         return Cell.new(par).minkowski_reduce()[0].array  # type: ignore

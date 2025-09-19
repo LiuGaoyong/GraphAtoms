@@ -191,15 +191,3 @@ class GasSQL(_SQLABC):
     @validate_call
     def convert_from(cls, data: Gas) -> Self:  # type: ignore
         return super().convert_from(data)  # type: ignore
-
-
-if __name__ == "__main__":
-    from pydantic_to_pyarrow import get_pyarrow_schema
-
-    for cls in [GraphSQL, SystemSQL, ClusterSQL, GasSQL]:
-        print(cls.__name__, cls._dataclass(), cls.__pydantic_fields__.keys())
-        print(get_pyarrow_schema(cls))
-        print("-" * 32)
-    gas = Gas.from_molecule("CO")
-    print(gas)
-    print(GasSQL.convert_from(gas))
