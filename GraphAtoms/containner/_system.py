@@ -49,10 +49,15 @@ class _PyArrowItemABC(SQLModel):  # Atoms
             f"Invalid fields. Please check the "
             f"`__pydantic_fields__` of `{cls._dataclass().__name__}`."
         )
-        assert isinstance(get_pyarrow_schema(cls), Schema), (
+        assert isinstance(cls.get_pyarrow_schema(), Schema), (
             f"Cannot convert {cls.__name__} to pyarrow."
         )
         return values
+
+    @classmethod
+    def get_pyarrow_schema(cls) -> Schema:
+        """Get the pyarrow schema of this class."""
+        return get_pyarrow_schema(cls)
 
     def convert_to(self) -> Graph:
         """Convert to the base data class."""
@@ -60,10 +65,11 @@ class _PyArrowItemABC(SQLModel):  # Atoms
         cls: type[Graph] = self._dataclass()
         convert_dct = cls._convert()
         for k, v in dct.items():
+            if not isinstance(v, bytes):
+                continue
             if k not in convert_dct:
                 raise ValueError(f"Cannot convert field({k}) to numpy.")
-            v = frombuffer(v, convert_dct[k][1])
-            dct[k] = v.reshape(convert_dct[k][0])
+            dct[k] = frombuffer(v, convert_dct[k][1]).reshape(convert_dct[k][0])
         return self._dataclass().model_validate(dct)
 
     @classmethod

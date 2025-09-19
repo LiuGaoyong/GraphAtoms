@@ -298,39 +298,6 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable):
         """
         return "object"
 
-    @classmethod
-    def _convert(cls) -> dict[str, tuple[tuple, str]]:
-        """Override if needed to specify the dtype and shape of attributes.
-
-        Note: must be implemented by children class.
-
-        Example:
-            return dict(a=((-1, 3), "uint8"))
-        This `None` indicates it can take any shape along the first axis.
-        """
-        return {}
-
-    @staticmethod
-    def __validate_ndarray_and_convert(  # noqa: D103
-        data: np.ndarray | Sequence,
-        shape: Sequence[int | None],
-        dtype: str,
-    ) -> np.ndarray:
-        assert shape.count(None) <= 1, (type(shape), shape)
-        shape = tuple(int(i) if i is not None else -1 for i in shape)
-        data = np.asarray(data) if not isinstance(data, np.ndarray) else data
-        return np.asarray(data, dtype).reshape(shape)  # .tobytes()
-
-    @pydantic.model_validator(mode="before")
-    @classmethod
-    def __convert(cls, data) -> dict[str, Any]:
-        if isinstance(data, dict):
-            for key, (shape, dtype) in cls._convert().items():
-                if key in data and data[key] is not None:
-                    kw = dict(data=data[key], shape=shape, dtype=dtype)
-                    data[key] = cls.__validate_ndarray_and_convert(**kw)  # type: ignore
-        return data
-
     @cached_property
     def _data_hash(self) -> str:
         return bytesutils.hash(
@@ -427,11 +394,29 @@ class NpzPklBaseModel(BaseModel, __Npz, __Pickle):
     """
 
     @classmethod
+    @pydantic.validate_call
+    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
+        """Override if needed to specify the dtype and shape of attributes.
+
+        Note: must be implemented by children class.
+
+        Example:
+            return dict(a=((-1, 3), "uint8"))
+        """
+        return {}
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def __convert_numpy_ndarray(cls, data) -> dict[str, Any]:
+        if isinstance(data, dict):
+            for k, (shape, dtype) in cls._convert().items():
+                if k in data and data[k] is not None:
+                    v = np.asarray(data[k], dtype)
+                    data[k] = v.reshape(shape)
+        return data
+
+    @classmethod
     @override
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("npz", "pickle", "pkl")  # type: ignore
-
-    @override
-    def __hash__(self) -> int:
-        return hash(bytesutils.hash(self.to_bytes()))

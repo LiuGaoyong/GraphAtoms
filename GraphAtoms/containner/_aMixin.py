@@ -4,6 +4,7 @@ from typing import override
 
 import numpy as np
 import pydantic
+from pydantic import conbytes
 from ase.symbols import Symbols
 from pandas import DataFrame
 from typing_extensions import Self
@@ -33,13 +34,13 @@ class Atoms(NpzPklBaseModel, Sized):
 
     @classmethod
     @override
-    def _convert(cls) -> dict[str, tuple[tuple, str]]:
+    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
         result: dict[str, tuple[tuple, str]] = super()._convert()
-        result["positions"] = ((None, 3), "float64")
-        result["coordination"] = ((None,), "uint8")
-        result["move_fix_tag"] = ((None,), "int8")
-        result["numbers"] = ((None,), "uint8")
-        result["is_outer"] = ((None,), "bool")
+        result["positions"] = ((-1, 3), "float64")
+        result["coordination"] = ((-1,), "uint8")
+        result["move_fix_tag"] = ((-1,), "int8")
+        result["numbers"] = ((-1,), "uint8")
+        result["is_outer"] = ((-1,), "bool")
         assert set(result.keys()) <= set(cls.__pydantic_fields__.keys()), (
             "Invalid _convert dictionary."
         )

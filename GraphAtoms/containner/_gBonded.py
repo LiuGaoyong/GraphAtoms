@@ -41,14 +41,14 @@ class Bonds(NpzPklBaseModel):
 
     @classmethod
     @override
-    def _convert(cls) -> dict[str, tuple[tuple, str]]:
+    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
         result: dict[str, tuple[tuple, str]] = super()._convert()
-        result[BOND_KEY.ORDER] = ((None,), "float16")
-        result[BOND_KEY.SOURCE] = ((None,), "int32")
-        result[BOND_KEY.TARGET] = ((None,), "int32")
-        result[BOND_KEY.SHIFT_X] = ((None,), "int8")
-        result[BOND_KEY.SHIFT_Y] = ((None,), "int8")
-        result[BOND_KEY.SHIFT_Z] = ((None,), "int8")
+        result[BOND_KEY.ORDER] = ((-1,), "float16")
+        result[BOND_KEY.SOURCE] = ((-1,), "int32")
+        result[BOND_KEY.TARGET] = ((-1,), "int32")
+        result[BOND_KEY.SHIFT_X] = ((-1,), "int8")
+        result[BOND_KEY.SHIFT_Y] = ((-1,), "int8")
+        result[BOND_KEY.SHIFT_Z] = ((-1,), "int8")
         return result
 
     @pydantic.model_validator(mode="after")

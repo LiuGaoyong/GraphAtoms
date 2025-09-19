@@ -30,9 +30,9 @@ class Energetics(NpzPklBaseModel):
 
     @classmethod
     @override
-    def _convert(cls) -> dict[str, tuple[tuple, str]]:
+    def _convert(cls) -> dict[str, tuple[tuple[int, ...], str]]:
         result: dict[str, tuple[tuple, str]] = super()._convert()
-        result[ENERGETICS_KEY.FREQS] = ((None,), "float64")
+        result[ENERGETICS_KEY.FREQS] = ((-1,), "float64")
         return result
 
     @pydantic.model_validator(mode="after")
