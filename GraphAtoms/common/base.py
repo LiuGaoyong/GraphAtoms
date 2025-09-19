@@ -11,10 +11,10 @@ import tomli_w as toml_w
 import yaml
 from joblib import dump, load
 from pyarrow import Schema
-from pydantic_to_pyarrow import get_pyarrow_schema
 from typing_extensions import Any, Self
 
 from GraphAtoms.utils import bytes as bytesutils
+from GraphAtoms.utils._pyarrow import get_pyarrow_schema
 
 if version_info < (3, 11):
     import tomli as tomllib  # type: ignore
@@ -317,6 +317,7 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable, __Pickle):
         warnings: bool | Literal["none", "warn", "error"] = True,
         fallback: Callable[[Any], Any] | None = None,
         serialize_as_any: bool = False,
+        numpy_ndarray_compatible: bool = True,
     ) -> dict[str, Any]:
         result = super().model_dump(
             mode=mode,
@@ -332,7 +333,7 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable, __Pickle):
             fallback=fallback,
             serialize_as_any=serialize_as_any,
         )
-        if mode == "python":
+        if mode == "python" and numpy_ndarray_compatible:
             for k, v0 in result.items():
                 v1 = getattr(self, k, None)
                 if type(v0) is not type(v1) and isinstance(v1, np.ndarray):

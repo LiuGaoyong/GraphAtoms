@@ -1,12 +1,11 @@
 import numpy as np
-from pydantic import model_validator, validate_call
-from sqlmodel import Field
+from pydantic import model_validator
 from typing_extensions import Self, override
 
 from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
 from GraphAtoms.containner._atomic import ATOM_KEY
 from GraphAtoms.containner._graph import Graph
-from GraphAtoms.containner._system import System, SystemItem, _PyArrowItemABC
+from GraphAtoms.containner._system import System
 from GraphAtoms.utils.geometry import distance_factory
 
 
@@ -117,42 +116,3 @@ class Cluster(Graph):
         idxs = np.where(d <= float(env_distance))[0]
         tag = np.where(d > float(max_moved_distance), -hop, hop)[idxs]
         return cls.__select(system=system, sub_idxs=idxs, movefixtag=tag)
-
-
-class ClusterItem(_PyArrowItemABC):
-    move_fix_tag: bytes | None = Field(default=None)
-    coordination: bytes | None = Field(default=None)
-
-    @classmethod
-    @override
-    def _dataclass(cls) -> type[Cluster]:
-        return Cluster
-
-    @override
-    @validate_call
-    def convert_to(self) -> Cluster:  # type: ignore
-        return super().convert_to()  # type: ignore
-
-    @classmethod
-    @override
-    @validate_call
-    def convert_from(cls, data: Cluster) -> Self:  # type: ignore
-        return super().convert_from(data)  # type: ignore
-
-
-class GraphItem(SystemItem, ClusterItem):
-    @classmethod
-    @override
-    def _dataclass(cls) -> type[Graph]:  # type: ignore
-        return Graph
-
-    @override
-    @validate_call
-    def convert_to(self) -> Graph:  # type: ignore
-        return _PyArrowItemABC.convert_to(self)  # type: ignore
-
-    @classmethod
-    @override
-    @validate_call
-    def convert_from(cls, data: Graph) -> Self:  # type: ignore
-        return _PyArrowItemABC.convert_from(data)  # type: ignore

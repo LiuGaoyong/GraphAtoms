@@ -8,11 +8,10 @@ from ase.build import molecule
 from ase.data import atomic_masses as ATOM_MASS
 from ase.geometry import get_angles
 from numpy.typing import ArrayLike
-from sqlmodel import Field
 from typing_extensions import Self, override
 
 from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
-from GraphAtoms.containner._system import System, _PyArrowItemABC
+from GraphAtoms.containner._system import System
 
 
 class Gas(System):
@@ -219,24 +218,3 @@ class Gas(System):
         S_p = -units.kB * np.log(pressure / referencepressure)
 
         return S_t + S_r + S_v + S_e + S_p
-
-
-class GasItem(_PyArrowItemABC):
-    sticking: float = Field(default=1, index=True, ge=0, le=1e2)
-    pressure: float = Field(default=101325, index=True, ge=0)
-
-    @classmethod
-    @override
-    def _dataclass(cls) -> type[Gas]:
-        return Gas
-
-    @override
-    @pydantic.validate_call
-    def convert_to(self) -> Gas:  # type: ignore
-        return super().convert_to()  # type: ignore
-
-    @classmethod
-    @override
-    @pydantic.validate_call
-    def convert_from(cls, data: Gas) -> Self:  # type: ignore
-        return super().convert_from(data)  # type: ignore

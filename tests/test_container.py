@@ -13,18 +13,8 @@ from ase.cluster import Octahedron
 
 from GraphAtoms.common import BaseModel
 from GraphAtoms.containner import AtomsWithBoxEng as AtomicContainner
-from GraphAtoms.containner import (
-    Cluster,
-    ClusterItem,
-    Gas,
-    GasItem,
-    Graph,
-    GraphItem,
-    System,
-    SystemItem,
-)
+from GraphAtoms.containner import Cluster, Gas, Graph, System
 from GraphAtoms.containner import Graph as GraphContainner
-from GraphAtoms.containner._system import _PyArrowItemABC
 
 
 @pytest.fixture(scope="module")
@@ -316,48 +306,45 @@ class Test_Thermo:
         assert np.isclose(v1, v11)
 
 
-# class Test_PyArrowCompability:
-#     @staticmethod
-#     def get_all_item_classes() -> list[type[_PyArrowItemABC]]:
-#         return [GasItem, SystemItem, ClusterItem, GraphItem]
+class Test_PyArrowCompability:
+    @staticmethod
+    def get_all_item_classes() -> list[type[Graph]]:
+        return [Gas, System, Cluster, Graph]
 
-#     @pytest.mark.parametrize("cls_id", sorted(range(4)))
-#     def test_XxxItem_pyarrow_compability(self, cls_id: int) -> None:
-#         cls: type[_PyArrowItemABC] = self.get_all_item_classes()[cls_id]
-#         print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
+    def test_XxxItem_pyarrow_compability(self, cls_id: int) -> None:
+        cls: type[Graph] = self.get_all_item_classes()[cls_id]
+        print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
 
-#     @pytest.mark.parametrize("cls_id", sorted(range(4)))
-#     def test_XxxItem_convert(self, system: System, cls_id: int) -> None:
-#         cls: type[_PyArrowItemABC] = self.get_all_item_classes()[cls_id]
-#         if cls is ClusterItem:
-#             obj = Cluster.select_by_hop(
-#                 system,
-#                 system.get_hop_distance(0),
-#             )
-#         elif cls is GraphItem:
-#             obj = Graph.from_ase(system.to_ase())
-#         elif cls is SystemItem:
-#             obj = system
-#         elif cls is GasItem:
-#             obj = Gas.from_molecule("CO")
-#         else:
-#             raise ValueError(f"Unknown class: {cls}")
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
+    def test_Xxx_as_PyArrow_Table(self, system: System, cls_id: int) -> None:
+        cls: type[Graph] = self.get_all_item_classes()[cls_id]
+        if cls is Cluster:
+            obj = Cluster.select_by_hop(
+                system,
+                system.get_hop_distance(0),
+            )
+        elif cls is Graph:
+            obj = Graph.from_ase(system.to_ase())
+        elif cls is System:
+            obj = system
+        elif cls is Gas:
+            obj = Gas.from_molecule("CO")
+        else:
+            raise ValueError(f"Unknown class: {cls}")
 
-#         print(obj)
-#         obj_xxx = cls.convert_from(obj)  # type: ignore
-#         print(obj_xxx)
-#         obj2 = obj_xxx.convert_to()
-#         print(obj2)
-#         assert obj == obj2
-
-#     def test_system_to_pyarrow(self, system: System) -> None:
-#         obj = SystemItem.convert_from(system)
-#         print(
-#             pa.Table.from_pylist(
-#                 [obj.model_dump()] * 5,
-#                 schema=SystemItem.get_pyarrow_schema(),
-#             )
-#         )
+        print(
+            pa.Table.from_pylist(
+                [
+                    obj.model_dump(
+                        numpy_ndarray_compatible=False,
+                        exclude_none=True,
+                    )
+                ]
+                * 5,
+                schema=cls.get_pyarrow_schema(),
+            )
+        )
 
 
 if __name__ == "__main__":

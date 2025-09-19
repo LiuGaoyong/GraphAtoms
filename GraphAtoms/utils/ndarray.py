@@ -3,28 +3,27 @@ from functools import partial
 from typing import TYPE_CHECKING, Annotated, Any
 
 import numpy as np
-import pydantic
 from numpydantic import NDArray as _NDArray
+from pydantic import (
+    BeforeValidator,
+    PlainSerializer,
+    WithJsonSchema,
+    validate_call,
+)
 
 __all__ = ["NDArray", "numpy_validator"]
 _ENCODING = "latin1"
 
 NDArray = Annotated[
     _NDArray,
-    pydantic.PlainSerializer(
-        lambda x: x.tobytes().decode(_ENCODING),
-        return_type=str,
-    ),
-    pydantic.WithJsonSchema(
-        {"type": "string"},
-        mode="serialization",
-    ),
+    PlainSerializer(lambda x: x.tobytes().decode(_ENCODING), return_type=str),
+    WithJsonSchema({"type": str}, mode="serialization"),
 ]
 if TYPE_CHECKING:
     NDArray = np.typing.NDArray
 
 
-@pydantic.validate_call
+@validate_call
 def __convert2numpy(
     x: Any,
     dtype: Any = "float",
@@ -50,9 +49,9 @@ def __convert2numpy(
 def numpy_validator(
     dtype: Any = "float",
     shape: Sequence[int] = (-1,),
-) -> pydantic.BeforeValidator:
+) -> BeforeValidator:
     """Create pydantic validator in `before` mode for numpy array."""
-    return pydantic.BeforeValidator(
+    return BeforeValidator(
         partial(
             __convert2numpy,
             shape=shape,
