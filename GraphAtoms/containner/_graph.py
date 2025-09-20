@@ -15,7 +15,6 @@ from scipy import sparse as sp
 from torch_geometric.data import Data as DataPyG
 from typing_extensions import Self
 
-from GraphAtoms.containner._aBox import BOX_KEY
 from GraphAtoms.containner._aMixin import ATOM_KEY
 from GraphAtoms.containner._atomic import AtomsWithBoxEng
 from GraphAtoms.containner._g2DataPyG import GraphMixinPyG
@@ -264,7 +263,6 @@ class Graph(
                 exclude=(
                     {ATOM_KEY.NUMBER, ATOM_KEY.POSITION}
                     | set(BOND_KEY._DICT.values())
-                    | set(BOX_KEY._DICT.values())
                 ),
             ).items():
                 if isinstance(v, np.ndarray):
@@ -278,9 +276,6 @@ class Graph(
                     result[k] = v
                 else:
                     raise TypeError(f"{k}(type={type(v)}: {v}")
-            if self.is_periodic:
-                for k in BOX_KEY._DICT.values():
-                    result[k] = getattr(self, k)
         result.validate(raise_on_error=True)
         return result
 

@@ -10,11 +10,13 @@ import pytest
 from ase import Atoms
 from ase.build import molecule
 from ase.cluster import Octahedron
+from ase.thermochemistry import HarmonicThermo
 
 from GraphAtoms.common import BaseModel
 from GraphAtoms.containner import AtomsWithBoxEng as AtomicContainner
 from GraphAtoms.containner import Cluster, Gas, Graph, System
 from GraphAtoms.containner import Graph as GraphContainner
+from GraphAtoms.containner._aOther import OtherMixin
 
 
 @pytest.fixture(scope="module")
@@ -27,6 +29,7 @@ class Test_ContainerBasic:
         pprint(AtomicContainner.model_json_schema())
         atoms = molecule("H2O")
         obj = AtomicContainner.from_ase(atoms)
+        print(obj.ase_cell)
         print(obj, obj.ase_cell)
         print(repr(obj))
         new_atoms: Atoms = obj.to_ase()
@@ -192,6 +195,7 @@ class Test_Container:
             for k in set(dir(System))
             - set(dir(BaseModel))
             - set(System.__pydantic_fields__)
+            - {"a", "b", "c", "alpha", "beta", "gamma"}
             - {"ncore", "nfix", "nmoved", "iscore", "isfix"}
             - {"islastmoved", "isfirstmoved", "vib_energies"}
             - {"DF_ATOMS", "DF_BONDS", "THERMO", "THERMO_ATOMS", "Z"}
@@ -277,12 +281,8 @@ class Test_Thermo:
         assert np.isclose(v1, v11)
 
     def test_harmonic_thermo(self) -> None:
-        from ase.thermochemistry import HarmonicThermo
-
-        from GraphAtoms.containner._aSpeVib import Energetics
-
         e, T = 0.138, 200
-        gas = Energetics(frequencies=[0, 0, 0, 12.6, 12.6, 2206.3], energy=e)  # type: ignore
+        gas = OtherMixin(frequencies=[0, 0, 0, 12.6, 12.6, 2206.3], energy=e)  # type: ignore
         thermo = HarmonicThermo(
             vib_energies=gas.vib_energies, potentialenergy=e
         )  # type: ignore

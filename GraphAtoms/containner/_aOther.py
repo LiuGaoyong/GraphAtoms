@@ -4,29 +4,108 @@ from typing import Annotated
 
 import numpy as np
 import pydantic
+from ase.cell import Cell
+from ase.geometry import cell as cellutils
 from ase.thermochemistry import _clean_vib_energies
 from ase.units import invcm, kB
+from pymatgen.core.lattice import Lattice
+from typing_extensions import override
 
 from GraphAtoms.common import NpzPklBaseModel, XxxKeyMixin
 from GraphAtoms.utils.ndarray import NDArray, numpy_validator
 
 
-class __EnergeticsKey(XxxKeyMixin):
+class __OtherMixinKey(XxxKeyMixin):
     FMAX = "fmax_nonconstraint"
     FMAXC = "fmax_constraint"
     FREQS = "frequencies"
     ENERGY = "energy"
+    BOX = "box"
 
 
-ENERGETICS_KEY = __EnergeticsKey()
-__all__ = ["ENERGETICS_KEY", "Energetics"]
+OTHER_KEY = __OtherMixinKey()
+__all__ = ["OTHER_KEY", "OtherMixin"]
 
 
-class Energetics(NpzPklBaseModel):
+class _BoxMixin(NpzPklBaseModel):
+    box: Annotated[NDArray, numpy_validator(float, (3, 3))] | None = None
+
+    @cached_property
+    def __par(self) -> tuple[float, float, float, float, float, float]:
+        return cellutils.cell_to_cellpar(self.ase_cell.array)  # type: ignore
+
+    @property
+    def a(self) -> float:
+        return self.__par[0]
+
+    @property
+    def b(self) -> float:
+        return self.__par[1]
+
+    @property
+    def c(self) -> float:
+        return self.__par[2]
+
+    @property
+    def alpha(self) -> float:
+        return self.__par[3]
+
+    @property
+    def beta(self) -> float:
+        return self.__par[4]
+
+    @property
+    def gamma(self) -> float:
+        return self.__par[5]
+
+    @override
+    def _string(self) -> str:
+        return "PBC" if self.is_periodic else "NOPBC"
+
+    @cached_property
+    def ase_cell(self) -> Cell:
+        return Cell.new(self.box)
+
+    @cached_property
+    def pmg_lattice(self) -> Lattice:
+        return Lattice(self.ase_cell.array)
+
+    @cached_property
+    def is_periodic(self) -> bool:
+        if self.box is None:
+            return False
+        v = np.array([self.a, self.b, self.c])
+        return not np.all(np.abs(v) < 1e-7)
+
+    @cached_property
+    def is_orthorhombic(self) -> bool:
+        if self.box is None:
+            return True
+        return cellutils.is_orthorhombic(self.box)
+
+
+class OtherMixin(_BoxMixin):
     frequencies: Annotated[NDArray, numpy_validator()] | None = None
     fmax_nonconstraint: pydantic.NonNegativeFloat | None = None
     fmax_constraint: pydantic.NonNegativeFloat | None = None
     energy: float | None = None
+
+    @override
+    def _string(self) -> str:
+        lst: list[str] = [super()._string()]
+        if self.energy is None:
+            lst.append("NOSPE")
+        else:
+            e = self.energy * 1000  # convert to meV
+            lst.append(f"E={int(e) if abs(e) > 1 else f'{e:.3e}'}meV")
+        if self.frequencies is None:
+            lst.append("NOVIB")
+        else:
+            lst.append("VIB")
+        fmaxs = (self.fmax_constraint, self.fmax_nonconstraint)
+        if all(i is not None for i in fmaxs) and self.is_minima:
+            lst.append("Minima")
+        return ",".join(lst)
 
     @cached_property
     def is_minima(self) -> bool:

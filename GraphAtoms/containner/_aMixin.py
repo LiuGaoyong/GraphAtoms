@@ -21,10 +21,10 @@ class __AtomKey(XxxKeyMixin):
 
 
 ATOM_KEY = __AtomKey()
-__all__ = ["ATOM_KEY", "Atoms"]
+__all__ = ["ATOM_KEY", "AtomsMixin"]
 
 
-class Atoms(NpzPklBaseModel, Sized):
+class AtomsMixin(NpzPklBaseModel, Sized):
     numbers: Annotated[NDArray, numpy_validator("uint8")]
     positions: Annotated[NDArray, numpy_validator(float, (-1, 3))]
     is_outer: Annotated[NDArray, numpy_validator(bool)] | None = None

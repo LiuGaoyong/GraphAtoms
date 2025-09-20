@@ -10,7 +10,7 @@ from ase.geometry import get_angles
 from numpy.typing import ArrayLike
 from typing_extensions import Self, override
 
-from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
+from GraphAtoms.containner._aOther import OTHER_KEY
 from GraphAtoms.containner._system import System
 
 
@@ -54,9 +54,9 @@ class Gas(System):
         dct["sticking"] = float(sticking)
         dct["pressure"] = float(pressure)
         if energy is not None:
-            dct[ENERGETICS_KEY.ENERGY] = float(energy)
+            dct[OTHER_KEY.ENERGY] = float(energy)
         if frequencies is not None:
-            dct[ENERGETICS_KEY.FREQS] = np.asarray(frequencies, float).flatten()
+            dct[OTHER_KEY.FREQS] = np.asarray(frequencies, float).flatten()
         return cls.model_validate(dct)
 
     @classmethod

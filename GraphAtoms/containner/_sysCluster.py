@@ -2,7 +2,7 @@ import numpy as np
 from pydantic import model_validator
 from typing_extensions import Self, override
 
-from GraphAtoms.containner._aSpeVib import ENERGETICS_KEY
+from GraphAtoms.containner._aOther import OTHER_KEY
 from GraphAtoms.containner._atomic import ATOM_KEY
 from GraphAtoms.containner._graph import Graph
 from GraphAtoms.containner._system import System
@@ -46,7 +46,7 @@ class Cluster(Graph):
         dct = system.get_induced_subgraph(sub_idxs).model_dump(
             mode="python",
             exclude_none=True,
-            exclude=set(ENERGETICS_KEY._DICT.values()),
+            exclude=set(OTHER_KEY._DICT.values()),
         ) | {
             ATOM_KEY.MOVE_FIX_TAG: movefixtag,
             ATOM_KEY.COORDINATION: system.CN_MATRIX[sub_idxs],
