@@ -3,6 +3,7 @@
 import bz2
 import gzip
 import hashlib
+import lzma
 import zlib
 from collections.abc import Callable
 from functools import partial
@@ -11,7 +12,7 @@ from typing import Annotated
 import snappy
 from pydantic import Field, validate_call
 
-SUPPORTED_COMPRESS_FORMATS = ["z", "gz", "bz2", "snappy"]
+SUPPORTED_COMPRESS_FORMATS = ["z", "gz", "bz2", "snappy", "xz", "lzma"]
 SUPPORTED_HASHLIB_FORMATS = list(hashlib.algorithms_available)
 __all__ = ["compress", "decompress", "hash"]
 
@@ -53,8 +54,6 @@ class __CompressorAndDecompressor:
                 snappy.uncompress, decoding=None
             )  # type: ignore
         else:
-            import lzma
-
             self.__func_compress: Callable[..., bytes] = partial(
                 lzma.compress,
                 format=lzma.FORMAT_XZ if format == "xz" else lzma.FORMAT_ALONE,

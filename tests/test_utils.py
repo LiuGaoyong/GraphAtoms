@@ -1,4 +1,6 @@
 # ruff: noqa: D100, D101, D102, D103
+import itertools
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -11,6 +13,7 @@ from scipy.spatial.distance import cdist
 from GraphAtoms.utils.geometry import distance_factory as DIST_FAC
 from GraphAtoms.utils.geometry import inverse_3d_sphere_surface_sampling
 from GraphAtoms.utils.rotation import Rot, kabsch, rotate
+from GraphAtoms.utils.string import compress as compress_string
 
 
 def test_rotation() -> None:  # noqa: D103
@@ -84,6 +87,29 @@ def test_get_distance_reduce_array() -> None:
     )
     print(d1)
     np.testing.assert_array_compare(np.equal, d0, d1)
+
+
+@pytest.mark.parametrize(
+    "fmt, level",
+    sorted(
+        itertools.product(
+            ["z", "gz", "bz2"],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        )
+    )
+    + [
+        ("snappy", 0),
+        ("xz", 0),
+        ("lzma", 0),
+    ],
+)
+def test_compress(
+    OctCu8_Cluster_ListofDict: list[dict],
+    fmt: str,
+    level: int,
+) -> None:
+    data: str = OctCu8_Cluster_ListofDict[0]["cluster_json"]
+    compress_string(data, format=fmt, compresslevel=level)
 
 
 if __name__ == "__main__":
