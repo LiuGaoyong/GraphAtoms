@@ -63,7 +63,7 @@ class Graph(
 
     @override
     def __hash__(self) -> int:
-        return AtomsWithBoxEng.__hash__(self)
+        return super().__hash__()
 
     @cached_property
     def hash(self) -> str:

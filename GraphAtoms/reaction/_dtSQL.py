@@ -1,11 +1,14 @@
 from abc import abstractmethod
-from typing import override
+from collections.abc import Callable
+from typing import Literal, override
 
-from numpy import frombuffer, ndarray
+from numpy import ndarray
 from pyarrow import Schema
 from pydantic import model_validator, validate_call
+from pydantic.main import IncEx
 from pydantic_to_pyarrow import get_pyarrow_schema
-from sqlmodel import Field, SQLModel
+from sqlmodel import Column, Field, SQLModel
+from sqlmodel._compat import SQLModelConfig
 from typing_extensions import Any, Self
 
 from GraphAtoms.common import XxxKeyMixin
@@ -25,7 +28,13 @@ SQL_KEY = __SQLKey()
 __all__ = ["SQL_KEY"]
 
 
-class _ABCdtSQL(SQLModel, table=True):
+class __Base(SQLModel, table=True):
+    model_config = SQLModelConfig(
+        ser_json_bytes="base64",  # type: ignore
+        val_json_bytes="base64",  # type: ignore
+        table=True,  # type: ignore
+    )
+
     id: int | None = Field(default=None, primary_key=True)
     graph_hash: str = Field(default="", index=True)
     data_hash: str = Field(default="", index=True)
@@ -42,16 +51,110 @@ class _ABCdtSQL(SQLModel, table=True):
             f"Invalid fields. Please check the "
             f"`__pydantic_fields__` of `{cls._dataclass().__name__}`."
         )
-        assert isinstance(get_pyarrow_schema(cls), Schema), (
+        assert isinstance(cls.get_pyarrow_schema(), Schema), (
             f"Cannot convert {cls.__name__} to pyarrow."
         )  # assert this class can be converted to pyarrow
         return values
+
+    @classmethod
+    def get_pyarrow_schema(cls) -> Schema:
+        """Get the pyarrow schema of this class."""
+        return get_pyarrow_schema(cls)
 
     @classmethod
     @abstractmethod
     def _dataclass(cls) -> type[Graph]:
         """The base data class for validation."""
         raise NotImplementedError
+
+    def __get_include_and_exclude(
+        self,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+    ) -> tuple[IncEx | None, IncEx | None]:
+        is_column_set, is_column_unset = set(), set()
+        for k in self.__pydantic_fields__.keys():
+            v = getattr(self, k)
+            if isinstance(v, Column):
+                is_column_set.add(k)
+            else:
+                is_column_unset.add(k)
+        if exclude is None:
+            exclude = is_column_set
+        elif include is None:
+            include = is_column_unset
+        else:
+            raise KeyError("Cannot set both `include` and `exclude` as None.")
+        return include, exclude
+
+    @override
+    def model_dump(
+        self,
+        *,
+        mode: Literal["json", "python"] | str = "python",
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        fallback: Callable[[Any], Any] | None = None,
+        serialize_as_any: bool = False,
+    ) -> dict[str, Any]:
+        include, exclude = self.__get_include_and_exclude(
+            include=include, exclude=exclude
+        )
+        return super().model_dump(
+            mode=mode,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            fallback=fallback,
+            serialize_as_any=serialize_as_any,
+        )
+
+    def model_dump_json(
+        self,
+        *,
+        indent: int | None = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        fallback: Callable[[Any], Any] | None = None,
+        serialize_as_any: bool = False,
+    ) -> str:
+        include, exclude = self.__get_include_and_exclude(
+            include=include, exclude=exclude
+        )
+        return super().model_dump_json(
+            indent=indent,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            fallback=fallback,
+            serialize_as_any=serialize_as_any,
+        )
 
     @abstractmethod
     def convert_to(self) -> Graph:
@@ -61,13 +164,7 @@ class _ABCdtSQL(SQLModel, table=True):
             exclude=set(SQL_KEY._DICT.values()),
         )
         cls: type[Graph] = self._dataclass()
-        convert_dct = cls._convert()
-        for k, v in dct.items():
-            if k not in convert_dct:
-                raise ValueError(f"Cannot convert field({k}) to numpy.")
-            v = frombuffer(v, convert_dct[k][1])
-            dct[k] = v.reshape(convert_dct[k][0])
-        return self._dataclass().model_validate(dct)
+        return cls.model_validate(dct)
 
     @classmethod
     @abstractmethod
@@ -79,7 +176,7 @@ class _ABCdtSQL(SQLModel, table=True):
             if k in cls.__pydantic_fields__.keys()
         } | {
             "graph_hash": data.hash,
-            "data_hash": data._data_hash,
+            "data_hash": data.get_data_hash(),
             "formula": data.symbols.get_chemical_formula("metal"),
             "natoms": data.natoms,
             "nbonds": data.nbonds,
@@ -87,7 +184,7 @@ class _ABCdtSQL(SQLModel, table=True):
         return cls.model_validate(dct)
 
 
-class _SQLABC(_ABCdtSQL):
+class _SQLABC(__Base):
     # Atoms
     numbers: bytes
     positions: bytes
@@ -106,19 +203,15 @@ class _SQLABC(_ABCdtSQL):
 
 class SystemSQL(_SQLABC):
     is_outer: bytes | None = Field(default=None)
-    a: float = Field(default=0, index=True, ge=0)
-    b: float = Field(default=0, index=True, ge=0)
-    c: float = Field(default=0, index=True, ge=0)
-    alpha: float = Field(default=90, index=True, ge=0, le=180)
-    beta: float = Field(default=90, index=True, ge=0, le=180)
-    gamma: float = Field(default=90, index=True, ge=0, le=180)
     shift_x: bytes | None = Field(default=None)
     shift_y: bytes | None = Field(default=None)
     shift_z: bytes | None = Field(default=None)
+    box: bytes | None = Field(default=None)
 
     @classmethod
     @override
     def _dataclass(cls) -> type[Graph]:
+        cls.model_config
         return System
 
     @override

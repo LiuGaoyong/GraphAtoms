@@ -56,7 +56,7 @@ class AtomsMixin(NpzPklBaseModel, Sized):
 
     @override
     def __hash__(self) -> int:
-        return NpzPklBaseModel.__hash__(self)
+        return super().__hash__()
 
     @property
     def natoms(self) -> int:

@@ -125,8 +125,9 @@ class Event(BaseModel):
             )
         return self
 
+    @override
     def __hash__(self) -> int:
-        return hash(self.hash)
+        return super().__hash__()
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):

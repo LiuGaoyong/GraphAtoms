@@ -9,7 +9,6 @@ import pyarrow as pa
 import pytest
 from ase import Atoms
 from ase.build import molecule
-from ase.cluster import Octahedron
 from ase.thermochemistry import HarmonicThermo
 
 from GraphAtoms.common import BaseModel
@@ -17,11 +16,6 @@ from GraphAtoms.containner import AtomsWithBoxEng as AtomicContainner
 from GraphAtoms.containner import Cluster, Gas, Graph, System
 from GraphAtoms.containner import Graph as GraphContainner
 from GraphAtoms.containner._aOther import OtherMixin
-
-
-@pytest.fixture(scope="module")
-def system() -> System:
-    return System.from_ase(Octahedron("Cu", 8))
 
 
 class Test_ContainerBasic:

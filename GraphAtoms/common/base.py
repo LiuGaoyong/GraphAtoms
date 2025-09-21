@@ -1,6 +1,5 @@
 # ruff: noqa: D100 D102
 from collections.abc import Callable, Hashable, Mapping, Sequence
-from functools import cached_property
 from pickle import dumps, loads
 from sys import version_info
 from typing import Annotated, Literal, override
@@ -14,6 +13,7 @@ from pyarrow import Schema
 from typing_extensions import Any, Self
 
 from GraphAtoms.utils import bytes as bytesutils
+from GraphAtoms.utils import string as stringutils
 from GraphAtoms.utils._pyarrow import get_pyarrow_schema
 
 if version_info < (3, 11):
@@ -232,7 +232,7 @@ class __Bytes(pydantic.BaseModel):
         """Return the json bytes of this object."""
         kwargs["exclude_none"] = True
         return bytesutils.compress(
-            dumps(self.model_dump_json(**kwargs)),
+            dumps(self.model_dump_json(**kwargs)),  # type: ignore
             format=compressformat,  # type: ignore
             compresslevel=compresslevel,
         )
@@ -340,13 +340,11 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable, __Pickle):
                     result[k] = v1
         return result
 
-    @cached_property
-    def _data_hash(self) -> str:
-        return bytesutils.hash(
-            self.to_bytes(),
-            return_string=True,
-            algo="blake2b",
-        )  # type: ignore
+    def get_data_hash(self, algo: str = "blake2b", digest_size: int = 6) -> str:
+        """Get the hash of the data of this object."""
+        data = bytesutils.hash(self.to_bytes(), True, algo)
+        assert isinstance(data, str), "data isn't string."
+        return stringutils.hash(data, algo, digest_size)
 
     @classmethod
     def get_pyarrow_schema(cls) -> Schema:
@@ -361,7 +359,7 @@ class BaseModel(_IoFactoryMixin, _ConvertFactoryMixin, Hashable, __Pickle):
 
     @override
     def __hash__(self) -> int:
-        return hash(self._data_hash)
+        return hash(self.get_data_hash())
 
     @override
     def __str__(self) -> str:
@@ -421,15 +419,15 @@ class ExtendedBaseModel(BaseModel, __Yaml, __Toml):
         str
     """
 
+    @override
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     @classmethod
     @override
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("yaml", "yml", "toml")  # type: ignore
-
-    @override
-    def __hash__(self) -> int:
-        return hash(self._data_hash)
 
 
 class NpzPklBaseModel(BaseModel, __Npz):
@@ -446,15 +444,15 @@ class NpzPklBaseModel(BaseModel, __Npz):
     Note: only numpy ndarray & numpy-compatible scalar value supported.
     """
 
+    @override
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     @classmethod
     @override
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("npz",)  # type: ignore
-
-    @override
-    def __hash__(self) -> int:
-        return hash(self._data_hash)
 
 
 class AllBaseModel(ExtendedBaseModel, __Npz):
@@ -473,12 +471,12 @@ class AllBaseModel(ExtendedBaseModel, __Npz):
     Note: only numpy ndarray & numpy-compatible scalar value supported.
     """
 
+    @override
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     @classmethod
     @override
     def SUPPORTED_IO_FORMATS(cls) -> tuple[str]:
         result: tuple[str] = super().SUPPORTED_IO_FORMATS()
         return result + ("npz",)  # type: ignore
-
-    @override
-    def __hash__(self) -> int:
-        return hash(self._data_hash)

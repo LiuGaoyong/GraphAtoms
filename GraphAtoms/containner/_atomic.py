@@ -24,7 +24,7 @@ class AtomsWithBoxEng(AtomsMixin, OtherMixin):
 
     @override
     def __hash__(self) -> int:
-        return AtomsMixin.__hash__(self)
+        return super().__hash__()
 
     @override
     def _string(self) -> str:
