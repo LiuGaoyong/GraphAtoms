@@ -17,14 +17,7 @@ class Test_PyArrowCompability:
     def get_all_item_classes() -> list[type[SQLABC]]:
         return [GasSQL, GraphSQL, SystemSQL, ClusterSQL]
 
-    @pytest.mark.parametrize("cls_id", sorted(range(4)))
-    def test_XxxItem_pyarrow_compability(self, cls_id: int) -> None:
-        cls: type[SQLABC] = self.get_all_item_classes()[cls_id]
-        print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
-
-    @pytest.mark.parametrize("cls_id", sorted(range(4)))
-    def test_Xxx_as_PyArrow_Table(self, system: System, cls_id: int) -> None:
-        cls: type[SQLABC] = self.get_all_item_classes()[cls_id]
+    def get_obj(self, system: System, cls: type[SQLABC]) -> Graph:
         if cls is ClusterSQL:
             obj = Cluster.select_by_hop(
                 system,
@@ -38,7 +31,17 @@ class Test_PyArrowCompability:
             obj = Gas.from_molecule("CO")
         else:
             raise ValueError(f"Unknown class: {cls}")
+        return obj
 
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
+    def test_XxxItem_pyarrow_compability(self, cls_id: int) -> None:
+        cls: type[SQLABC] = self.get_all_item_classes()[cls_id]
+        print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
+
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
+    def test_Xxx_as_PyArrow_Table(self, system: System, cls_id: int) -> None:
+        cls: type[SQLABC] = self.get_all_item_classes()[cls_id]
+        obj = self.get_obj(system, cls)
         obj_sql = cls.convert_from(obj)  # type: ignore
         data = obj_sql.model_dump(exclude_none=True)
         schema: pa.Schema = cls.get_pyarrow_schema()

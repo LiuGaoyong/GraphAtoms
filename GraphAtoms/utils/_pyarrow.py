@@ -75,7 +75,6 @@ def get_pyarrow_schema(
                     continue
                 except Exception:
                     pass
-
         try:
             pa_field = pdt2pa._get_pyarrow_type(
                 field_type=field_type,  # type: ignore

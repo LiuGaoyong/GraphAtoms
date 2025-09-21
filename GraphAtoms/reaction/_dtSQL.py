@@ -6,13 +6,13 @@ from numpy import ndarray
 from pyarrow import Schema
 from pydantic import model_validator, validate_call
 from pydantic.main import IncEx
-from pydantic_to_pyarrow import get_pyarrow_schema
 from sqlmodel import Column, Field, SQLModel
 from sqlmodel._compat import SQLModelConfig
 from typing_extensions import Any, Self
 
 from GraphAtoms.common import XxxKeyMixin
 from GraphAtoms.containner import Cluster, Gas, Graph, System
+from GraphAtoms.utils._pyarrow import get_pyarrow_schema
 
 
 class __SQLKey(XxxKeyMixin):
@@ -60,11 +60,10 @@ class _ConvertMixin(SQLModel):
         return cls.model_validate(dct)
 
 
-class _BaseModel(SQLModel, table=True):
+class _BaseModel(SQLModel):
     model_config = SQLModelConfig(
         ser_json_bytes="base64",  # type: ignore
         val_json_bytes="base64",  # type: ignore
-        table=True,  # type: ignore
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -219,11 +218,11 @@ class _BaseClusterSQL(SQLABC):
     coordination: bytes | None = Field(default=None)
 
 
-class GraphSQL(_ConvertMixin, _BaseSystemSQL, _BaseClusterSQL):
+class GraphSQL(_ConvertMixin, _BaseSystemSQL, _BaseClusterSQL, table=True):
     pass
 
 
-class SystemSQL(_BaseSystemSQL, _ConvertMixin):
+class SystemSQL(_BaseSystemSQL, _ConvertMixin, table=True):
     @classmethod
     @override
     def _dataclass(cls) -> type[Graph]:
@@ -241,7 +240,7 @@ class SystemSQL(_BaseSystemSQL, _ConvertMixin):
         return super().convert_from(data)  # type: ignore
 
 
-class ClusterSQL(_BaseClusterSQL, _ConvertMixin):
+class ClusterSQL(_BaseClusterSQL, _ConvertMixin, table=True):
     @classmethod
     @override
     def _dataclass(cls) -> type[Graph]:
@@ -259,7 +258,7 @@ class ClusterSQL(_BaseClusterSQL, _ConvertMixin):
         return super().convert_from(data)  # type: ignore
 
 
-class GasSQL(SQLABC, _ConvertMixin):
+class GasSQL(SQLABC, _ConvertMixin, table=True):
     sticking: float = Field(default=1, index=True, ge=0, le=1e2)
     pressure: float = Field(default=101325, index=True, ge=0)
 
