@@ -3,8 +3,13 @@ import pyarrow as pa
 import pytest
 
 from GraphAtoms.containner import Cluster, Gas, Graph, System
-from GraphAtoms.reaction._dtSQL import _SQLABC as SQLABC
-from GraphAtoms.reaction._dtSQL import ClusterSQL, GasSQL, GraphSQL, SystemSQL
+from GraphAtoms.reaction._dtSQL import (
+    SQLABC,
+    ClusterSQL,
+    GasSQL,
+    GraphSQL,
+    SystemSQL,
+)
 
 
 class Test_PyArrowCompability:
@@ -17,7 +22,7 @@ class Test_PyArrowCompability:
         cls: type[SQLABC] = self.get_all_item_classes()[cls_id]
         print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
 
-    @pytest.mark.parametrize("cls_id", [0, 2, 3])  # sorted(range(4)))
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
     def test_Xxx_as_PyArrow_Table(self, system: System, cls_id: int) -> None:
         cls: type[SQLABC] = self.get_all_item_classes()[cls_id]
         if cls is ClusterSQL:

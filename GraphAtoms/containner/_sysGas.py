@@ -69,6 +69,7 @@ class Gas(System):
         frequencies: ArrayLike | None = None,
         infer_order: bool = False,
         infer_conn: bool = True,
+        **kw,
     ) -> Self:
         return cls.from_ase(
             molecule(name),
@@ -76,7 +77,9 @@ class Gas(System):
             infer_order=infer_order,
             infer_conn=infer_conn,
             pressure=pressure,
+            sticking=sticking,
             energy=energy,
+            **kw,
         )
 
     @classmethod

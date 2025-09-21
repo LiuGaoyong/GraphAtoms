@@ -28,7 +28,39 @@ SQL_KEY = __SQLKey()
 __all__ = ["SQL_KEY"]
 
 
-class __Base(SQLModel, table=True):
+class _ConvertMixin(SQLModel):
+    @classmethod
+    def _dataclass(cls) -> type[Graph]:
+        """The base data class for validation."""
+        return Graph
+
+    def convert_to(self) -> Graph:
+        """Convert to the base data class."""
+        dct = self.model_dump(
+            exclude_none=True,
+            exclude=set(SQL_KEY._DICT.values()),
+        )
+        cls: type[Graph] = self._dataclass()
+        return cls.model_validate(dct)
+
+    @classmethod
+    def convert_from(cls, data: Graph) -> Self:
+        """Convert from the base data class."""
+        dct: dict[str, Any] = {
+            k: (v.tobytes() if isinstance(v, ndarray) else v)
+            for k, v in data.model_dump(exclude_none=True).items()
+            if k in cls.__pydantic_fields__.keys()
+        } | {
+            "graph_hash": data.hash,
+            "data_hash": data.get_data_hash(),
+            "formula": data.symbols.get_chemical_formula("metal"),
+            "natoms": data.natoms,
+            "nbonds": data.nbonds,
+        }
+        return cls.model_validate(dct)
+
+
+class _BaseModel(SQLModel, table=True):
     model_config = SQLModelConfig(
         ser_json_bytes="base64",  # type: ignore
         val_json_bytes="base64",  # type: ignore
@@ -57,15 +89,15 @@ class __Base(SQLModel, table=True):
         return values
 
     @classmethod
-    def get_pyarrow_schema(cls) -> Schema:
-        """Get the pyarrow schema of this class."""
-        return get_pyarrow_schema(cls)
-
-    @classmethod
     @abstractmethod
     def _dataclass(cls) -> type[Graph]:
         """The base data class for validation."""
         raise NotImplementedError
+
+    @classmethod
+    def get_pyarrow_schema(cls) -> Schema:
+        """Get the pyarrow schema of this class."""
+        return get_pyarrow_schema(cls)
 
     def __get_include_and_exclude(
         self,
@@ -156,35 +188,8 @@ class __Base(SQLModel, table=True):
             serialize_as_any=serialize_as_any,
         )
 
-    @abstractmethod
-    def convert_to(self) -> Graph:
-        """Convert to the base data class."""
-        dct = self.model_dump(
-            exclude_none=True,
-            exclude=set(SQL_KEY._DICT.values()),
-        )
-        cls: type[Graph] = self._dataclass()
-        return cls.model_validate(dct)
 
-    @classmethod
-    @abstractmethod
-    def convert_from(cls, data: Graph) -> Self:
-        """Convert from the base data class."""
-        dct: dict[str, Any] = {
-            k: (v.tobytes() if isinstance(v, ndarray) else v)
-            for k, v in data.model_dump(exclude_none=True).items()
-            if k in cls.__pydantic_fields__.keys()
-        } | {
-            "graph_hash": data.hash,
-            "data_hash": data.get_data_hash(),
-            "formula": data.symbols.get_chemical_formula("metal"),
-            "natoms": data.natoms,
-            "nbonds": data.nbonds,
-        }
-        return cls.model_validate(dct)
-
-
-class _SQLABC(__Base):
+class SQLABC(_BaseModel):
     # Atoms
     numbers: bytes
     positions: bytes
@@ -201,17 +206,27 @@ class _SQLABC(__Base):
     target: bytes
 
 
-class SystemSQL(_SQLABC):
+class _BaseSystemSQL(SQLABC):
     is_outer: bytes | None = Field(default=None)
     shift_x: bytes | None = Field(default=None)
     shift_y: bytes | None = Field(default=None)
     shift_z: bytes | None = Field(default=None)
     box: bytes | None = Field(default=None)
 
+
+class _BaseClusterSQL(SQLABC):
+    move_fix_tag: bytes | None = Field(default=None)
+    coordination: bytes | None = Field(default=None)
+
+
+class GraphSQL(_ConvertMixin, _BaseSystemSQL, _BaseClusterSQL):
+    pass
+
+
+class SystemSQL(_BaseSystemSQL, _ConvertMixin):
     @classmethod
     @override
     def _dataclass(cls) -> type[Graph]:
-        cls.model_config
         return System
 
     @override
@@ -226,10 +241,7 @@ class SystemSQL(_SQLABC):
         return super().convert_from(data)  # type: ignore
 
 
-class ClusterSQL(_SQLABC):
-    move_fix_tag: bytes | None = Field(default=None)
-    coordination: bytes | None = Field(default=None)
-
+class ClusterSQL(_BaseClusterSQL, _ConvertMixin):
     @classmethod
     @override
     def _dataclass(cls) -> type[Graph]:
@@ -247,25 +259,7 @@ class ClusterSQL(_SQLABC):
         return super().convert_from(data)  # type: ignore
 
 
-class GraphSQL(SystemSQL, ClusterSQL):
-    @classmethod
-    @override
-    def _dataclass(cls) -> type[Graph]:
-        return Graph
-
-    @override
-    @validate_call
-    def convert_to(self) -> Graph:  # type: ignore
-        return super().convert_to()  # type: ignore
-
-    @classmethod
-    @override
-    @validate_call
-    def convert_from(cls, data: Graph) -> Self:  # type: ignore
-        return super().convert_from(data)  # type: ignore
-
-
-class GasSQL(_SQLABC):
+class GasSQL(SQLABC, _ConvertMixin):
     sticking: float = Field(default=1, index=True, ge=0, le=1e2)
     pressure: float = Field(default=101325, index=True, ge=0)
 
