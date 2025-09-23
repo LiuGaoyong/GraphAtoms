@@ -11,6 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+        shell: bash
+        env:
+          UV_INDEX: https://pypi.org/simple
+          UV_DEFAULT_INDEX: https://pypi.org/simple
       - run: uv run pytest -vv -s -nauto
         shell: bash
         env:
