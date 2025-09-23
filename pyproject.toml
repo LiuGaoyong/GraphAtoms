@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "GraphAtoms"
-version = "0.0.3"
+version = "1.0.0"
 description = "The Chemical Core Class for Graph Theory Analysis & Graph Neural Network."
 readme = "README.md"
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
