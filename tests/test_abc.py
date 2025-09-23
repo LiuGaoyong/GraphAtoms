@@ -7,9 +7,9 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
+from numpydantic import NDArray
 
-from GraphAtoms.common.abc import BaseModel, ExtendedBaseModel, NpzPklBaseModel
-from GraphAtoms.common.ndarray import NDArray
+from GraphAtoms.common import BaseModel, ExtendedBaseModel, NpzPklBaseModel
 
 
 class MockNpzBaseModel(NpzPklBaseModel):
@@ -42,7 +42,7 @@ class Test_ABC_Pydantic_Model:
             new_obj = cls.read(fname)
             assert isinstance(new_obj, cls)
             np.testing.assert_array_equal(obj.arr, new_obj.arr)  # type: ignore
-            assert new_obj == obj
+            assert new_obj.__eq__(obj)
 
     @pytest.mark.parametrize("format", ["yaml", "toml", "json"])
     def test_convert(self, format: str) -> None:
@@ -70,7 +70,7 @@ class Test_ABC_Pydantic_Model:
 )
 def test_compress(fmt, level: int, cls: type[BaseModel]) -> None:
     obj = cls()
-    b = obj.as_bytes(compressformat=fmt, compresslevel=level)
+    b = obj.to_bytes(compressformat=fmt, compresslevel=level)
     obj2 = cls.from_bytes(b, compressformat=fmt)
     print(fmt, level, len(b), sep="\t")
     assert obj == obj2

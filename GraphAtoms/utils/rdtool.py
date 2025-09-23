@@ -1,5 +1,4 @@
-from abc import ABC, abstractmethod
-from functools import cached_property, reduce
+from functools import reduce
 from io import StringIO
 
 import numpy as np
@@ -240,6 +239,7 @@ def rdmol2smiles(rdmol: RDMol, canonical: bool = True) -> str:
 
 
 def smiles2rdmol(smi: str) -> RDMol:
+    """Convert SMILES string as RDKit Mol object."""
     rdmol = Chem.AddHs(Chem.MolFromSmiles(str(smi)))
     AllChem.EmbedMolecule(rdmol, useRandomCoords=True)  # type: ignore
     AllChem.MMFFOptimizeMolecule(rdmol)  # type: ignore
@@ -311,6 +311,7 @@ def get_adjacency_by_rdkit(
     cov_factor: float = 1.3,
     charge: int = 0,
 ) -> sp.coo_array:
+    """Return the adjacency matrix of the given rdmol."""
     rdmol: RDMol = get_rdmol(
         numbers=numbers,
         order=order,
@@ -325,14 +326,8 @@ def get_adjacency_by_rdkit(
     return _get_adjacency(rdmol=rdmol)
 
 
-#############################################################################
-# The Graph Mixin Class for RDKit.
-class GraphMixinRDKit(ABC):
-    @cached_property
-    @abstractmethod
-    def RDMol(self) -> Chem.Mol: ...
-
-    def get_atomic_sasa(self) -> list[float]:
-        rdmol: RDMol = self.RDMol.__copy__()
-        rdFreeSASA.CalcSASA(rdmol, rdFreeSASA.classifyAtoms(rdmol))
-        return [float(a.GetProp("SASA")) for a in rdmol.GetAtoms()]
+def get_atomic_sasa(rdmol: RDMol) -> list[float]:
+    """Return the atomic SASA of the given rdmol."""
+    rdmol = rdmol.__copy__()  # copy the rdmol object
+    rdFreeSASA.CalcSASA(rdmol, rdFreeSASA.classifyAtoms(rdmol))
+    return [float(a.GetProp("SASA")) for a in rdmol.GetAtoms()]

@@ -9,34 +9,34 @@ from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation
 from typing_extensions import Self
 
-from GraphAtoms.common.abc import BaseModel
-from GraphAtoms.common.rotation import kabsch, rotate
-from GraphAtoms.common.string import hash_string
-from GraphAtoms.containner import Gas, GraphContainner, System
+from GraphAtoms.common.base import BaseModel
+from GraphAtoms.containner import Cluster, Gas, Graph, System
+from GraphAtoms.utils.rotation import kabsch, rotate
+from GraphAtoms.utils.string import hash as hash_string
 
 
 class Event(BaseModel):
-    r: GraphContainner
-    p: GraphContainner
-    ts: GraphContainner
+    r: Cluster | System
+    p: Cluster | System
+    ts: Cluster | System
     gas: Gas | None = None
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def is_adsorption(self) -> bool:
         return self.gas is not None and self.p.natoms > self.r.natoms
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def is_desorption(self) -> bool:
         return self.gas is not None and self.p.natoms < self.r.natoms
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def is_reaction(self) -> bool:
         return self.gas is None
 
-    @pydantic.computed_field  # type: ignore[prop-decorator] # ignore for mypy
+    # type: ignore[prop-decorator] # ignore for mypy
     @cached_property
     def hash(self) -> str:
         features = sorted([self.r.hash, self.p.hash]) + [self.ts.hash]
@@ -115,7 +115,7 @@ class Event(BaseModel):
     def __check_type(self) -> Self:
         cls = type(self.ts)
         try:
-            assert cls != GraphContainner
+            assert issubclass(cls, Graph)
             assert isinstance(self.r, cls)
             assert isinstance(self.p, cls)
         except Exception:
@@ -125,8 +125,9 @@ class Event(BaseModel):
             )
         return self
 
+    @override
     def __hash__(self) -> int:
-        return hash(self.hash)
+        return super().__hash__()
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
@@ -184,10 +185,10 @@ class Event(BaseModel):
             s_p = self.p.get_atomic_sasa()
             if len(s_r) < len(s_p):
                 safterads = np.asarray(s_p)
-                sbeforeads = np.asarray(s_r + s_gas)
+                sbeforeads = np.append(s_r, s_gas)
             else:
                 safterads = np.asarray(s_r)
-                sbeforeads = np.asarray(s_p + s_gas)
+                sbeforeads = np.append(s_p, s_gas)
             assert safterads.ndim == sbeforeads.ndim == 1
             assert safterads.shape == sbeforeads.shape
             return sum((sbeforeads - safterads)[: -len(s_gas)]) / 2

@@ -1,35 +1,113 @@
 # ruff: noqa: D100, D101, D102, D103, D104
+import warnings
 from pathlib import Path
 from pprint import pprint
 from tempfile import TemporaryDirectory
 
 import numpy as np
+import pyarrow as pa
 import pytest
+from ase import Atoms
 from ase.build import molecule
-from ase.cluster import Octahedron
+from ase.thermochemistry import HarmonicThermo
 
-from GraphAtoms.common.abc import BaseModel
-from GraphAtoms.containner import AtomicContainner, Cluster, Gas, System
-from GraphAtoms.containner._graph import GRAPH_KEY, GraphContainner
-
-THIS_DIR = Path(__file__).parent
-
-
-def pytest_AtomicContainner() -> None:
-    pprint(AtomicContainner.model_json_schema())
-    atoms = molecule("H2O")
-    obj = AtomicContainner.from_ase(atoms)
-    print(obj, obj.box)
-    print(repr(obj))
-    new_atoms = obj.as_ase()
-    print(new_atoms)
-    new_obj = AtomicContainner.from_ase(new_atoms)
-    print(repr(new_obj), "\n", repr(obj))
-    assert new_obj == obj
+from GraphAtoms.common import BaseModel
+from GraphAtoms.containner import AtomsWithBoxEng as AtomicContainner
+from GraphAtoms.containner import Cluster, Gas, Graph, System
+from GraphAtoms.containner import Graph as GraphContainner
+from GraphAtoms.containner._aOther import OtherMixin
 
 
-@pytest.mark.parametrize("system", [System.from_ase(Octahedron("Cu", 8))])
+class Test_ContainerBasic:
+    def test_AtomicContainner(self) -> None:
+        pprint(AtomicContainner.model_json_schema())
+        atoms = molecule("H2O")
+        obj = AtomicContainner.from_ase(atoms)
+        print(obj.ase_cell)
+        print(obj, obj.ase_cell)
+        print(repr(obj))
+        new_atoms: Atoms = obj.to_ase()
+        print(new_atoms)
+        new_obj = AtomicContainner.from_ase(new_atoms)
+        print(repr(new_obj), "\n", repr(obj))
+        assert new_obj == obj
+
+    def test_graph_basic(self) -> None:
+        """Test the system with bonds.
+
+        Run 100 time:
+        Timing:                        incl.     excl.
+        -----------------------------------------------------
+        Infer Bond Order:              0.152     0.152  21.1% |-------|
+        Infer Connectivity:            0.106     0.106  14.7% |-----|
+        OurContainer => PyG Data:      0.007     0.007   1.0% |
+        ase.Atoms => OurContainer:     0.004     0.004   0.6% |
+        Other:                         0.451     0.451  62.6% |------------...|
+        -----------------------------------------------------
+        Total:                                   0.720 100.0%
+        """
+        obj_smp = GraphContainner.from_ase(molecule("CH4"))
+        obj_conn = GraphContainner.from_ase(
+            molecule("CH4"),
+            infer_conn=True,
+            infer_order=False,
+        )
+        obj_order = GraphContainner.from_ase(
+            molecule("CH4"),
+            infer_conn=True,
+            infer_order=True,
+        )
+        for obj in (obj_smp, obj_conn, obj_order):
+            print("#" * 32)
+            print(obj, obj.ase_cell)
+            print(repr(obj))
+            new_atoms = obj.to_ase()
+            print(new_atoms)
+            print(obj.MATRIX)
+
+        print("*" * 32, "Test PyGData from obj_order")
+        pygdata = obj_order.to_pygdata()
+        print(pygdata, pygdata.num_edges, pygdata.num_nodes)
+        assert pygdata.num_nodes == obj_order.natoms
+        assert pygdata.num_edges == obj_order.nbonds, obj_order.MATRIX.toarray()
+        for k in pygdata.node_attrs():
+            v = pygdata[k]
+            print("NODE", k, type(v))
+        for k in pygdata.edge_attrs():
+            v = pygdata[k]
+            print("EDGE", k, type(v))
+
+        print("*" * 32, "Test PyGData equality from obj_order")
+        new_obj_order = GraphContainner.from_pygdata(pygdata)
+        print(repr(new_obj_order), "\n", repr(obj_order))
+        if new_obj_order != obj_order:
+            for k in obj_order.__pydantic_fields__:
+                print(k, getattr(obj_order, k), getattr(new_obj_order, k))
+            raise ValueError  # Shouldn't raise ValueError
+
+
 class Test_Container:
+    def test_select_cluster(self, system: System) -> None:
+        sub = Cluster.select_by_hop(system, system.get_hop_distance(0))
+        print(
+            "-" * 32,
+            Cluster.model_json_schema(),
+            "-" * 32,
+            sub,
+            repr(sub),
+            "-" * 32,
+            sep="\n",
+        )
+        sub2 = Cluster.select_by_distance(system, np.asarray([0]))
+        print(
+            sub,
+            sub2,
+            "-" * 32,
+            sub.move_fix_tag,
+            sub2.move_fix_tag,
+            sep="\n",
+        )
+
     def test_len(self, system: System) -> None:
         assert len(system) == 344
 
@@ -39,25 +117,22 @@ class Test_Container:
     def test_eq(self, system: System) -> None:
         assert system.__eq__(system), "System equality test fail!!!"
 
-    def test_hash(self, system) -> None:
+    def test_hash(self, system: System) -> None:
+        print(system.__hash__)
         lst = [hash(i) for i in [system] * 5]
         assert len(set(lst)) == 1, "Hash value conflict!!!"
 
     @pytest.mark.parametrize(
         "mode",
-        [
-            "ASE",
-            "PyGData",
-            "IGraph",
-            "RustworkX",
-            "NetworkX",
-            # "NetworKit",
-        ],
+        ["ASE", "PyGData", "IGraph", "RustworkX", "NetworkX"],
     )
     def test_convert(self, system: System, mode: str) -> None:
         obj = system
         print("-" * 64)
-        _obj = obj.convert_as(mode.lower())  # type: ignore
+        _obj = obj.convert_to(mode.lower())  # type: ignore
+        if mode.lower() == "ase":
+            assert isinstance(_obj, Atoms), "ASE object expected!!!"
+            print(_obj.info.keys())
         new_obj = obj.convert_from(
             _obj,
             mode.lower(),  # type: ignore
@@ -68,7 +143,7 @@ class Test_Container:
         print(f"Convert to/from {mode} OK!!!")
 
     # "npz": P1: cannot for str; P2: not for nest dict ...
-    @pytest.mark.parametrize("fmt", ["json", "pkl"])
+    @pytest.mark.parametrize("fmt", ["json", "pkl", "npz"])
     def test_io(self, system: System, fmt: str) -> None:
         obj = system
         print("-" * 64)
@@ -114,8 +189,9 @@ class Test_Container:
             for k in set(dir(System))
             - set(dir(BaseModel))
             - set(System.__pydantic_fields__)
-            - {"ncore", "nfix", "nmoved", "isfix"}
-            - {"iscore", "islastmoved", "isfirstmoved"}
+            - {"a", "b", "c", "alpha", "beta", "gamma"}
+            - {"ncore", "nfix", "nmoved", "iscore", "isfix"}
+            - {"islastmoved", "isfirstmoved", "vib_energies"}
             - {"DF_ATOMS", "DF_BONDS", "THERMO", "THERMO_ATOMS", "Z"}
             - {"connected_components_number", "natoms", "nbonds", "symbols"}
             if not k.startswith("_") and not callable(getattr(System, k))
@@ -156,117 +232,114 @@ class Test_Container:
         np.testing.assert_array_equal(matching0, matching1)
 
 
-def test_graph_basic() -> None:
-    """Test the system with bonds.
+class Test_Thermo:
+    def test_gas_thermo(self) -> None:
+        from ase.thermochemistry import IdealGasThermo
+        from ase.units import invcm
 
-    Run 100 time:
-        Timing:                        incl.     excl.
-    -----------------------------------------------------
-    Infer Bond Order:              0.152     0.152  21.1% |-------|
-    Infer Connectivity:            0.106     0.106  14.7% |-----|
-    OurContainer => PyG Data:      0.007     0.007   1.0% |
-    ase.Atoms => OurContainer:     0.004     0.004   0.6% |
-    Other:                         0.451     0.451  62.6% |------------...|
-    -----------------------------------------------------
-    Total:                                   0.720 100.0%
-    """
-    obj_smp = GraphContainner.from_ase(molecule("CH4"))
-    obj_conn = GraphContainner.from_ase(
-        molecule("CH4"),
-        infer_conn=True,
-        infer_order=False,
-    )
-    obj_order = GraphContainner.from_ase(
-        molecule("CH4"),
-        infer_conn=True,
-        infer_order=True,
-    )
-    for obj in (obj_smp, obj_conn, obj_order):
-        print("#" * 32)
-        print(obj, obj.box)
-        print(repr(obj))
-        new_atoms = obj.as_ase()
-        print(new_atoms)
-        print(obj.MATRIX)
+        e, T, p = 0.138, 200, 101325.0
+        gas = Gas.from_molecule(
+            "CO",
+            energy=e,  # GFNFF by XTB@6.7.1
+            frequencies=[0, 0, 0, 12.6, 12.6, 2206.3],
+            pressure=p,
+        )
 
-    print("*" * 32, "Test PyGData from obj_order")
-    pygdata = obj_order.as_pygdata()
-    print(pygdata, pygdata.num_edges, pygdata.num_nodes)
-    assert pygdata.num_nodes == obj_order.natoms
-    assert pygdata.num_edges == obj_order.nbonds, obj_order.MATRIX.toarray()
-    for k in pygdata.node_attrs():
-        v = pygdata[k]
-        print("NODE", k, type(v))
-    for k in pygdata.edge_attrs():
-        v = pygdata[k]
-        print("EDGE", k, type(v))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            thermo = IdealGasThermo(
+                vib_energies=gas.frequencies * invcm,  # type: ignore
+                geometry="linear",
+                potentialenergy=0.138,
+                atoms=gas.to_ase(),
+                spin=0,
+                symmetrynumber=1,
+            )
+        print(thermo.vib_energies)
+        print(gas.vib_energies)
 
-    print("*" * 32, "Test PyGData equality from obj_order")
-    new_obj_order = GraphContainner.from_pygdata(pygdata)
-    print(repr(new_obj_order), "\n", repr(obj_order))
-    if new_obj_order != obj_order:
-        for k in set(GRAPH_KEY._DICT):
-            print(k, getattr(obj_order, k), getattr(new_obj_order, k))
-        raise ValueError  # Shouldn't raise ValueError
+        v0 = gas.get_vibrational_energy_contribution(T)
+        v00 = thermo._vibrational_energy_contribution(T)
+        assert np.isclose(v0, v00)
 
+        v0 = gas.get_enthalpy(T)
+        v00 = thermo.get_enthalpy(T)
+        assert np.isclose(v0, v00)
 
-@pytest.mark.parametrize("obj", [GraphContainner.from_ase(Octahedron("Au", 8))])
-@pytest.mark.parametrize(
-    "mode",
-    [
-        "ASE",
-        "PyGData",
-        "IGraph",
-        "RustworkX",
-        "NetworkX",
-        # "NetworKit",
-    ],
-)
-def test_graph_convert(obj: GraphContainner, mode: str) -> None:
-    print("-" * 64)
-    _obj = obj.convert_as(mode.lower())  # type: ignore
-    new_obj = obj.convert_from(
-        _obj,
-        mode.lower(),  # type: ignore
-        infer_conn=False,
-        infer_order=False,
-    )
-    assert new_obj == obj, f"\nobj={repr(obj)}\nnew_obj={repr(new_obj)}"
-    print(mode, "OK!!!")
+        v1 = gas.get_entropy(T)
+        v11 = thermo.get_entropy(T, p)
+        assert np.isclose(v1, v11)
+
+        v1 = gas.get_free_energy(T)
+        v11 = thermo.get_gibbs_energy(T, p)
+        assert np.isclose(v1, v11)
+
+    def test_harmonic_thermo(self) -> None:
+        e, T = 0.138, 200
+        gas = OtherMixin(frequencies=[0, 0, 0, 12.6, 12.6, 2206.3], energy=e)  # type: ignore
+        thermo = HarmonicThermo(
+            vib_energies=gas.vib_energies, potentialenergy=e
+        )  # type: ignore
+        print(thermo.vib_energies)
+        print(gas.vib_energies)
+
+        v0 = gas.get_vibrational_energy_contribution(T)
+        v00 = thermo._vibrational_energy_contribution(T)
+        assert np.isclose(v0, v00)
+
+        v0 = gas.get_enthalpy(T)
+        v00 = thermo.get_internal_energy(T)
+        assert np.isclose(v0, v00)
+
+        v1 = gas.get_entropy(T)
+        v11 = thermo.get_entropy(T)
+        assert np.isclose(v1, v11)
+
+        v1 = gas.get_free_energy(T)
+        v11 = thermo.get_helmholtz_energy(T)
+        assert np.isclose(v1, v11)
 
 
-def test_gas_thermo() -> None:
-    gas = Gas.from_molecule(
-        "CO",
-        energy=0.138,  # GFNFF by XTB@6.7.1
-        frequencies=[0, 0, 0, 12.6, 12.6, 2206.3],
-        pressure=101325.0,
-    )
-    print(gas.get_free_energy(200, verbose=True))
+class Test_PyArrowCompability:
+    @staticmethod
+    def get_all_item_classes() -> list[type[Graph]]:
+        return [Gas, System, Cluster, Graph]
 
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
+    def test_XxxItem_pyarrow_compability(self, cls_id: int) -> None:
+        cls: type[Graph] = self.get_all_item_classes()[cls_id]
+        print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
 
-def test_select_cluster() -> None:
-    obj = System.from_ase(Octahedron("Au", 8))
-    sub = Cluster.select_by_hop(obj, obj.get_hop_distance(0))
-    print(
-        "-" * 32,
-        Cluster.model_json_schema(),
-        "-" * 32,
-        sub,
-        repr(sub),
-        "-" * 32,
-        sep="\n",
-    )
-    sub2 = Cluster.select_by_distance(obj, np.asarray([0]))
-    print(
-        sub,
-        sub2,
-        "-" * 32,
-        sub.move_fix_tag,
-        sub2.move_fix_tag,
-        sep="\n",
-    )
+    @pytest.mark.parametrize("cls_id", sorted(range(4)))
+    def test_Xxx_as_PyArrow_Table(self, system: System, cls_id: int) -> None:
+        cls: type[Graph] = self.get_all_item_classes()[cls_id]
+        if cls is Cluster:
+            obj = Cluster.select_by_hop(
+                system,
+                system.get_hop_distance(0),
+            )
+        elif cls is Graph:
+            obj = Graph.from_ase(system.to_ase())
+        elif cls is System:
+            obj = system
+        elif cls is Gas:
+            obj = Gas.from_molecule("CO")
+        else:
+            raise ValueError(f"Unknown class: {cls}")
+
+        print(
+            pa.Table.from_pylist(
+                [
+                    obj.model_dump(
+                        numpy_ndarray_compatible=False,
+                        exclude_none=True,
+                    )
+                ]
+                * 5,
+                schema=cls.get_pyarrow_schema(),
+            )
+        )
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-vv", "-s", "--maxfail=1"])
+    pytest.main([__file__, "-vv", "-s"])

@@ -10,14 +10,14 @@ from pydantic import PositiveInt, validate_call
 from scipy.sparse import csr_array
 from typing_extensions import Self
 
-from GraphAtoms.common.abc import BaseMixin
-from GraphAtoms.common.string import hash_string
-from GraphAtoms.containner._atomic import ATOM_KEY
+from GraphAtoms.common._abc import BaseMixin
+from GraphAtoms.containner._aMixin import ATOM_KEY
+from GraphAtoms.utils.string import hash as hash_string
 
 
 class _GraphMixinIGraph(ABC, BaseMixin):
     @abstractmethod
-    def as_igraph(self) -> Graph: ...
+    def to_igraph(self) -> Graph: ...
     @classmethod
     @abstractmethod
     def from_igraph(cls, graph: Graph) -> Self: ...

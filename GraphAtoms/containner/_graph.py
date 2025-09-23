@@ -1,5 +1,4 @@
 import warnings
-from collections.abc import Hashable
 from functools import cached_property
 from typing import Any, Literal, override
 
@@ -7,68 +6,34 @@ import numpy as np
 import torch
 from ase import Atoms
 from igraph import Graph as IGraph
-from networkit import Graph as NetworKitGraph
 from networkx import Graph as NetworkXGraph
 from pandas import DataFrame
 from pandas import concat as pd_concat
-from pydantic import model_validator, validate_call
+from pydantic import validate_call
 from rustworkx import PyGraph as RustworkXGraph
 from scipy import sparse as sp
 from torch_geometric.data import Data as DataPyG
 from typing_extensions import Self
 
-from GraphAtoms.common.string import hash_string
-from GraphAtoms.containner import _mRDKit as rdutils
-from GraphAtoms.containner._atomic import ATOM_KEY, TOTAL_KEY, AtomicContainner
-from GraphAtoms.containner._bonded import BOND_KEY, BondAttrMixin
-from GraphAtoms.containner._ioDataPyG import GraphMixinPyG
-from GraphAtoms.containner._ioIGraph import GraphMixinIGraph
-from GraphAtoms.containner._ioNetworkX import GraphMixinNetworkX
-from GraphAtoms.containner._ioRustworkX import GraphMixinRustworkX
-from GraphAtoms.containner._mConnComp import GraphMixinConnectedComponents
-from GraphAtoms.containner._mFreeE import FreeEnergyMixin
-from GraphAtoms.containner._mNetworKit import GraphMixinNetworKit
+from GraphAtoms.containner._aMixin import ATOM_KEY
+from GraphAtoms.containner._atomic import AtomsWithBoxEng
+from GraphAtoms.containner._g2DataPyG import GraphMixinPyG
+from GraphAtoms.containner._g2IGraph import GraphMixinIGraph
+from GraphAtoms.containner._g2NetworkX import GraphMixinNetworkX
+from GraphAtoms.containner._g2RustworkX import GraphMixinRustworkX
+from GraphAtoms.containner._gBonded import BOND_KEY, BondsWithComp
+from GraphAtoms.utils import rdtool as rdutils
+from GraphAtoms.utils.string import hash as hash_string
 
 
-class __KEY:
-    ATOM = ATOM_KEY
-    BOND = BOND_KEY
-    GRAPH = TOTAL_KEY
-
-    @property
-    def _DICT(self) -> dict[str, str]:
-        result: dict[str, str] = dict()
-        result |= self.GRAPH._DICT
-        result |= self.BOND._DICT
-        result |= self.ATOM._DICT
-        return result
-
-
-GRAPH_KEY = __KEY()
-_OBJ_TYPE_0 = Atoms | DataPyG | IGraph
-_OBJ_TYPE_1 = NetworkXGraph | RustworkXGraph
-_OBJ_TYPE = _OBJ_TYPE_0 | _OBJ_TYPE_1 | NetworKitGraph
-_MODE_TYPE_1 = Literal["networkit", "networkx", "rustworkx"]
-_MODE_TYPE_0 = Literal["ase", "pygdata", "igraph"]
-_MODE_TYPE = _MODE_TYPE_0 | _MODE_TYPE_1
-
-
-class GraphContainner(
-    AtomicContainner,
-    BondAttrMixin,
-    GraphMixinConnectedComponents,
+class Graph(
+    AtomsWithBoxEng,
+    BondsWithComp,
     GraphMixinIGraph,
     GraphMixinPyG,
     GraphMixinNetworkX,
-    GraphMixinNetworKit,
     GraphMixinRustworkX,
-    rdutils.GraphMixinRDKit,
-    FreeEnergyMixin,
-    Hashable,
 ):
-    # In Base Class: `hash: str | None`
-    hash: str = "None"  # type: ignore
-
     @override
     def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
@@ -89,29 +54,21 @@ class GraphContainner(
             return False
         elif not np.all(self.CN == other.CN):
             return False
-        elif not AtomicContainner.__eq__(self, other):
+        elif not BondsWithComp.__eq__(self, other):
             return False
-        elif BondAttrMixin.__eq__(self, other):
-            return True
+        elif not AtomsWithBoxEng.__eq__(self, other):
+            return False
         else:
-            return self.__hashstring == other.__hashstring
+            return self.hash == other.hash
 
     @override
     def __hash__(self) -> int:
-        return hash(self.__hashstring)
+        return super().__hash__()
 
     @cached_property
-    def __hashstring(self) -> str:
+    def hash(self) -> str:
         labels = sorted(self.get_weisfeiler_lehman_hashes())
         return hash_string(",".join(labels), digest_size=8)
-
-    @model_validator(mode="after")
-    def __reset_hashstring_and_check_keys(self) -> Self:
-        object.__setattr__(self, TOTAL_KEY.HASH, self.__hashstring)
-        _all_keys_set: set[str] = set(self.__pydantic_fields__.keys())
-        assert _all_keys_set >= set(GRAPH_KEY._DICT.values())
-        assert self.hash is not None
-        return self
 
     @property
     def CN(self) -> np.ndarray:
@@ -120,35 +77,32 @@ class GraphContainner(
         except Exception:
             return super().CN_MATRIX
 
-    @property
-    @override
-    def THERMO_ATOMS(self) -> Atoms:
-        result = Atoms(self.Z, self.R)
-        result.info[TOTAL_KEY.ENERGY] = self.energy
-        result.info[TOTAL_KEY.FREQS] = self.frequencies
-        result.info[TOTAL_KEY.PRESSURE] = self.pressure
-        result.info["nsymmetry"] = self.nsymmetry
-        return result
-
     @cached_property
     @override
     def RDMol(self) -> rdutils.RDMol:
         return rdutils._get_rdmol_with_bonds(
             numbers=self.Z,
             geometry=self.R,
-            source=self.conn[:, 0],
-            target=self.conn[:, 1],
+            source=self.source,
+            target=self.target,
             order=self.order if self.order is not None else None,
             infer_order=False,
             charge=0,
         )
 
+    @cached_property
+    def __SASA(self) -> np.ndarray:
+        return np.asarray(rdutils.get_atomic_sasa(self.RDMol))
+
+    def get_atomic_sasa(self) -> np.ndarray:
+        return self.__SASA
+
     @override
     def _string(self) -> str:
-        result = AtomicContainner._string(self)
-        result += f",{BondAttrMixin._string(self)}"
+        result = AtomsWithBoxEng._string(self)
+        result += f",{BondsWithComp._string(self)}"
         result += f",{self.connected_components_number}FRAG"
-        return f"{result},{self.__hashstring}"
+        return f"{result},{self.hash}"
 
     @validate_call
     def get_weisfeiler_lehman_hashes(
@@ -170,74 +124,83 @@ class GraphContainner(
                 '"igraph" & "networkx" are supported.'
             )
 
-    @validate_call(config={"arbitrary_types_allowed": True})
-    def update_geometry(
-        self,
-        geometry: np.ndarray,
-        plus_factor: float = 0.5,
-        multiply_factor: float = 1,
-        infer_order: bool = False,
-        return_dict: bool = False,
-        charge: int = 0,
-    ) -> Self | dict[str, Any]:
-        assert geometry.shape == (self.natoms, 3)
-        dct = self.model_dump(exclude_none=True)
-        dct[GRAPH_KEY.ATOM.POSITION] = np.asarray(geometry)
-        conn = dct.pop(GRAPH_KEY.BOND.CONNECTIVITY, None)
-        order = dct.pop(GRAPH_KEY.BOND.ORDER, None)
-        if conn is not None:
-            dct = AtomicContainner._infer_bond(
-                dct=dct,
-                plus_factor=plus_factor,
-                multiply_factor=multiply_factor,
-                infer_order=(order is not None) and (infer_order),
-                charge=0,
-            )
-            cn = dct.get(GRAPH_KEY.ATOM.COORDINATION, None)
-            tag = dct.get(GRAPH_KEY.ATOM.MOVE_FIX_TAG, None)
-            if all(i is not None for i in (cn, tag)):
-                cn, tag = (np.asarray(i) for i in (cn, tag))
-            else:
-                raise ValueError("The `cn` or `tag` is none for Cluster.")
-            conn = dct.get(GRAPH_KEY.BOND.CONNECTIVITY)
-            _cn = np.asarray(IGraph(len(cn), conn).degree(), dtype=int)
-            dct[GRAPH_KEY.ATOM.COORDINATION] = np.where(tag == 0, cn, _cn)
-        return dct if return_dict else self.model_validate(dct)
+    # @validate_call(config={"arbitrary_types_allowed": True})
+    # def update_geometry(
+    #     self,
+    #     geometry: np.ndarray,
+    #     plus_factor: float = 0.5,
+    #     multiply_factor: float = 1,
+    #     infer_order: bool = False,
+    #     return_dict: bool = False,
+    #     charge: int = 0,
+    # ) -> Self | dict[str, Any]:
+    #     assert geometry.shape == (self.natoms, 3)
+    #     dct = self.model_dump(exclude_none=True)
+    #     dct[GRAPH_KEY.ATOM.POSITION] = np.asarray(geometry)
+    #     conn = dct.pop(GRAPH_KEY.BOND.CONNECTIVITY, None)
+    #     order = dct.pop(GRAPH_KEY.BOND.ORDER, None)
+    #     if conn is not None:
+    #         dct = AtomicContainner._infer_bond(
+    #             dct=dct,
+    #             plus_factor=plus_factor,
+    #             multiply_factor=multiply_factor,
+    #             infer_order=(order is not None) and (infer_order),
+    #             charge=0,
+    #         )
+    #         cn = dct.get(GRAPH_KEY.ATOM.COORDINATION, None)
+    #         tag = dct.get(GRAPH_KEY.ATOM.MOVE_FIX_TAG, None)
+    #         if all(i is not None for i in (cn, tag)):
+    #             cn, tag = (np.asarray(i) for i in (cn, tag))
+    #         else:
+    #             raise ValueError("The `cn` or `tag` is none for Cluster.")
+    #         conn = dct.get(GRAPH_KEY.BOND.CONNECTIVITY)
+    #         _cn = np.asarray(IGraph(len(cn), conn).degree(), dtype=int)
+    #         dct[GRAPH_KEY.ATOM.COORDINATION] = np.where(tag == 0, cn, _cn)
+    #     return dct if return_dict else self.model_validate(dct)
 
     #########################################################################
     #                          Start of Interface                           #
     #########################################################################
 
-    def convert_as(self, mode: _MODE_TYPE) -> _OBJ_TYPE:
-        return getattr(self, f"as_{mode.lower()}")()
+    @override
+    def convert_to(self, format="bytes", **kw) -> Any:
+        return super().convert_to(format=format, **kw)
 
     @classmethod
+    @override
     def convert_from(
         cls,
-        obj: _OBJ_TYPE,
-        mode: _MODE_TYPE,
+        data: Any,
+        format="bytes",
         infer_conn: bool = True,
         infer_order: bool = False,
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        **kw,
     ) -> Self:
-        return getattr(cls, f"from_{mode.lower()}")(
-            obj,
+        return super().convert_from(
+            data=data,
+            format=format,
             infer_conn=infer_conn,
             infer_order=infer_order,
             multiply_factor=multiply_factor,
             plus_factor=plus_factor,
             charge=charge,
+            **kw,
         )
 
     #########################################################################
     #                          ASE Atoms Interface                          #
     #########################################################################
-
     @override
-    def as_ase(self) -> Atoms:
-        return super().as_ase()
+    def to_ase(self) -> Atoms:
+        atoms = super().to_ase()
+        for k in BOND_KEY._DICT.values():
+            v = getattr(self, k, None)
+            if v is not None:
+                atoms.info[k] = v
+        return atoms
 
     @classmethod
     @override
@@ -249,38 +212,33 @@ class GraphContainner(
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        **kw,
     ) -> Self:
-        _allowed_keys_set = set(cls.__pydantic_fields__.keys())
-        _allowed_keys_set -= set(AtomicContainner.__pydantic_fields__.keys())
-        dct = AtomicContainner.from_ase(atoms).model_dump(exclude_none=True) | {
-            k: v for k, v in atoms.info.items() if k in _allowed_keys_set
-        }
+        obj = AtomsWithBoxEng.from_ase(atoms)
+        dct = obj.model_dump(exclude_none=True)
+        for k in BOND_KEY._DICT.values():
+            if k in atoms.info:
+                dct[k] = atoms.info[k]
         if any([infer_conn, infer_order]):
-            dct = cls._infer_bond(
-                dct,
-                plus_factor=plus_factor,
-                multiply_factor=multiply_factor,
-                infer_order=infer_order,
-                charge=charge,
+            dct.update(
+                BondsWithComp.infer_bond_as_dict(
+                    obj,
+                    plus_factor=plus_factor,
+                    multiply_factor=multiply_factor,
+                    infer_order=infer_order,
+                    charge=charge,
+                )
             )
-        elif BOND_KEY.CONNECTIVITY not in dct:
-            raise ValueError(f"Missing {BOND_KEY.CONNECTIVITY}.")
+        for k in (BOND_KEY.SOURCE, BOND_KEY.TARGET):
+            if k not in dct:
+                raise ValueError(f"Missing `{k}`.")
         return cls.model_validate(dct)
 
     #########################################################################
     #                          PyG Data Interface                           #
     #########################################################################
-    @staticmethod
-    def __pygdata_exclude_keys_set() -> set[str]:
-        return {
-            GRAPH_KEY.ATOM.NUMBER,
-            GRAPH_KEY.ATOM.POSITION,
-            GRAPH_KEY.BOND.CONNECTIVITY,
-            GRAPH_KEY.BOND.ORDER,
-        }
-
     @override
-    def as_pygdata(self) -> DataPyG:
+    def to_pygdata(self) -> DataPyG:
         m = sp.coo_matrix(self.MATRIX)
         #  UserWarning: The given NumPy array is not writable, and
         #   PyTorch does not support non-writable tensors. This means
@@ -297,12 +255,15 @@ class GraphContainner(
                 edge_index=torch.from_numpy(conn.astype(int).T),
             )
             if self.order is not None:
-                result[GRAPH_KEY.BOND.ORDER] = torch.from_numpy(order)
-            result[GRAPH_KEY.ATOM.NUMBER] = torch.from_numpy(self.Z)
+                result[BOND_KEY.ORDER] = torch.from_numpy(order)
+            result[ATOM_KEY.NUMBER] = torch.from_numpy(self.Z)
             for k, v in self.model_dump(
                 mode="python",
                 exclude_none=True,
-                exclude=self.__pygdata_exclude_keys_set(),
+                exclude=(
+                    {ATOM_KEY.NUMBER, ATOM_KEY.POSITION}
+                    | set(BOND_KEY._DICT.values())
+                ),
             ).items():
                 if isinstance(v, np.ndarray):
                     dtype_name: str = v.dtype.name
@@ -315,8 +276,6 @@ class GraphContainner(
                     result[k] = v
                 else:
                     raise TypeError(f"{k}(type={type(v)}: {v}")
-            if self.box is not None:
-                result[GRAPH_KEY.GRAPH.BOX] = torch.from_numpy(self.box)
         result.validate(raise_on_error=True)
         return result
 
@@ -325,133 +284,44 @@ class GraphContainner(
     def from_pygdata(
         cls,
         data: DataPyG,
-        infer_conn: bool = True,
         infer_order: bool = False,
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        **kw,
     ) -> Self:
         assert data.pos is not None
         assert data.edge_index is not None
-        assert GRAPH_KEY.ATOM.NUMBER in data.keys()
+        assert ATOM_KEY.NUMBER in data.keys()
         dct = {
-            GRAPH_KEY.ATOM.POSITION: data.pos.numpy(force=True),
-            GRAPH_KEY.BOND.CONNECTIVITY: data.edge_index.numpy(force=True).T,
+            ATOM_KEY.POSITION: data.pos.numpy(force=True),
+            BOND_KEY.SOURCE: data.edge_index[0].numpy(force=True),
+            BOND_KEY.TARGET: data.edge_index[1].numpy(force=True),
         } | {
             k: data[k].numpy(force=True)
             if isinstance(data[k], torch.Tensor)
             else data[k]
             for k in set(cls.__pydantic_fields__.keys()) & set(data.keys())
-            if k not in (GRAPH_KEY.ATOM.POSITION, GRAPH_KEY.BOND.CONNECTIVITY)
+            if k not in (ATOM_KEY.POSITION, BOND_KEY.SOURCE, BOND_KEY.TARGET)
         }
-        if any([infer_conn, infer_order]):
-            dct = cls._infer_bond(
-                dct,
+        obj = cls.model_validate(dct)
+        if infer_order:
+            order = cls.infer_bond_as_dict(
+                obj,
                 plus_factor=plus_factor,
                 multiply_factor=multiply_factor,
                 infer_order=infer_order,
                 charge=charge,
-            )
-        elif BOND_KEY.CONNECTIVITY not in dct:
-            raise ValueError(f"Missing {BOND_KEY.CONNECTIVITY}.")
-        return cls.model_validate(dct)
-
-    #########################################################################
-    #                          NetworKit Interface                          #
-    #########################################################################
-    @staticmethod
-    def __networkit_dtype_dict() -> dict[str, Any]:
-        return {
-            GRAPH_KEY.BOND.ORDER: float,
-            GRAPH_KEY.ATOM.NUMBER: int,
-            GRAPH_KEY.ATOM.IS_OUTER: int,
-            GRAPH_KEY.ATOM.COORDINATION: int,
-        } | {f"{GRAPH_KEY.ATOM.POSITION}_{i}": float for i in "xyz"}
-
-    @override
-    def _as_networkit(self) -> NetworKitGraph:
-        G = NetworKitGraph(
-            n=self.natoms,
-            weighted=False,
-            directed=False,
-            edgesIndexed=False,
-        )
-        i = self.DF_BONDS[self.DF_BONDS.columns[0]].to_numpy(int)
-        j = self.DF_BONDS[self.DF_BONDS.columns[1]].to_numpy(int)
-        G.addEdges((i, j))
-        for k, ofType in self.__networkit_dtype_dict().items():
-            if k in GRAPH_KEY.BOND._DICT.values() and k in self.DF_BONDS:
-                setter = G.attachEdgeAttribute(k, ofType)
-                v: np.ndarray = self.DF_BONDS[k].to_numpy(copy=False)
-                G.forEdges(lambda x: setter.__setitem__(x[3], ofType(v[x[3]])))
-            elif k not in GRAPH_KEY.BOND._DICT.values() and k in self.DF_ATOMS:
-                setter = G.attachNodeAttribute(k, ofType)
-                v: np.ndarray = self.DF_ATOMS[k].to_numpy(copy=False)
-                G.forNodes(lambda i: setter.__setitem__(i, ofType(v[i])))
-
-        raise NotImplementedError()
-        for k in set(TOTAL_KEY._DICT.values()):
-            value = getattr(self, k, None)
-            if value is not None:
-                G.__setattr__(f"_my_{k}", value)
-        return G
-
-    @classmethod
-    @override
-    def _from_networkit(
-        cls,
-        graph: NetworKitGraph,
-        infer_conn: bool = True,
-        infer_order: bool = False,
-        multiply_factor: float = 1,
-        plus_factor: float = 0.5,
-        charge: int = 0,
-    ) -> Self:
-        na, nb = graph.numberOfNodes(), graph.numberOfEdges
-        conn = np.asarray([i for i in graph.iterEdges()])
-        df_edge, df_node = DataFrame(conn, columns=["i", "j"]), DataFrame()
-        for k, ofType in cls.__networkit_dtype_dict().items():
-            if k not in GRAPH_KEY.BOND._DICT.values():
-                try:
-                    getter = graph.getNodeAttribute(k, ofType)
-                    v: np.ndarray = np.empty(na, dtype=ofType)
-                    graph.forNodes(lambda i: v.__setitem__(i, getter[i]))
-                    df_node[k] = v
-                except RuntimeError:
-                    pass
-            else:
-                try:
-                    getter = graph.getEdgeAttribute(k, ofType)
-                    v: np.ndarray = np.empty(nb, dtype=ofType)
-                    graph.forEdges(lambda x: v.__setitem__(x[3], getter[x[3]]))
-                    df_edge[k] = v
-                except RuntimeError:
-                    pass
-        dct = BondAttrMixin.DF_BONDS_PARSER(df_edge)
-        dct |= AtomicContainner.DF_ATOMS_PARSER(df_node) | {
-            k: graph.__getattribute__(f"__my_{k}")
-            for k in set(TOTAL_KEY._DICT.values())
-            if hasattr(graph, f"__my_{k}")
-        }
-        if any([infer_conn, infer_order]):
-            dct = cls._infer_bond(
-                dct,
-                plus_factor=plus_factor,
-                multiply_factor=multiply_factor,
-                infer_order=infer_order,
-                charge=charge,
-            )
-        elif BOND_KEY.CONNECTIVITY not in dct:
-            raise ValueError(f"Missing {BOND_KEY.CONNECTIVITY}.")
-        return cls.model_validate(dct)
+            )[BOND_KEY.ORDER]
+            object.__setattr__(obj, BOND_KEY.ORDER, order)
+        return obj
 
     #########################################################################
     #                           NetworkX Interface                          #
     #########################################################################
-
     @override
-    def as_networkx(self) -> NetworkXGraph:
-        G = self.as_igraph().to_networkx()
+    def to_networkx(self) -> NetworkXGraph:
+        G = self.to_igraph().to_networkx()
         # Timing:                       incl.     excl.
         # ----------------------------------------------------
         # Natoms=21856,==>ASE:          0.004     0.004   0.1% |
@@ -494,18 +364,17 @@ class GraphContainner(
     def from_networkx(
         cls,
         graph: NetworkXGraph,
-        infer_conn: bool = True,
         infer_order: bool = False,
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        **kw,
     ) -> Self:
         return cls.from_igraph(
             graph=IGraph.from_networkx(graph),
             multiply_factor=multiply_factor,
             plus_factor=plus_factor,
             infer_order=infer_order,
-            infer_conn=infer_conn,
             charge=charge,
         )
 
@@ -514,8 +383,8 @@ class GraphContainner(
     #########################################################################
 
     @override
-    def as_rustworkx(self) -> RustworkXGraph:
-        graph = self.as_igraph()
+    def to_rustworkx(self) -> RustworkXGraph:
+        graph = self.to_igraph()
         # Ref: https://github.com/igraph/python-igraph/blob/main/src/igraph/io/libraries.py#L1-L70
         G = RustworkXGraph(
             multigraph=False,
@@ -572,11 +441,11 @@ class GraphContainner(
     def from_rustworkx(
         cls,
         graph: RustworkXGraph,
-        infer_conn: bool = True,
         infer_order: bool = False,
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        **kw,
     ) -> Self:
         df_nodes = DataFrame(graph.nodes())
         source, target = np.asarray(graph.edge_list(), dtype=int).T
@@ -594,7 +463,6 @@ class GraphContainner(
                 igraph[k] = v
         return cls.from_igraph(
             graph=igraph,
-            infer_conn=infer_conn,
             infer_order=infer_order,
             multiply_factor=multiply_factor,
             plus_factor=plus_factor,
@@ -606,7 +474,7 @@ class GraphContainner(
     #########################################################################
 
     @override
-    def as_igraph(self) -> IGraph:
+    def to_igraph(self) -> IGraph:
         G = IGraph.DataFrame(self.DF_BONDS, False, self.DF_ATOMS, True)
         for k in self.__pydantic_fields__:
             v = getattr(self, k, None)
@@ -619,101 +487,94 @@ class GraphContainner(
     def from_igraph(
         cls,
         graph: IGraph,
-        infer_conn: bool = True,
         infer_order: bool = False,
         multiply_factor: float = 1,
         plus_factor: float = 0.5,
         charge: int = 0,
+        **kw,
     ) -> Self:
         dct = {
             k: graph[k]
             for k in cls.__pydantic_fields__
             if k in graph.attributes()
         }
-        dct |= AtomicContainner.DF_ATOMS_PARSER(graph.get_vertex_dataframe())
-        dct |= BondAttrMixin.DF_BONDS_PARSER(graph.get_edge_dataframe())
-        if any([infer_conn, infer_order]):
-            dct = cls._infer_bond(
-                dct,
+        dct |= cls.DF_ATOMS_PARSER(graph.get_vertex_dataframe())
+        dct |= cls.DF_BONDS_PARSER(graph.get_edge_dataframe())
+        obj = cls.model_validate(dct)
+        if infer_order:
+            order = cls.infer_bond_as_dict(
+                obj,
                 plus_factor=plus_factor,
                 multiply_factor=multiply_factor,
                 infer_order=infer_order,
                 charge=charge,
-            )
-        elif BOND_KEY.CONNECTIVITY not in dct:
-            raise ValueError(f"Missing {BOND_KEY.CONNECTIVITY}.")
-        return cls.model_validate(dct)
+            )[BOND_KEY.ORDER]
+            object.__setattr__(obj, BOND_KEY.ORDER, order)
+        return obj
 
     #########################################################################
     #                           End of Interface                            #
     #########################################################################
 
 
-def benchmark_convert() -> None:
+# def benchmark_convert() -> None:
+if __name__ == "__main__":
     from ase.cluster import Octahedron
     from ase.utils.timing import Timer
 
     timer, N = Timer(), 10
     for n in [8, 12, 16, 20, 25, 32]:
         # [344, 1156, 2736, 5340, 10425, 21856]
-        obj = GraphContainner.from_ase(Octahedron("Au", n))
+        obj = Graph.from_ase(Octahedron("Au", n))
         for mode in (
             "ASE",
             "PyGData",
             "IGraph",
             "RustworkX",
             "NetworkX",
-            "NetworKit",
         ):
             with timer(f"Natoms={obj.natoms:05d},==>{mode}"):
                 for _ in range(N):
-                    _obj = obj.convert_as(mode.lower())  # type: ignore
+                    _obj = obj.convert_to(mode.lower())  # type: ignore
     # Timing:                        incl.     excl.
     # -----------------------------------------------------
-    # Natoms=00344,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=00344,==>IGraph:        0.012     0.012   0.1% |
-    # Natoms=00344,==>NetworKit:     0.026     0.026   0.3% |
-    # Natoms=00344,==>NetworkX:      0.035     0.035   0.4% |
-    # Natoms=00344,==>PyGData:       0.001     0.001   0.0% |
-    # Natoms=00344,==>RustworkX:     0.021     0.021   0.3% |
-    # Natoms=01156,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=01156,==>IGraph:        0.021     0.021   0.3% |
-    # Natoms=01156,==>NetworKit:     0.036     0.036   0.4% |
-    # Natoms=01156,==>NetworkX:      0.104     0.104   1.3% ||
-    # Natoms=01156,==>PyGData:       0.002     0.002   0.0% |
-    # Natoms=01156,==>RustworkX:     0.055     0.055   0.7% |
-    # Natoms=02736,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=02736,==>IGraph:        0.037     0.037   0.5% |
-    # Natoms=02736,==>NetworKit:     0.056     0.056   0.7% |
-    # Natoms=02736,==>NetworkX:      0.335     0.335   4.1% |-|
-    # Natoms=02736,==>PyGData:       0.003     0.003   0.0% |
-    # Natoms=02736,==>RustworkX:     0.112     0.112   1.4% ||
-    # Natoms=05340,==>ASE:           0.000     0.000   0.0% |
-    # Natoms=05340,==>IGraph:        0.067     0.067   0.8% |
-    # Natoms=05340,==>NetworKit:     0.092     0.092   1.1% |
-    # Natoms=05340,==>NetworkX:      0.479     0.479   5.8% |-|
-    # Natoms=05340,==>PyGData:       0.007     0.007   0.1% |
-    # Natoms=05340,==>RustworkX:     0.233     0.233   2.8% ||
-    # Natoms=10425,==>ASE:           0.001     0.001   0.0% |
-    # Natoms=10425,==>IGraph:        0.126     0.126   1.5% ||
-    # Natoms=10425,==>NetworKit:     0.161     0.161   1.9% ||
-    # Natoms=10425,==>NetworkX:      1.024     1.024  12.4% |----|
-    # Natoms=10425,==>PyGData:       0.011     0.011   0.1% |
-    # Natoms=10425,==>RustworkX:     0.432     0.432   5.2% |-|
-    # Natoms=21856,==>ASE:           0.002     0.002   0.0% |
-    # Natoms=21856,==>IGraph:        0.263     0.263   3.2% ||
-    # Natoms=21856,==>NetworKit:     0.322     0.322   3.9% |-|
-    # Natoms=21856,==>NetworkX:      2.732     2.732  33.1% |------------|
-    # Natoms=21856,==>PyGData:       0.022     0.022   0.3% |
-    # Natoms=21856,==>RustworkX:     1.069     1.069  12.9% |----|
-    # Other:                         0.366     0.366   4.4% |-|
+    # Natoms=00344,==>ASE:           0.001     0.001   0.0% |
+    # Natoms=00344,==>IGraph:        0.126     0.126   0.5% |
+    # Natoms=00344,==>NetworkX:      0.119     0.119   0.5% |
+    # Natoms=00344,==>PyGData:       0.004     0.004   0.0% |
+    # Natoms=00344,==>RustworkX:     0.091     0.091   0.4% |
+    # Natoms=01156,==>ASE:           0.002     0.002   0.0% |
+    # Natoms=01156,==>IGraph:        0.154     0.154   0.6% |
+    # Natoms=01156,==>NetworkX:      0.355     0.355   1.4% ||
+    # Natoms=01156,==>PyGData:       0.006     0.006   0.0% |
+    # Natoms=01156,==>RustworkX:     0.227     0.227   0.9% |
+    # Natoms=02736,==>ASE:           0.002     0.002   0.0% |
+    # Natoms=02736,==>IGraph:        0.308     0.308   1.2% |
+    # Natoms=02736,==>NetworkX:      0.998     0.998   3.9% |-|
+    # Natoms=02736,==>PyGData:       0.007     0.007   0.0% |
+    # Natoms=02736,==>RustworkX:     0.467     0.467   1.8% ||
+    # Natoms=05340,==>ASE:           0.003     0.003   0.0% |
+    # Natoms=05340,==>IGraph:        0.584     0.584   2.3% ||
+    # Natoms=05340,==>NetworkX:      1.670     1.670   6.5% |--|
+    # Natoms=05340,==>PyGData:       0.011     0.011   0.0% |
+    # Natoms=05340,==>RustworkX:     1.002     1.002   3.9% |-|
+    # Natoms=10425,==>ASE:           0.005     0.005   0.0% |
+    # Natoms=10425,==>IGraph:        1.289     1.289   5.0% |-|
+    # Natoms=10425,==>NetworkX:      3.061     3.061  12.0% |----|
+    # Natoms=10425,==>PyGData:       0.024     0.024   0.1% |
+    # Natoms=10425,==>RustworkX:     1.737     1.737   6.8% |--|
+    # Natoms=21856,==>ASE:           0.012     0.012   0.0% |
+    # Natoms=21856,==>IGraph:        2.384     2.384   9.3% |---|
+    # Natoms=21856,==>NetworkX:      6.324     6.324  24.8% |---------|
+    # Natoms=21856,==>PyGData:       0.044     0.044   0.2% |
+    # Natoms=21856,==>RustworkX:     3.742     3.742  14.7% |-----|
+    # Other:                         0.771     0.771   3.0% ||
     # -----------------------------------------------------
-    # Total:                                   8.265 100.0%
+    # Total:                                  25.528 100.0%
     # Conclusion:
     #   if      ==> ASE             as  1                   1e4 atoms/ms
     #           ==> PyGData:            11      slower      1e3 atoms/ms
     #           ==> IGraph:             132     slower      1e2 atoms/ms
     #           ==> RustworkX:          534     slower       50 atoms/ms
-    #           ==> NetworKit:          ---     slower        ? atoms/ms
     #           ==> NetworkX:           1366    slower        7 atoms/ms
     timer.write()

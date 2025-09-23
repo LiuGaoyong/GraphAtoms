@@ -13,10 +13,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv run pytest -vv -s -nauto
         shell: bash
-        env:
-          UV_INDEX: https://pypi.org/simple
-          UV_DEFAULT_INDEX: https://pypi.org/simple
-      # - uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ci-test
-      #     path: results/*.*
+        # env:
+        #   UV_INDEX: https://pypi.org/simple
+        #   UV_DEFAULT_INDEX: https://pypi.org/simple
