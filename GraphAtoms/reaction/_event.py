@@ -21,88 +21,11 @@ class Event(BaseModel):
     ts: Cluster | System
     gas: Gas | None = None
 
-    # type: ignore[prop-decorator] # ignore for mypy
-    @cached_property
-    def is_adsorption(self) -> bool:
-        return self.gas is not None and self.p.natoms > self.r.natoms
-
-    # type: ignore[prop-decorator] # ignore for mypy
-    @cached_property
-    def is_desorption(self) -> bool:
-        return self.gas is not None and self.p.natoms < self.r.natoms
-
-    # type: ignore[prop-decorator] # ignore for mypy
-    @cached_property
-    def is_reaction(self) -> bool:
-        return self.gas is None
-
-    # type: ignore[prop-decorator] # ignore for mypy
-    @cached_property
-    def hash(self) -> str:
-        features = sorted([self.r.hash, self.p.hash]) + [self.ts.hash]
-        features.append("nogas" if self.gas is None else self.gas.hash)
-        return hash_string(",".join(features), digest_size=8)
-
-    @property
-    def forward(self) -> Self:
-        if sorted([self.r.hash, self.p.hash])[0] == self.r.hash:
-            return self
-        else:
-            return self.__class__(
-                r=self.p,
-                p=self.r,
-                ts=self.ts,
-                gas=self.gas,
-            )
-
-    @property
-    def reverse(self) -> Self:
-        if sorted([self.r.hash, self.p.hash])[0] != self.r.hash:
-            return self
-        else:
-            return self.__class__(
-                r=self.p,
-                p=self.r,
-                ts=self.ts,
-                gas=self.gas,
-            )
-
-    @override
-    def _string(self) -> str:
-        formulas = [
-            system.symbols.get_chemical_formula()
-            for system in [self.r, self.p, self.ts]
-        ]
-        gas = (
-            "none"
-            if self.gas is None
-            else "_".join(
-                [
-                    self.gas.symbols.get_chemical_formula(),
-                    self.gas.hash,
-                ]
-            )
-        )
-        return (
-            f"r={'_'.join([formulas[0], self.r.hash])},"
-            f"p={'_'.join([formulas[1], self.p.hash])},"
-            f"ts={'_'.join([formulas[2], self.ts.hash])},"
-            f"gas={gas}"
-        )
-
     @pydantic.model_validator(mode="after")
     def __check_natoms(self) -> Self:
         natoms = self.ts.natoms
         try:
-            if self.gas is not None:
-                if natoms == self.r.natoms:
-                    assert self.gas.natoms == natoms - self.p.natoms
-                elif natoms == self.p.natoms:
-                    assert self.gas.natoms == natoms - self.r.natoms
-                else:
-                    raise Exception()
-            else:
-                assert self.r.natoms == self.p.natoms == natoms
+            assert self.r.natoms == self.p.natoms == natoms
         except Exception:
             raise RuntimeError(
                 f"Invalid natoms: r={self.r.natoms},"
@@ -134,6 +57,65 @@ class Event(BaseModel):
             return False
         else:
             return self.hash == other.hash
+
+    # type: ignore[prop-decorator] # ignore for mypy
+    @cached_property
+    def is_adsorption(self) -> bool:
+        return self.gas is not None and self.p.natoms > self.r.natoms
+
+    # type: ignore[prop-decorator] # ignore for mypy
+    @cached_property
+    def is_desorption(self) -> bool:
+        return self.gas is not None and self.p.natoms < self.r.natoms
+
+    # type: ignore[prop-decorator] # ignore for mypy
+    @cached_property
+    def is_reaction(self) -> bool:
+        return self.gas is None
+
+    # type: ignore[prop-decorator] # ignore for mypy
+    @cached_property
+    def hash(self) -> str:
+        features = sorted([self.r.hash, self.p.hash]) + [self.ts.hash]
+        features.append("nogas" if self.gas is None else self.gas.hash)
+        return hash_string(",".join(features), digest_size=8)
+
+    @property
+    def forward(self) -> Self:
+        if sorted([self.r.hash, self.p.hash])[0] == self.r.hash:
+            return self
+        else:
+            return self.__class__(r=self.p, p=self.r, ts=self.ts, gas=self.gas)
+
+    @property
+    def reverse(self) -> Self:
+        if sorted([self.r.hash, self.p.hash])[0] != self.r.hash:
+            return self
+        else:
+            return self.__class__(r=self.p, p=self.r, ts=self.ts, gas=self.gas)
+
+    @override
+    def _string(self) -> str:
+        formulas = [
+            system.symbols.get_chemical_formula()
+            for system in [self.r, self.p, self.ts]
+        ]
+        gas = (
+            "none"
+            if self.gas is None
+            else "_".join(
+                [
+                    self.gas.symbols.get_chemical_formula(),
+                    self.gas.hash,
+                ]
+            )
+        )
+        return (
+            f"r={'_'.join([formulas[0], self.r.hash])},"
+            f"p={'_'.join([formulas[1], self.p.hash])},"
+            f"ts={'_'.join([formulas[2], self.ts.hash])},"
+            f"gas={gas}"
+        )
 
     def get_active_energy(self) -> float:
         assert self.ts.energy is not None, "ts.energy must be set."
@@ -198,19 +180,17 @@ class Event(BaseModel):
         self,
         system: System,
         matched_indxs: ArrayLike,
-    ) -> tuple[np.ndarray, float]:
+        multiply_factor: float = 1,
+        plus_factor: float = 0.5,
+    ) -> tuple[System, float]:
         """This event occur on the given system."""
         natoms: int = min(self.r.natoms, self.p.natoms)
         refgeom: np.ndarray = self.r.positions[:natoms, :]
         matched_indxs = np.asarray(matched_indxs)[:natoms]
-        _i = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())(
-            np.arange(natoms)
-        )
-        rot, t, rmsd = kabsch(
-            A=refgeom,
-            B=system.positions[_i, :],
-        )
-        assert isinstance(rot, Rotation)
+        f = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())
+        _i: np.ndarray = f(np.arange(natoms))  # reversed matched indexes
+        rot, t, rmsd = kabsch(A=refgeom, B=system.positions[_i, :])
+        assert isinstance(rot, Rotation), "Invalid rotation."
         rot_inv, t_inv = rot.inv(), -t
 
         # 1. geom --> geom reactant
@@ -219,7 +199,21 @@ class Event(BaseModel):
         geom[_i, :] += self.p.positions[:natoms, :] - refgeom
         # 3. geom product --> result
         geom: np.ndarray = rotate(geom, rot_inv) + t_inv
-        return geom, rmsd
+
+        new_index = [item for i, item in enumerate(_i) if not self.r.isfix[i]]
+        new_system = system.local_update_geometry(
+            new_index=np.asarray(new_index),
+            multiply_factor=multiply_factor,
+            plus_factor=plus_factor,
+            new_geometry=geom,
+        )
+        if self.is_desorption:
+            new_system = new_system.get_induced_subgraph(
+                k=new_system.connected_components_biggest
+            )
+        else:
+            assert new_system.connected_components_number == 1
+        return new_system, rmsd
 
 
 class Reaction(Event):

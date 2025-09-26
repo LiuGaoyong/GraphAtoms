@@ -18,9 +18,6 @@ from GraphAtoms.utils.rdtool import get_adjacency_by_rdkit
 
 
 class __BondKey(XxxKeyMixin):
-    SHIFT_X = "shift_x"
-    SHIFT_Y = "shift_y"
-    SHIFT_Z = "shift_z"
     SOURCE = "source"
     TARGET = "target"
     ORDER = "order"
@@ -34,9 +31,6 @@ __all__ = ["BOND_KEY", "Bonds"]
 class Bonds(NpzPklBaseModel):
     source: Annotated[NDArray, numpy_validator("int32")]
     target: Annotated[NDArray, numpy_validator("int32")]
-    shift_x: Annotated[NDArray, numpy_validator("int8")] | None = None
-    shift_y: Annotated[NDArray, numpy_validator("int8")] | None = None
-    shift_z: Annotated[NDArray, numpy_validator("int8")] | None = None
     order: Annotated[NDArray, numpy_validator("float16")] | None = None
 
     @pydantic.model_validator(mode="after")

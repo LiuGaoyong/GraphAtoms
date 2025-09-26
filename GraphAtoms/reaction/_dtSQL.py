@@ -207,9 +207,6 @@ class SQLABC(_BaseModel):
 
 class _BaseSystemSQL(SQLABC):
     is_outer: bytes | None = Field(default=None)
-    shift_x: bytes | None = Field(default=None)
-    shift_y: bytes | None = Field(default=None)
-    shift_z: bytes | None = Field(default=None)
     box: bytes | None = Field(default=None)
 
 
