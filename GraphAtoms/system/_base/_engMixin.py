@@ -16,6 +16,14 @@ from GraphAtoms.dataclasses import (
 
 
 class EnergeticsMixin(OurFrozenModel):
+    """Mixin for energetics (energy, forces, frequencies) and thermochemistry.
+
+    Attributes:
+        frequencies: Vibrational frequencies (cm^-1).
+        fmax: Maximum force (eV/Å).
+        energy: Potential energy (eV).
+    """
+
     frequencies: Annotated[NDArray, numpy_validator()] | None = None
     fmax: NonNegativeFloat | None = None
     energy: float | None = None

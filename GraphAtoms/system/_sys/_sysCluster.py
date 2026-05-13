@@ -12,7 +12,7 @@ from ._sysAllThing import SysGraph, System
 
 
 class Cluster(SysGraph):
-    """The select cluster from the whole system."""
+    """Cluster extracted from a system with fixed/moved atom tags."""
 
     @model_validator(mode="after")
     def __some_keys_should_xxx(self) -> Self:

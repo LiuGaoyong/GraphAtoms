@@ -6,6 +6,16 @@ from loguru._logger import Logger as _Logger
 
 
 class LoggerBase:
+    """Base class for logging configuration.
+
+    Args:
+        workdir: Working directory for log file paths.
+        logfile: Path to log file (optional).
+        loglevel: Logging level (DEBUG, INFO, WARNING, ERROR).
+        logstdout: Whether to output to stdout.
+        format: Log message format string.
+    """
+
     def __init__(
         self,
         workdir: Path | str | None = ".",
@@ -40,14 +50,20 @@ class LoggerBase:
 
 
 class Logger(LoggerBase):
+    """Logger with debug/info/warn/error methods."""
+
     def debug(self, message: str) -> None:
+        """Log debug message."""
         self._logger.debug(message)
 
     def info(self, message: str) -> None:
+        """Log info message."""
         self._logger.info(message)
 
     def warn(self, message: str) -> None:
+        """Log warning message."""
         self._logger.warning(message)
 
     def error(self, message: str) -> None:
+        """Log error message."""
         self._logger.error(message)

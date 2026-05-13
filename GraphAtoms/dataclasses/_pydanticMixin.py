@@ -1,4 +1,4 @@
-# ruff: noqa: D100 D102
+# ruff: noqa: D100 D102 E501
 from collections.abc import Mapping, Sequence
 from sys import version_info
 
@@ -19,6 +19,11 @@ else:
 
 
 class PydanticConvertFactoryMixin(pydantic.BaseModel):
+    """Mixin for serializing Pydantic models to various formats.
+
+    Supports: dict, str, bytes (with optional compression), json, yaml, toml, npz, pickle.
+    """
+
     @pydantic.validate_call
     def to_dict(
         self,
@@ -31,7 +36,7 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
         numpy_convert_to_list: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
-        """Return the json string of this object."""
+        """Convert model to dictionary."""
         kwargs.update(
             dict(
                 mode="python",
@@ -74,6 +79,7 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
         exclude_computed_fields: bool = True,
         **kwargs,
     ) -> str:
+        """Convert model to JSON string."""
         kwargs.update(
             dict(
                 exclude_none=exclude_none,

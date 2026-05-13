@@ -22,6 +22,7 @@ from ._sysAllThing import SysGraph
 
 
 class Gas(SysGraph):
+    """Gas molecule with thermochemistry support (enthalpy, entropy, free energy)."""
     @model_validator(mode="after")
     def __some_keys_should_be_none(self) -> Self:
         msg = "The `{:s}` should be None for System."

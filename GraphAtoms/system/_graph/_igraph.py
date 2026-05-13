@@ -15,6 +15,11 @@ DEFAULT_WH_HASH_SIZE = 6
 
 
 class IGraphMixin(ScipyGraphMixin):
+    """Mixin for igraph-based graph operations.
+
+    Provides Weisfeiler-Lehman hashing, subgraph matching,
+    symmetry detection, and cycle detection.
+    """
     @cached_property
     def __IGRAPH(self) -> Graph:
         edges = np.column_stack([self.source, self.target])

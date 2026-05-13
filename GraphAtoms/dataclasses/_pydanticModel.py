@@ -17,8 +17,17 @@ __all__ = ["OurBaseModel", "OurFrozenModel"]
 
 
 class _IndexMaskMixin:
+    """Mixin for index and mask operations on arrays."""
     @staticmethod
     def get_mask_or_index(k: ArrayLike, n: int) -> np.ndarray:
+        """Convert input to index array.
+
+        Args:
+            k: Boolean mask or integer indices.
+            n: Total length.
+        Returns:
+            Index array (integers).
+        """
         if np.isscalar(k):
             if isinstance(k, bool):
                 k = [k] * n
@@ -43,6 +52,7 @@ class _IndexMaskMixin:
 
     @classmethod
     def get_index(cls, k: ArrayLike, n: int) -> np.ndarray:
+        """Get integer indices from mask or index array."""
         result = cls.get_mask_or_index(k=k, n=n)
         if result.dtype == bool:
             result = np.arange(n)[result]
@@ -50,6 +60,7 @@ class _IndexMaskMixin:
 
     @classmethod
     def get_mask(cls, k: ArrayLike, n: int) -> np.ndarray:
+        """Get boolean mask from mask or index array."""
         result = cls.get_mask_or_index(k=k, n=n)
         if result.dtype != bool:
             result = np.isin(np.arange(n), result)
@@ -57,20 +68,10 @@ class _IndexMaskMixin:
 
 
 class OurBaseModel(PydanticFactoryMixin, _IndexMaskMixin):
-    """A extended base class for creating Pydantic models.
+    """Extended base class for Pydantic models with I/O support.
 
-    This class support many file formats:
-        json        by `pydantic`
-        npz         by `numpy`
-        pickle      by `joblib`
-        yaml/yml    by `pyyaml`
-        toml        by `tomli_w`, `tomli`, & `toml`
-    And it support many object format:
-        bytes
-        str
-        dict
-
-    Note: only numpy ndarray & numpy-compatible scalar value supported.
+    Supports: json, npz, pickle, yaml/yml, toml, bytes (with compression).
+    Only numpy ndarray and numpy-compatible scalars are supported.
     """
 
     @classmethod
@@ -126,6 +127,7 @@ class OurBaseModel(PydanticFactoryMixin, _IndexMaskMixin):
 
     @override
     def __str__(self) -> str:
+        """String representation."""
         return f"{self.__class__.__name__}({self._string()})"
 
     @abstractmethod
@@ -138,10 +140,16 @@ class OurBaseModel(PydanticFactoryMixin, _IndexMaskMixin):
 
 
 class OurFrozenModel(OurBaseModel):
+    """Immutable version of OurBaseModel.
+
+    All instances are frozen (hashable, immutable).
+    """
+
     model_config = pydantic.ConfigDict(frozen=True)
 
     @override
     def __hash__(self) -> int:
+        """Hash based on content."""
         return hash(self.hash)
 
     @cached_property

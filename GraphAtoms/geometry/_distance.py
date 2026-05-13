@@ -1,5 +1,7 @@
 """The calculation of distance."""
 
+"""Distance calculation factory for atomic configurations."""
+
 import itertools
 from abc import ABC, abstractmethod
 from typing import Literal, override
@@ -17,7 +19,11 @@ from .sample import inverse_3d_sphere_surface_sampling
 
 
 class DistanceFactoryBase(ABC):
-    """The factory of distance-related calculation."""
+    """Base class for distance-related calculations.
+
+    Provides factory methods for computing neighbor lists, distance matrices,
+    adjacency matrices, and inner atom detection.
+    """
 
     def available(self) -> bool:
         return True
@@ -305,8 +311,11 @@ class DistanceFactoryBase(ABC):
         return result
 
 
-class SKlearnDistanceFactory(DistanceFactoryBase):
-    """The factory of distance-related calculation."""
+class SKLearnDistanceFactory(DistanceFactoryBase):
+    """Distance factory using sklearn's NearestNeighbors.
+
+    Suitable for non-periodic or small periodic systems.
+    """
 
     @staticmethod
     def __get_nn(X) -> NearestNeighbors:
@@ -417,8 +426,14 @@ class SKlearnDistanceFactory(DistanceFactoryBase):
 
 
 class PyMatGenDistanceFactory(DistanceFactoryBase):
+    """Distance factory using pymatgen's find_points_in_spheres.
+
+    Optimized for periodic systems with large cells.
+    """
+
     @override
     def available(self) -> bool:
+        """Check if pymatgen is available."""
         try:
             from pymatgen.optimization.neighbors import (
                 find_points_in_spheres,  # noqa: F401
@@ -452,7 +467,7 @@ class PyMatGenDistanceFactory(DistanceFactoryBase):
         assert max_distance > 0
 
         if cell.rank == 0:
-            obj = SKlearnDistanceFactory()
+            obj = SKLearnDistanceFactory()
             source, target, shift, distance = obj.get_neighbor_list(
                 p1,
                 p2,
@@ -503,7 +518,7 @@ class PyMatGenDistanceFactory(DistanceFactoryBase):
 __all__ = [
     "DistanceFactoryBase",
     "PyMatGenDistanceFactory",
-    "SKlearnDistanceFactory",
+    "SKLearnDistanceFactory",
 ]
 
 
@@ -520,7 +535,7 @@ def get_distance_factory(
     )
 
     if backend == "sklearn":
-        result = SKlearnDistanceFactory()
+        result = SKLearnDistanceFactory()
     elif backend == "pymatgen":
         result = PyMatGenDistanceFactory()
     else:
@@ -532,4 +547,4 @@ def get_distance_factory(
     if result.available:
         return result
     else:
-        return SKlearnDistanceFactory()
+        return SKLearnDistanceFactory()

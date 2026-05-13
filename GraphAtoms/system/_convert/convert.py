@@ -13,6 +13,7 @@ class Convert(
     GraphConverter,
     PyTorchGeometricConverter,
 ):
+    """Unified converter for ASE, PyG, igraph, NetworkX, and Rustworkx formats."""
     @override
     @classmethod
     def SUPPORTED_CONVERT_FORMATS(cls) -> Sequence[str]:

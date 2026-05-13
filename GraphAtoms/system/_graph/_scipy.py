@@ -8,6 +8,11 @@ from .._base import Base
 
 
 class ScipyGraphMixin(Base):
+    """Mixin for scipy-based graph operations.
+
+    Provides sparse matrix representations, coordination numbers,
+    connectivity analysis, and neighbor queries.
+    """
     @cached_property
     def MATRIX(self) -> sp.csr_array:
         if self.order is None:

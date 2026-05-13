@@ -6,32 +6,23 @@ from .._graph import GraphMixin
 
 
 class SysGraph(Convert, GraphMixin):
-    """The frozen dataclass for chemical graph by Pydantic.
+    """Frozen dataclass for chemical graph representation.
 
-    There are some attributes for atoms, bonds and system itself.
-
-        - Z(numbers): the atomic numbers of atoms
-        - R(positions): the positions of atoms
-        - (is_outer): the outer atoms
-        - (move_fix_tag): the tag for atoms to be fixed or not
-        - CN(coordination:) the coordination number of atoms
-
-        - P(pair): the pair index of bonds
-        - S(shift): the shift index of bonds
-        - D(distance): the distance of bonds
-        - (order): the order of bonds
-
-        - (pressure): the pressure for gas system
-        - (sticking): the sticking coefficient for gas system
-        - B(box): the box for periodic system
-        - FQ(frequencies): the frequencies of system
-        - FM(fmax): the maximum force of system
-        - E(energy): the energy of system
+    Attributes:
+        Z (numbers): Atomic numbers.
+        R (positions): Atomic positions.
+        CN: Coordination numbers.
+        P (pair): Bond pair indices.
+        S (shift): Bond shift indices.
+        D (distance): Bond distances.
+        B (box): Simulation box (periodic systems).
+        E (energy): System energy.
+        FQ (frequencies): Vibrational frequencies.
     """
 
 
 class System(SysGraph):
-    """The whole system."""
+    """Full periodic or non-periodic system."""
 
     @model_validator(mode="after")
     def __some_keys_should_be_none(self) -> Self:

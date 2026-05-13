@@ -41,6 +41,17 @@ def bond_list(
     cfg: DictConfig = DictConfig({}),
     **kwargs,
 ) -> np.ndarray:
+    """Compute bond list (list of bonded atom index pairs) for an Atoms object.
+
+    Args:
+        atoms: ASE Atoms object.
+        method: "raw" (covalent radii) or "pymatgen" (nearest neighbor strategy).
+        cfg: Hydration config dict for pymatgen strategy.
+        **kwargs: Additional arguments passed to neighbor list.
+
+    Returns:
+        Nx2 array of bonded atom index pairs.
+    """
     is_nonperiodic = np.sum(atoms.cell.array.any(1) & atoms.pbc) == 0
     if len(atoms) == 0:
         return np.empty(shape=(0, 2), dtype=int)

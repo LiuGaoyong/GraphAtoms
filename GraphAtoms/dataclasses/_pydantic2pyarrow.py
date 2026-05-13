@@ -327,19 +327,16 @@ def get_pyarrow_schema(
     exclude_fields: bool = False,
     by_alias: bool = False,
 ) -> Schema:
-    """Converts a Pydantic model into a PyArrow schema.
+    """Convert a Pydantic model to a PyArrow schema.
 
     Args:
-        pydantic_class (Type[BaseModel]): The Pydantic model class to convert.
-        allow_losing_tz (bool, optional): Whether to allow losing timezone
-            information when converting datetime fields. Defaults to False.
-        exclude_fields (bool, optional): If True, will exclude fields in the
-            pydantic model that have `Field(exclude=True)`. Defaults to False.
-        by_alias (bool, optional): If True, will create the pyarrow schema using
-            the (serialization) alias in the pydantic model. Defaults to False.
+        pydantic_class: Pydantic model class to convert.
+        allow_losing_tz: Allow losing timezone info in datetime fields.
+        exclude_fields: Exclude fields with Field(exclude=True).
+        by_alias: Use serialization alias for field names.
 
     Returns:
-        pa.Schema: The PyArrow schema representing the Pydantic model.
+        PyArrow schema representing the Pydantic model.
     """
     fields = []
     settings = Settings(
