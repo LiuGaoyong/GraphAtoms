@@ -17,33 +17,39 @@ dependencies = [
     "dscribe>=2.1",    # transforming atomic structures into fixed-size numerical fingerprints
     "vesin",           # fast neighbor lists for atomistic systems (C++ & TorchScript)
     # "ase-extension>=0.5; sys_platform != 'win32'", # fast neighborlist(Rust)
+
     # Scientific Computing
-    "numba>=0.61",
-    "numpy>=2.0",
-    "pandas",
-    "scipy",
-    "torch",
+    # numpy pandas, scipy
     "scikit-learn>=1.5",
+    "pyarrow",
+    "torch",
     "sparse",
+
     # Graph Theory
     "torch_geometric", # PyTorch Based Graph Neural Network Library
     "igraph>=0.11",    # high performance graph library based on C
     "networkx>=3.3",   # General-purpose graph library by pure Python
     "rustworkx>=0.16", # NetworkX-like graph library based on Rust
+
     # Data Model
+    'h5py',
+    'hydra-core',
     "numpydantic",
     "pydantic>=2.11",
-    "pydantic-to-pyarrow>=0.1.6",
     "python-snappy>=0.7.3",           # More Fase Data Compression
-    "pyyaml",                         # YAML parser & writer
-    "sqlmodel",                       # SQL + pydantic
-    "tomli-w",                        # TOML writer
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
+    "tomli-w",                        # TOML writer
     "typing-extensions",
-    "chardet>=5.2.0",
 ]
 [dependency-groups]
-dev = ["ruff>=0.11", "pytest>=8.3", "pytest-xdist", "jupyter"]
+dev = [
+    "ruff>=0.11",
+    "pytest>=8.3",
+    "pytest-xdist",
+    "jupyter",
+    "sqlmodel",        # SQL + pydantic
+    'openbabel-wheel',
+]
 
 # uv config
 [tool.uv]
@@ -51,13 +57,13 @@ package = true
 [[tool.uv.index]]
 url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
 default = true
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://mirrors.nju.edu.cn/pytorch/whl/cpu/"
-explicit = true
-format = "flat"
-[tool.uv.sources]
-torch = [{ index = "pytorch-cpu" }]
+# [[tool.uv.index]]
+# name = "pytorch-cpu"
+# url = "https://mirrors.nju.edu.cn/pytorch/whl/cpu/"
+# explicit = true
+# format = "flat"
+# [tool.uv.sources]
+# torch = [{ index = "pytorch-cpu" }]
 
 # pytest config
 [tool.pytest.ini_options]
