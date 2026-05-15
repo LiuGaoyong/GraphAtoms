@@ -290,6 +290,7 @@ def get_smiles(
 
 
 def rdmol2ase(rdmol: RDMol) -> Atoms:
+    """Convert rdmol to `ase.Atoms`."""
     xyz = Chem.MolToXYZBlock(mol=rdmol, precision=15)
     return Atoms(list(read_xyz(StringIO(xyz), -1)))
 
@@ -337,13 +338,13 @@ def get_atomic_sasa(rdmol: RDMol) -> list[float]:
 #######################################################################
 
 
-def test_get_adjacency() -> None:
+def test_get_adjacency() -> None:  # noqa: D103
     print("CO2", _get_adjacency(smiles2rdmol("O=C=O")))
     print("H2O", _get_adjacency(smiles2rdmol("O")))
     print("C6H6", _get_adjacency(smiles2rdmol("c1ccccc1")))
 
 
-def test_get_smiles() -> None:
+def test_get_smiles() -> None:  # noqa: D103
     for bonds in [
         [(0, 2), (0, 1)],
         [(0, 2), (1, 0)],

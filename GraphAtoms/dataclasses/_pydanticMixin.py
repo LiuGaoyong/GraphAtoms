@@ -55,7 +55,9 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
                 if np.isscalar(v1):
                     pass
                 elif isinstance(v1, list | tuple):
-                    pass
+                    assert isinstance(np.asarray(list(v1)).flat[0], np.str_), (
+                        "Only list[str] is supported."
+                    )
                 else:
                     assert isinstance(v1, np.ndarray) or (
                         "Only numpy array or scalar is supported. "
@@ -366,7 +368,9 @@ class __Pickle(PydanticConvertFactoryMixin):
                         slower read and write times.
                     Using a value of 3 is often a good compromise.
                 Defaults to 3.
+            exclude_computed_fields: bool = True,
             exclude_defaults (bool): ...
+            exclude_unset: bool = False,
             exclude_none (bool): ...
             **kwargs: ...
 

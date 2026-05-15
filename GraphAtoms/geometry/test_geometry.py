@@ -15,7 +15,7 @@ from GraphAtoms.geometry._neighbor_list import _test_neighbor_list_for_atoms
         fcc111("Cu", (1, 1, 2), vacuum=8, periodic=True),
     ],
 )
-def test_neghbor_list(a: Atoms) -> None:
+def test_neghbor_list(a: Atoms) -> None:  # noqa: D103
     _test_neighbor_list_for_atoms(a, c=3, idx=[0])
 
 
@@ -37,7 +37,7 @@ def test_neghbor_list(a: Atoms) -> None:
         ("pymatgen", "EconNN"),
     ],
 )
-def test_bond_list(method: str, name: str) -> None:
+def test_bond_list(method: str, name: str) -> None:  # noqa: D103
     if method == "pymatgen":
         cfg = {"_target_": f"pymatgen.core.local_env.{name:s}"}
     elif method == "raw":

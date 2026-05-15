@@ -1,3 +1,4 @@
+# ruff: noqa D103
 from functools import cached_property
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -12,7 +13,7 @@ from GraphAtoms.dataclasses._pydanticModel import OurBaseModel
 
 ###########################################################################
 # Test for OurBaseModel(_ndarray.py & _pydantic.py & _pydantic2pyarrow.py)
-class Mock(OurBaseModel):
+class Mock(OurBaseModel):  # noqa: D101
     frequencies: Annotated[NDArray, numpy_validator()] | None = None
     energy: float | None = None
 

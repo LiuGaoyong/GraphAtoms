@@ -18,6 +18,7 @@ __all__ = ["OurBaseModel", "OurFrozenModel"]
 
 class _IndexMaskMixin:
     """Mixin for index and mask operations on arrays."""
+
     @staticmethod
     def get_mask_or_index(k: ArrayLike, n: int) -> np.ndarray:
         """Convert input to index array.
@@ -25,6 +26,7 @@ class _IndexMaskMixin:
         Args:
             k: Boolean mask or integer indices.
             n: Total length.
+
         Returns:
             Index array (integers).
         """
