@@ -1,5 +1,3 @@
-"""The calculation of distance."""
-
 """Distance calculation factory for atomic configurations."""
 
 import itertools
@@ -16,6 +14,8 @@ from scipy.linalg import norm, pinv
 from sklearn.neighbors import NearestNeighbors
 
 from .sample import inverse_3d_sphere_surface_sampling
+
+# TODO: remove `sparse` dependency
 
 
 class DistanceFactoryBase(ABC):
@@ -215,7 +215,7 @@ class DistanceFactoryBase(ABC):
         return result
 
     @classmethod
-    def get_is_inner(
+    def get_is_inner(  # noqa: D417
         cls,
         index: int,
         numbers: np.ndarray,

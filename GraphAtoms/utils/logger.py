@@ -16,7 +16,7 @@ class LoggerBase:
         format: Log message format string.
     """
 
-    def __init__(
+    def __init__(  # noqa: D107
         self,
         workdir: Path | str | None = ".",
         logfile: Path | str | None = None,

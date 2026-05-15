@@ -106,7 +106,7 @@ def kabsch(
 #######################################################################
 
 
-def test_rotation_and_kabsch() -> None:
+def test_rotation_and_kabsch() -> None:  # noqa: D103
     import pytest
     from ase.build import molecule
 

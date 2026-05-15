@@ -63,16 +63,15 @@ def all_neighbor_list(
         Maximum number of bins used in neighbor search. This is used to limit
         the maximum amount of memory required by the neighbor list.
 
-    Returns
+    Returns:
     -------
     i, j, ...: array
         Tuple with arrays for each quantity specified above. Indices in `i`
         are returned in ascending order 0..len(a), but the order of (i,j)
         pairs is not guaranteed.
 
-    Examples
+    Examples:
     --------
-
     >>> import numpy as np
     >>> from ase.build import bulk, molecule
 
@@ -209,7 +208,7 @@ def neighbor_list(
         Indices of atoms to use in the neighbor list.
         If None, all atoms are.
 
-    Returns
+    Returns:
     -------
     i, j, ...: array
         Tuple with arrays for each quantity specified above. Indices in `i`

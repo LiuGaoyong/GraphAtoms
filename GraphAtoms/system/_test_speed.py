@@ -6,7 +6,7 @@ from ase.cluster import Octahedron
 from GraphAtoms.system import System
 
 
-@pytest.mark.parametrize("n", range(3, 15))
+@pytest.mark.parametrize("n", range(3, 20))
 def test_speed(n: int) -> None:
     start = perf_counter()
     a = Octahedron("Cu", n)

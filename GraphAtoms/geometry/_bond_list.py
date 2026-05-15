@@ -39,7 +39,6 @@ def bond_list(
     atoms: Atoms,
     method: str | Literal["raw", "pymatgen"] = "raw",
     cfg: DictConfig = DictConfig({}),
-    **kwargs,
 ) -> np.ndarray:
     """Compute bond list (list of bonded atom index pairs) for an Atoms object.
 
