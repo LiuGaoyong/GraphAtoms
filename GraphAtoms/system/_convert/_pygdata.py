@@ -5,7 +5,7 @@ import torch
 from numpy.typing import ArrayLike
 from typing_extensions import Any, Self
 
-from .._base import Base
+from .._atoms import Base
 
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=DeprecationWarning)

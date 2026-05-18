@@ -19,7 +19,6 @@ dependencies = [
     # numpy pandas, scipy
     "scikit-learn>=1.5",
     "pyarrow",
-    "sparse",
 
     # Graph Theory
     "igraph>=0.11",    # high performance graph library based on C
@@ -110,7 +109,6 @@ rdkit = ">=2025.9.5,<2027"
 python-vesin = ">=0.5.6,<0.6"
 openbabel = ">=3.1.1,<4"
 pyarrow = ">=21.0.0,<25"
-sparse = ">=0.18.0,<0.19"
 scikit-learn = ">=1.8.0,<2"
 python-igraph = ">=0.11.9,<0.12"
 rustworkx = ">=0.17.1,<0.18"

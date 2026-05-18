@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Annotated
+from typing import Annotated, override
 
 import numpy as np
 from ase.cell import Cell
@@ -8,28 +8,35 @@ from pydantic import model_validator
 from pymatgen.core.lattice import Lattice
 from typing_extensions import Self
 
-from GraphAtoms.dataclasses import (
-    NDArray,
-    OurFrozenModel,
-    numpy_validator,
-)
+from GraphAtoms.dataclasses import NDArray, OurBaseModel, numpy_validator
 
 
-class BoxMixin(OurFrozenModel):
-    box: Annotated[NDArray, numpy_validator(float, (3, 3))] | None = None
+class Box(OurBaseModel):
+    cell: Annotated[NDArray, numpy_validator(float, (3, 3))] | None = None
+    pbc: Annotated[NDArray, numpy_validator(bool, (3,))] | None = None
+
+    @override
+    def _string(self) -> str:
+        return "PBC" if self.is_periodic else "NOPBC"
 
     @model_validator(mode="after")
-    def __check_box(self) -> Self:
+    def __check_cell(self) -> Self:
         if not self.is_periodic:
-            object.__setattr__(self, "box", None)
+            object.__setattr__(self, "cell", None)
+            object.__setattr__(self, "pbc", None)
         return self
 
     @cached_property
     def is_periodic(self) -> bool:
-        if self.box is None:
+        if self.pbc is None:
             return False
-        v = np.array([self.a, self.b, self.c])
-        return bool(np.any(np.abs(v) > 1e-7))
+        elif self.cell is None:
+            return False
+        elif self.ase_cell.volume < 1e-3:
+            return False
+        else:
+            pbc = self.cell.any(1) & self.pbc
+            return bool(np.sum(pbc) > 0)
 
     @cached_property
     def cellpar(self) -> tuple[float, float, float, float, float, float]:
@@ -61,7 +68,7 @@ class BoxMixin(OurFrozenModel):
 
     @cached_property
     def ase_cell(self) -> Cell:
-        return Cell.new(self.box)
+        return Cell.new(self.cell)
 
     @cached_property
     def pmg_lattice(self) -> Lattice:
@@ -69,6 +76,10 @@ class BoxMixin(OurFrozenModel):
 
     @cached_property
     def is_orthorhombic(self) -> bool:
-        if self.box is None:
+        if self.cell is None:
             return True
-        return cellutils.is_orthorhombic(self.box)
+        return cellutils.is_orthorhombic(self.cell)
+
+
+def test_Box() -> None:
+    assert len(Box.__abstractmethods__) == 0, Box.__abstractmethods__

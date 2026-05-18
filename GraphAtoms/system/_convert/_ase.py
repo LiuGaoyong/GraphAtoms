@@ -4,11 +4,11 @@ from typing import Any
 from ase import Atoms
 from typing_extensions import Self
 
-from .._base import Base
-from .._base._atomsAttr import NumbersMixin
-from .._base._bondsAttr import BondsAttr
-from .._base._boxMixin import BoxMixin
-from .._base._engMixin import EnergeticsMixin
+from .._atoms import Base
+from .._atoms._atomsAttr import NumbersMixin
+from .._bonds._bondsAttr import BondsAttr
+from .._atoms._box import BoxMixin
+from .._atoms._eng import EnergeticsMixin
 
 
 class ASEConverter(Base):

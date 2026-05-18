@@ -1,10 +1,13 @@
 import json
+from abc import abstractmethod
 from collections.abc import Mapping
-from typing import Any, override
+from functools import cached_property
+from typing import Annotated, Any, override
 
 import numpy as np
 from ase import Atoms
 from ase.geometry import find_mic
+from pydantic import model_validator
 from typing_extensions import Self
 
 from GraphAtoms.geometry import bond_list
@@ -14,13 +17,87 @@ from GraphAtoms.utils.rdutils import (
     get_rdmol,
 )
 
-from ._atomsAttr import AtomsAttr
-from ._bondsAttr import BondsAttr
-from ._boxMixin import BoxMixin
-from ._engMixin import EnergeticsMixin
-from ._gasMixin import GasMixin
+from ...dataclasses import NDArray, OurBaseModel, numpy_validator
+from .._bonds._bondsAttr import BondsAttr
+from .._sys._gasMixin import GasMixin
+from ._box import BoxMixin
+from ._eng import EnergeticsMixin
 
 __all__ = ["Base"]
+
+
+class MoveFixTag(OurBaseModel):
+    move_fix_tag: Annotated[NDArray, numpy_validator("int8")] | None = None
+
+    @model_validator(mode="after")
+    def __check_atoms(self) -> Self:
+        if self.move_fix_tag is not None:
+            assert self.isfix.sum() != 0, "`isfix` sum == 0"
+            assert self.iscore.sum() != 0, "`iscore` sum == 0"
+            assert self.isfix.sum != self.natoms, "`ismoved` sum == 0"
+        return self
+
+    @cached_property
+    @abstractmethod
+    def natoms(self) -> int: ...
+
+    @property
+    def nfix(self) -> int:
+        return int(self.isfix.sum())
+
+    @property
+    def isfix(self) -> np.ndarray:
+        if self.move_fix_tag is None:
+            raise KeyError("The `move_fix_tag` is None.")
+        return self.move_fix_tag < 0  # type: ignore
+
+    @property
+    def ncore(self) -> int:
+        return int(self.iscore.sum())
+
+    @property
+    def iscore(self) -> np.ndarray:
+        if self.move_fix_tag is None:
+            raise KeyError("The `move_fix_tag` is None.")
+        return self.move_fix_tag == 0
+
+    @property
+    def nmoved(self) -> int:
+        return self.natoms - self.nfix
+
+    @property
+    def isfirstmoved(self) -> np.ndarray:
+        if self.move_fix_tag is None:
+            raise KeyError("The `move_fix_tag` is None.")
+        return self.move_fix_tag == 1
+
+    @property
+    def islastmoved(self) -> np.ndarray:
+        if self.move_fix_tag is None:
+            raise KeyError("The `move_fix_tag` is None.")
+        return self.move_fix_tag == np.max(self.move_fix_tag)
+
+
+class AtomsAttr(NumbersMixin, MoveFixTag):
+    is_outer: Annotated[NDArray, numpy_validator(bool)] | None = None
+    coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None
+    hashes: list[str] | None = None
+
+    @model_validator(mode="after")
+    def __check_atoms(self) -> Self:
+        assert self.positions.shape == (self.natoms, 3), self.positions.shape
+        for k in AtomsAttr.__pydantic_fields__.keys():
+            v = getattr(self, k, None)
+            if v is not None:
+                assert len(v) == self.natoms, (
+                    f"Invalid shape for `{k}`: Len({k})="
+                    f"{len(v)} but natoms={self.natoms}."
+                )
+        return self
+
+    @property
+    @abstractmethod
+    def CN(self) -> NDArray: ...
 
 
 class Base(AtomsAttr, BondsAttr, BoxMixin, GasMixin, EnergeticsMixin):

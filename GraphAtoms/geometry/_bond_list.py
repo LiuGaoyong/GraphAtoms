@@ -10,7 +10,7 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from scipy import sparse as sp
 
 from ..utils.parser import DictConfig, hydra_parse
-from ..utils.rdutils import get_rdmol
+from ..utils.rdutils import get_adjacency_by_rdkit
 from ._neighbor_list import neighbor_list
 
 try:
@@ -117,9 +117,10 @@ def bond_list(
     )
     matrix = sp.csr_matrix(matrix, dtype=int)
     if infer_order:
+        # TODO: use rdkit to get bond order !!!
         edges = sp.coo_array(matrix).coords
         raise NotImplementedError
-        get_rdmol(
+        get_adjacency_by_rdkit(
             numbers=np.array(
                 [
                     0
@@ -135,3 +136,33 @@ def bond_list(
         )
 
     return matrix
+
+
+def test_bond_order():
+    from ase.build import molecule
+    from ase.cluster import Octahedron
+
+    atoms = molecule("CH3CH2OH")
+    atoms = Octahedron("Cu", 3, 1)
+    m = bond_list(atoms=atoms)
+
+    m = sp.coo_array(m)
+    edges, data = m.coords, m.data
+    print(edges[0], edges[1], data)
+    m2 = get_adjacency_by_rdkit(
+        numbers=np.array(
+            [
+                1
+                if z not in (1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 32, 35, 53)
+                else z
+                for z in atoms.numbers
+            ]
+        ),
+        geometry=atoms.positions,
+        source=edges[0],
+        target=edges[1],
+        order=data,
+        infer_order=True,
+        charge=-59,
+    )
+    print(m2)

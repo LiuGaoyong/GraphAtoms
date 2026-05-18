@@ -2,7 +2,7 @@ from pydantic import model_validator
 from typing_extensions import Self
 
 from .._convert import Convert
-from .._graph import GraphMixin
+from .._bonds import GraphMixin
 
 
 class SysGraph(Convert, GraphMixin):

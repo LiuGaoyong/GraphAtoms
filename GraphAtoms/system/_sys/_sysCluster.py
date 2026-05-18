@@ -5,9 +5,9 @@ from pydantic import model_validator
 from typing_extensions import Self, override
 
 from ...geometry import get_distance_factory
-from .._base._atomsAttr import MoveFixTag
-from .._base._boxMixin import BoxMixin
-from .._base._engMixin import EnergeticsMixin
+from .._atoms._atomsAttr import MoveFixTag
+from .._atoms._box import BoxMixin
+from .._atoms._eng import EnergeticsMixin
 from ._sysAllThing import SysGraph, System
 
 

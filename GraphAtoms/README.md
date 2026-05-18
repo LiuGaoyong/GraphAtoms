@@ -4,19 +4,20 @@
 
 ## geometry
 
-- [ ] neighborlist(Z, R, cell, pbc) -> ijSDd
-- [ ] bondlist(Z, i, j, d) -> ijdo
-- [ ] atom_inner_outer
+- [X] neighborlist(Z, R, cell, pbc) -> ijSDd
+- [X] bondlist(Z, i, j, d) -> ijdo
+  - [ ] 使用RDKit判定bond order
+- [X] atom_inner_outer
 
 ## dataclasses
 
-- [ ] 使用pydantic和numpydantic构建基础类
-- [ ] 基础类支持dict、str、bytes的快速双向转换
-- [ ] 基础类支持json、yaml、toml、pickle、npz的快速双向转换（主要依赖于与dict的转换）
+- [X] 使用pydantic和numpydantic构建基础类
+- [X] 基础类支持dict、str、bytes的快速双向转换
+- [X] 基础类支持json、yaml、toml、pickle、npz的快速双向转换（主要依赖于与dict的转换）
 - [ ] 在基础类之上构建相应的类
-  - [ ] Box(cell+pbc)
-  - [ ] Energitics(E,Fmax, Freqs)
-  - [ ] Matter(Z)
+  - [X] Box(cell+pbc)
+  - [X] Energitics(E,Fmax, Freqs)
+  - [X] Matter(Z)
   - [ ] Structure(Matter, Box, Energitics, R)
     - [ ] 增加与ase.Atoms的双向转换
     - [ ] 增加与pymatgen.Structure的双向转换
@@ -41,8 +42,3 @@ KMC中的Event与MC中的Move的共同之处就在于，它们都可以使得初
   - [ ] 多粒子扰动
   - [ ] 等等
 - [ ] 基于结构变化类构造Event类，该类存在R、T、G、P四个属性
-
-
-
-
-

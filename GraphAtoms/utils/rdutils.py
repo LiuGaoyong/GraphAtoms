@@ -180,9 +180,9 @@ def _get_rdmol_with_bonds(
         raise RuntimeError("The `Mol` object's rdmol is None.")
 
     if infer_order:
-        assert order is None, (
-            "Please set order is None when you want infer bond order by RDKit."
-        )
+        # assert order is None, (
+        #     "Please set order is None when you want infer bond order by RDKit."
+        # )
         rdDetermineBonds.DetermineBondOrders(rdmol, charge=charge)
 
     return rdmol

@@ -4,7 +4,7 @@ from typing import override
 import numpy as np
 from scipy import sparse as sp
 
-from .._base import Base
+from .._atoms import Base
 
 
 class ScipyGraphMixin(Base):
@@ -13,6 +13,7 @@ class ScipyGraphMixin(Base):
     Provides sparse matrix representations, coordination numbers,
     connectivity analysis, and neighbor queries.
     """
+
     @cached_property
     def MATRIX(self) -> sp.csr_array:
         if self.order is None:

@@ -1,21 +1,17 @@
 import warnings
 from abc import abstractmethod
 from functools import cached_property
-from typing import Annotated
+from typing import Annotated, override
 
 import numpy as np
 from ase.thermochemistry import BaseThermoChem, HarmonicThermo
 from ase.units import invcm
 from pydantic import NonNegativeFloat, PositiveFloat, validate_call
 
-from GraphAtoms.dataclasses import (
-    NDArray,
-    OurFrozenModel,
-    numpy_validator,
-)
+from GraphAtoms.dataclasses import NDArray, OurBaseModel, numpy_validator
 
 
-class EnergeticsMixin(OurFrozenModel):
+class Energetics(OurBaseModel):
     """Mixin for energetics (energy, forces, frequencies) and thermochemistry.
 
     Attributes:
@@ -27,6 +23,28 @@ class EnergeticsMixin(OurFrozenModel):
     frequencies: Annotated[NDArray, numpy_validator()] | None = None
     fmax: NonNegativeFloat | None = None
     energy: float | None = None
+
+    @override
+    def _string(self) -> str:
+        lst: list[str] = []
+        if self.energy is None:
+            lst.append("NOSPE")
+        else:
+            if abs(self.energy) >= 1:
+                lst.append(f"E={self.energy:.2f}eV")
+            elif abs(self.energy * 1000) >= 1:
+                lst.append(f"E={self.energy * 1000:.2f}meV")
+            else:
+                lst.append(f"E={self.energy * 1000:.3e}meV")
+        if self.frequencies is None:
+            lst.append("NOVIB")
+        else:
+            lst.append("VIB")
+        if self.check_minima():
+            lst.append("Minima")
+        if self.check_ts():
+            lst.append("TS")
+        return ",".join(lst)
 
     @cached_property
     @abstractmethod
@@ -242,3 +260,9 @@ class EnergeticsMixin(OurFrozenModel):
         """
         thermo: HarmonicThermo = self._get_thermo(fqmin=fqmin)  # type: ignore
         return thermo.get_helmholtz_energy(temperature=temp, verbose=False)
+
+
+def test_Energetics() -> None:
+    assert len(Energetics.__abstractmethods__) == 0, (
+        Energetics.__abstractmethods__
+    )

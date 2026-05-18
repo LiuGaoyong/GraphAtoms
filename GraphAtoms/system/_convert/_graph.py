@@ -6,9 +6,9 @@ from pandas import concat as pd_concat
 from rustworkx import PyGraph as RXGraph
 from typing_extensions import Any, Self
 
-from .._base import Base
-from .._base._atomsAttr import AtomsAttr
-from .._base._bondsAttr import BondsAttr
+from .._atoms import Base
+from .._atoms._atomsAttr import AtomsAttr
+from .._bonds._bondsAttr import BondsAttr
 
 
 class IGraphConverter(Base):

@@ -129,7 +129,7 @@ def _get_annotated_type(
     metadata: list[Any],
     settings: Settings,
 ) -> pa.DataType:
-    # TODO: fix / clean up / understand why / if this works in all cases
+    # ???: fix / clean up / understand why / if this works in all cases
     args = get_args(field_type)[1:]
     metadatas = [
         item.metadata if hasattr(item, "metadata") else [item] for item in args
