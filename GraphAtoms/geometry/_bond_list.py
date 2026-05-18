@@ -7,8 +7,10 @@ from ase import Atoms
 from ase.data import covalent_radii as COV_R
 from pymatgen.core.structure import Molecule, Structure
 from pymatgen.io.ase import AseAtomsAdaptor
+from scipy import sparse as sp
 
 from ..utils.parser import DictConfig, hydra_parse
+from ..utils.rdutils import get_rdmol
 from ._neighbor_list import neighbor_list
 
 try:
@@ -24,33 +26,23 @@ except ImportError:
 __all__ = ["bond_list"]
 
 
-# TODO: add more parameters for `bond_list`` function
-# def bond_list(
-#     quantities: str,
-#     a: Atoms,
-#     bothways: bool = True,
-#     indices: ArrayLike | None = None,
-#     method: str | Literal["raw", "pymatgen"] = "raw",
-#     cfg: DictConfig = DictConfig({}),
-# ) -> np.ndarray:
-
-
 def bond_list(
     atoms: Atoms,
     method: str | Literal["raw", "pymatgen"] = "raw",
     cfg: DictConfig = DictConfig({}),
-) -> np.ndarray:
+    infer_order: bool = False,
+) -> sp.spmatrix | sp.sparray:
     """Compute bond list (list of bonded atom index pairs) for an Atoms object.
 
     Args:
         atoms: ASE Atoms object.
         method: "raw" (covalent radii) or "pymatgen" (nearest neighbor strategy).
         cfg: Hydration config dict for pymatgen strategy.
-        **kwargs: Additional arguments passed to neighbor list.
+        infer_order: whether infer bond order.
 
     Returns:
         Nx2 array of bonded atom index pairs.
-    """
+    """  # noqa: E501
     is_nonperiodic = np.sum(atoms.cell.array.any(1) & atoms.pbc) == 0
     if len(atoms) == 0:
         return np.empty(shape=(0, 2), dtype=int)
@@ -65,7 +57,7 @@ def bond_list(
         deq = COV_R[atoms.numbers[i]] + COV_R[atoms.numbers[j]]
         deq = deq * multiply_factor + plus_factor
         mask = np.logical_and(1e-3 < d, d < deq)
-        result = np.column_stack([i[mask], j[mask]])
+        edges = np.column_stack([i[mask], j[mask]])
     elif method == "pymatgen":
         nn = str(cfg.get("_target_", "")).split(".")[-1]
         if (
@@ -109,14 +101,37 @@ def bond_list(
             g = Graph.with_local_env_strategy(obj, strategy)
         assert isinstance(g.graph, nx.graph.Graph)
         edges = list(g.graph.edges(data=False))
-        result = np.asarray(edges, dtype=int)
+        edges = np.asarray(edges, dtype=int)
     else:
         raise ValueError(
             f"The method of `{method}` is not supported."  #
             "Please use `raw` or `pymatgen`."
         )
-
-    assert result.ndim == 2 and result.shape[1] == 2, (
-        f"The result must be Nx2 array. But {result.shape} got."
+    assert edges.ndim == 2 and edges.shape[1] == 2, (
+        f"The edges must be Nx2 array. But {edges.shape} got."
     )
-    return result
+    matrix = sp.csr_matrix(
+        (np.ones_like(edges[:, 0]), edges.T),
+        shape=(len(atoms), len(atoms)),
+        dtype=bool,
+    )
+    matrix = sp.csr_matrix(matrix, dtype=int)
+    if infer_order:
+        edges = sp.coo_array(matrix).coords
+        raise NotImplementedError
+        get_rdmol(
+            numbers=np.array(
+                [
+                    0
+                    if z not in (1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 32, 35, 53)
+                    else z
+                    for z in atoms.numbers
+                ]
+            ),
+            geometry=atoms.positions,
+            source=edges[0],
+            target=edges[1],
+            infer_order=False,
+        )
+
+    return matrix

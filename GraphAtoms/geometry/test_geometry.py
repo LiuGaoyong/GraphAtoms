@@ -3,8 +3,17 @@ from ase import Atoms
 from ase.build import bulk, fcc111, molecule
 from omegaconf import DictConfig, OmegaConf
 
-from GraphAtoms.geometry._bond_list import bond_list
-from GraphAtoms.geometry._neighbor_list import _test_neighbor_list_for_atoms
+# from GraphAtoms.geometry._bond_list import bond_list
+# from GraphAtoms.geometry._neighbor_list import _test_neighbor_list_for_atoms
+from ._bond_list import bond_list
+from ._inner_outer import _test_inner
+from ._neighbor_list import _test_neighbor_list_for_atoms
+
+
+def test_inner() -> None:  # noqa: D103
+    from ase.cluster import Octahedron
+
+    _test_inner(Octahedron("Cu", 3, 1))
 
 
 @pytest.mark.parametrize(
