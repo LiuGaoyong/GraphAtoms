@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.11.15,<0.12"]
+build-backend = "uv_build"
 
 [project]
-name = "GraphAtoms"
+name = "graphatoms"
 version = "1.0.0"
-description = "The Chemical Core Class for Graph Theory Analysis & Graph Neural Network."
 readme = "README.md"
+description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
 requires-python = ">=3.10"
 dependencies = [
@@ -21,12 +21,9 @@ dependencies = [
     "pyarrow",
 
     # Graph Theory
-    "igraph>=0.11",    # high performance graph library based on C
-    "networkx>=3.3",   # General-purpose graph library by pure Python
-    "rustworkx>=0.16", # NetworkX-like graph library based on Rust
+    "igraph>=0.11", # high performance graph library based on C
 
     # Data Model
-    'h5py',
     'hydra-core',
     "numpydantic",
     "pydantic>=2.11",
@@ -71,9 +68,10 @@ filterwarnings = [
 ]
 addopts = '--maxfail=1 -rf' # exit after 1 failures, report fail info
 testpaths = [
-    "GraphAtoms/dataclasses",
-    "GraphAtoms/geometry",
-    'GraphAtoms/system',
+    "src/graphatoms/dataclasses",
+    "src/graphatoms/geometry",
+    'src/graphatoms/system',
+    'src/tests',
 ]
 
 # ruff config
@@ -85,12 +83,21 @@ ignore = ["F722", "D100"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.pixi.package]
+name = 'graphatoms'
+version = '1.0.0'
+
+[tool.pixi.package.build]
+backend = { name = "pixi-build-python", version = "*" }
+channels = ["https://prefix.dev/conda-forge"]
+
 [tool.pixi.workspace]
+preview = ["pixi-build"]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-arm64"]
 
 [tool.pixi.pypi-dependencies]
-GraphAtoms = { path = ".", editable = true }
+graphatoms = { path = ".", editable = true }
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
@@ -98,7 +105,7 @@ dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 test = "pytest -s -vv"
-benchmark = 'pytest -s GraphAtoms/system/_test_speed.py'
+benchmark = 'pytest -s graphatoms/system/_test_speed.py'
 
 [tool.pixi.dependencies]
 python = ">=3.12"
@@ -106,16 +113,13 @@ pytest = ">=9.0.3,<10"
 ase = ">=3.28.0,<4"
 pymatgen = ">=2026.5.4,<2027"
 rdkit = ">=2025.9.5,<2027"
-python-vesin = ">=0.5.6,<0.6"
 openbabel = ">=3.1.1,<4"
 pyarrow = ">=21.0.0,<25"
 scikit-learn = ">=1.8.0,<2"
 python-igraph = ">=0.11.9,<0.12"
-rustworkx = ">=0.17.1,<0.18"
 numpydantic = ">=1.8.1,<2"
 python-snappy = ">=0.7.3,<0.8"
 h5py = ">=3.16.0,<4"
 hydra-core = ">=1.3.2,<2"
 tomli-w = ">=1.2.0,<2"
-dscribe = ">=2.1.2,<3"
 loguru = ">=0.7.3,<0.8"
