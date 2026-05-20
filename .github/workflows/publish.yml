@@ -78,8 +78,7 @@ jobs:
       - name: Show files under `dist`
         run: ls -lh dist/graphatoms*
       - name: Release
-        uses: softprops/action-gh-release@v3
         if: github.ref_type == 'tag'
+        uses: ncipollo/release-action@v1
         with:
-          working_directory: dist
-          files: graphatoms*
+          artifacts: "dist/*"
