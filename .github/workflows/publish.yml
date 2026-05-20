@@ -76,7 +76,7 @@ jobs:
           name: conda-package-distributions
           path: dist
       - name: Show files under `dist`
-        run: ls -lh dist/
+        run: ls -lh dist/graphatoms*
       - name: Release
         uses: softprops/action-gh-release@v3
         if: github.ref_type == 'tag'
