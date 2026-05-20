@@ -6,8 +6,6 @@ build-backend = "uv_build"
 Homepage = "https://github.com/LiuGaoyong/GraphAtoms"
 Repository = "https://github.com/LiuGaoyong/GraphAtoms"
 Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
-# Documentation = "https://readthedocs.org"
-# Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
 
 [project]
 name = "graphatoms"
@@ -23,6 +21,11 @@ keywords = [
 ]
 authors = [
     { name = "LiuGaoyong", email = "liugaoyong_88@163.com" }, #
+]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Topic :: Scientific/Engineering :: Chemistry',
+    'Intended Audience :: Science/Research',
 ]
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"
