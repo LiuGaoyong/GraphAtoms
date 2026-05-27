@@ -4,9 +4,10 @@ build-backend = "uv_build"
 
 [project]
 name = "graphatoms"
-version = "1.1.0"
+version = "1.1.1"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
+license-files = ["LICENSE"]
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
 requires-python = ">=3.10"
 dependencies = [
