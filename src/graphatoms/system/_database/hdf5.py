@@ -16,12 +16,16 @@ class AseH5DB(Mapping[str, Atoms], MutableSet[str]):
         if append:
             assert path.exists(), "The database file does not exist."
         else:
-            h5py.File(path, "w", libver="latest")
+            f = h5py.File(path, "w", libver="latest")
+            f.swmr_mode = True
+            f.close()
         self.__path = path
 
     @override
     def __len__(self) -> int:
-        with h5py.File(self.__path, "r", libver="latest", swmr=True) as f:
+        with h5py.File(
+            self.__path, "r", libver="latest", swmr=True, locking=False
+        ) as f:
             return len(f.keys())
 
     @override
@@ -33,16 +37,22 @@ class AseH5DB(Mapping[str, Atoms], MutableSet[str]):
                 raise TypeError(
                     "The key must be a string or a SysGraph object."
                 )
-        with h5py.File(self.__path, "r", libver="latest", swmr=True) as f:
+        with h5py.File(
+            self.__path, "r", libver="latest", swmr=True, locking=False
+        ) as f:
             return str(key) in f.keys()
 
     def __iter__(self) -> Iterator[str]:
-        with h5py.File(self.__path, "r", libver="latest", swmr=True) as f:
+        with h5py.File(
+            self.__path, "r", libver="latest", swmr=True, locking=False
+        ) as f:
             data = [str(i) for i in f.keys()]
         return iter(data)
 
     def __getitem__(self, key: str) -> Atoms:
-        with h5py.File(self.__path, "r", libver="latest", swmr=True) as f:
+        with h5py.File(
+            self.__path, "r", libver="latest", swmr=True, locking=False
+        ) as f:
             value: h5py.Group = f[key]  # type: ignore
             assert isinstance(value, h5py.Group), (
                 "The value must be a h5py.Group."
@@ -52,7 +62,9 @@ class AseH5DB(Mapping[str, Atoms], MutableSet[str]):
 
     @property
     def allthing(self) -> Mapping[str, Atoms]:
-        with h5py.File(self.__path, "r", libver="latest", swmr=True) as f:
+        with h5py.File(
+            self.__path, "r", libver="latest", swmr=True, locking=False
+        ) as f:
             data: dict[str, Any] = {}
             for key in f.keys():
                 value: h5py.Group = f[key]  # type: ignore
@@ -84,13 +96,16 @@ class AseH5DB(Mapping[str, Atoms], MutableSet[str]):
         ), "The value is not `Minima` or `TS`."
 
         if not self.__contains__(value.hash):
-            with h5py.File(self.__path, "a", libver="latest") as f:
-                f.swmr_mode = True
+            f = h5py.File(self.__path, "a", libver="latest", locking=False)
+            f.swmr_mode = True
+            try:
                 group = f.create_group(value.hash)
                 for k, v in value.to_dict().items():
                     group.create_dataset(k, data=v)
                 f.flush()
-            return True
+                return True
+            finally:
+                f.close()
         else:
             return False
 
