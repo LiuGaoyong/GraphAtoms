@@ -68,12 +68,7 @@ filterwarnings = [
 
 ]
 addopts = '--maxfail=1 -rf' # exit after 1 failures, report fail info
-testpaths = [
-    "src/graphatoms/dataclasses",
-    "src/graphatoms/geometry",
-    'src/graphatoms/system',
-    'src/tests',
-]
+testpaths = ['src/tests']
 
 # ruff config
 [tool.ruff]
@@ -106,7 +101,7 @@ dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 test = "pytest -s -vv"
-benchmark = 'pytest -s graphatoms/system/_test_speed.py'
+benchmark = 'pytest -s src/graphatoms/benchmark_speed.py'
 
 [tool.pixi.dependencies]
 python = ">=3.12"

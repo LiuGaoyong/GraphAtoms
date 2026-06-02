@@ -5,9 +5,9 @@ from omegaconf import DictConfig, OmegaConf
 
 # from graphatoms.geometry._bond_list import bond_list
 # from graphatoms.geometry._neighbor_list import _test_neighbor_list_for_atoms
-from ._bond_list import bond_list
-from ._inner_outer import _test_inner
-from ._neighbor_list import _test_neighbor_list_for_atoms
+from ..graphatoms.geometry._bond_list import bond_list
+from ..graphatoms.geometry._inner_outer import _test_inner
+from ..graphatoms.geometry._neighbor_list import _test_neighbor_list_for_atoms
 
 
 def test_inner() -> None:  # noqa: D103
