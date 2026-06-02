@@ -102,6 +102,27 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         return cls.from_dict(json.loads(data), **kw)
 
     @override
+    def _string(self) -> str:
+        lst: list[str] = [
+            Structure._string(self),
+            BondGraph._string(self),
+        ]
+        if self.is_gas:
+            lst.insert(0, GasMixin._string(self))
+        if self.move_fix_tag is not None:
+            lst.extend(
+                [
+                    f"NCORE={self.ncore}",
+                    f"NMOVED={self.nmoved}",
+                    f"NFIX={self.nfix}",
+                ]
+            )
+        return ",".join(lst)
+
+    ###################################################
+    # from/to dict
+
+    @override
     @classmethod
     def from_dict(
         cls,
@@ -162,24 +183,43 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             return super().from_dict(dct, **kwargs)
 
     @override
-    def _string(self) -> str:
-        lst: list[str] = [
-            Structure._string(self),
-            BondGraph._string(self),
-        ]
-        if self.is_gas:
-            lst.insert(0, GasMixin._string(self))
-        if self.move_fix_tag is not None:
-            lst.extend(
-                [
-                    f"NCORE={self.ncore}",
-                    f"NMOVED={self.nmoved}",
-                    f"NFIX={self.nfix}",
-                ]
-            )
-        return ",".join(lst)
+    def to_dict(
+        self,
+        *,
+        exclude_none: bool = True,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_computed_fields: bool = True,
+        numpy_ndarray_compatible: bool = True,
+        numpy_convert_to_list: bool = False,
+        exclude_bond_attibutes: bool = False,
+        exclude_energetics: bool = False,
+        **kwargs,
+    ) -> dict[str, Any]:
+        exclude = kwargs.pop("exclude", set())
+        return super().to_dict(
+            exclude_none=exclude_none,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_computed_fields=exclude_computed_fields,
+            exclude=(
+                exclude
+                | (
+                    set()
+                    if not exclude_energetics
+                    else Energetics.__pydantic_fields__.keys()
+                )
+                | (
+                    set()
+                    if not exclude_bond_attibutes
+                    else BondGraph.__pydantic_fields__.keys()
+                )
+            ),
+            numpy_ndarray_compatible=numpy_ndarray_compatible,
+            numpy_convert_to_list=numpy_convert_to_list,
+            **kwargs,
+        )
 
-    ###################################################
     # from/to ASE
     @classmethod
     def from_ase(
@@ -213,20 +253,12 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             info=self.to_dict(
                 exclude_none=True,
                 exclude_computed_fields=True,
+                exclude_bond_attibutes=exclude_bond_attibutes,
+                exclude_energetics=exclude_energetics,
                 exclude=(
                     {"positions"}
                     | Box.__pydantic_fields__.keys()
                     | Matter.__pydantic_fields__.keys()
-                    | (
-                        set()
-                        if not exclude_energetics
-                        else Energetics.__pydantic_fields__.keys()
-                    )
-                    | (
-                        set()
-                        if not exclude_bond_attibutes
-                        else BondGraph.__pydantic_fields__.keys()
-                    )
                 ),
                 numpy_ndarray_compatible=True,
                 numpy_convert_to_list=False,
