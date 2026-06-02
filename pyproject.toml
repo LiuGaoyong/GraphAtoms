@@ -43,14 +43,15 @@ dependencies = [
     "igraph>=0.11", # high performance graph library based on C
 
     # Data Model
-    'hydra-core',
+    "h5py>=3.16",
+    "hydra-core",
     "numpydantic",
     "pydantic>=2.11",
     "python-snappy>=0.7.3",           # More Fase Data Compression
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
     "typing-extensions",
-    'loguru',
+    "loguru",
 ]
 [dependency-groups]
 dev = [
