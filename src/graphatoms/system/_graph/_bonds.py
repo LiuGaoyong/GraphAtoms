@@ -6,12 +6,13 @@ import pydantic
 from igraph import Graph as IGraph
 from numpy.typing import ArrayLike
 from pandas import DataFrame
+from rdkit.Chem import Mol as RDMol
 from scipy import sparse as sp
 from typing_extensions import Self
 
 from ...dataclasses import NDArray, OurFrozenModel, numpy_validator
 from ...utils.bytestool import hash_string
-from ...utils.rdutils import RDMol, get_rdmol
+from ...utils.rdutils import get_rdmol
 from .._atoms._struct import Matter
 
 DEFAULT_WH_HASH_DEPTH = 3
