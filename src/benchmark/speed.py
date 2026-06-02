@@ -7,7 +7,7 @@ from graphatoms.system import System
 
 
 @pytest.mark.parametrize("n", range(3, 20))
-def test_speed(n: int) -> None:
+def test_speed(n: int) -> None:  # noqa: D103
     start = perf_counter()
     a = Octahedron("Cu", n)
     print(f"Created Atoms with {len(a)} atoms")

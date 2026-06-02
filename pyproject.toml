@@ -101,7 +101,7 @@ dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 test = "pytest -s -vv"
-benchmark = 'pytest -s src/graphatoms/benchmark_speed.py'
+benchmark = 'pytest -s src/benchmark/speed.py'
 
 [tool.pixi.dependencies]
 python = ">=3.12"
