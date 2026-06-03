@@ -2,13 +2,32 @@
 requires = ["uv_build>=0.11.15,<0.12"]
 build-backend = "uv_build"
 
+[project.urls]
+Homepage = "https://github.com/LiuGaoyong/GraphAtoms"
+Repository = "https://github.com/LiuGaoyong/GraphAtoms"
+Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
+
 [project]
 name = "graphatoms"
-version = "1.1.0"
+version = "1.1.1"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
+license-files = ["src/LICENSE"]
+license = "GPL-3.0-or-later"
 requires-python = ">=3.10"
+keywords = [
+    "chemistry",    #
+    "graph theory",
+    "reaction",
+    "event",
+    "KMC",
+]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Topic :: Scientific/Engineering :: Chemistry',
+    'Intended Audience :: Science/Research',
+]
 dependencies = [
     # Chemoinformatics
     "ase",
@@ -24,14 +43,15 @@ dependencies = [
     "igraph>=0.11", # high performance graph library based on C
 
     # Data Model
-    'hydra-core',
+    "h5py>=3.16",
+    "hydra-core",
     "numpydantic",
     "pydantic>=2.11",
     "python-snappy>=0.7.3",           # More Fase Data Compression
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
     "typing-extensions",
-    'loguru',
+    "loguru",
 ]
 [dependency-groups]
 dev = [
@@ -67,12 +87,7 @@ filterwarnings = [
 
 ]
 addopts = '--maxfail=1 -rf' # exit after 1 failures, report fail info
-testpaths = [
-    "src/graphatoms/dataclasses",
-    "src/graphatoms/geometry",
-    'src/graphatoms/system',
-    'src/tests',
-]
+testpaths = ['src/tests']
 
 # ruff config
 [tool.ruff]
@@ -89,7 +104,6 @@ version = '1.1.0'
 
 [tool.pixi.package.build]
 backend = { name = "pixi-build-python", version = "*" }
-channels = ["https://prefix.dev/conda-forge"]
 
 [tool.pixi.workspace]
 preview = ["pixi-build"]
@@ -105,7 +119,7 @@ dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 test = "pytest -s -vv"
-benchmark = 'pytest -s graphatoms/system/_test_speed.py'
+benchmark = 'pytest -s src/benchmark/*.py'
 
 [tool.pixi.dependencies]
 python = ">=3.12"

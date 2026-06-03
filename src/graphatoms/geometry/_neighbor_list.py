@@ -67,7 +67,7 @@ def _matscipy_neighbor_list(
         pass  # type: ignore
     except Exception:
         raise Exception(
-            "Please install vesin to speed up "  #
+            "Please install `matscipy` to speed up "  #
             "the calculation of neighbor list.",
         )
     raise NotImplementedError
@@ -83,10 +83,10 @@ def _vesin_neighbor_list(
     max_nbins: int = 0,
 ) -> tuple[np.ndarray, ...]:
     try:
-        from vesin import ase_neighbor_list
+        from vesin import ase_neighbor_list  # type: ignore
     except Exception:
         raise Exception(
-            "Please install vesin to speed up "  #
+            "Please install `vesin` to speed up "  #
             "the calculation of neighbor list.",
         )
     return tuple(

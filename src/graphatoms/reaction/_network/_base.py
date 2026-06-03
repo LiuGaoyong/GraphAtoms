@@ -9,7 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 from graphatoms.system import SysGraph
 
 from ...utils.logger import LoggerBase
-from ._asedb import AseSqliteDB
+from ...system._database.sqliteASE import AseSqliteDB
 
 
 class RxNetABC(ABC):
