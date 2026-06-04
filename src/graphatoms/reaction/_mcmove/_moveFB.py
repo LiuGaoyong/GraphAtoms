@@ -164,7 +164,7 @@ class FBDispC(FBDisp):
             atoms0: Atoms = self.atoms.__getitem__(nbrs)  # type: ignore
             atoms0.calc = self.calc
             atoms0.calc.reset()
-            e0 = atoms0.get_potential_energy()
+            atoms0.get_potential_energy()
             f0: np.ndarray = atoms0.get_forces()
             f = f0[nbrs == i].ravel()
             assert f.shape == (3,)
@@ -176,4 +176,3 @@ class FBDispC(FBDisp):
                 lambda_param=lambda_param,
             )
             displacement[i, :] = disp_i
-            how_to_change = f"Disp({i}),ForceBias"

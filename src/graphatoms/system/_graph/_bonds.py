@@ -136,12 +136,15 @@ class BondGraph(Matter, OurFrozenModel):
 
     def get_chordless_cycles(
         self,
+        batch_nbr_order: int = 3,
         batch: ArrayLike | list[int | bool] | int | None = None,
         max_ncore: Literal[3, 4, 5, 6] = 3,
     ) -> np.ndarray:
         """Got chordless cycles mask array for specific core numbers.
 
         Args:
+            batch_nbr_order (int, optional): the max number of neighbors
+                of a site. Defaults to 3.
             batch (np.ndarray | list[int | bool] | None, optional):
                 the batch atoms of calculation. Default to None.
             max_ncore (Literal[3, 4, 5, 6], optional): The maximum
@@ -150,7 +153,12 @@ class BondGraph(Matter, OurFrozenModel):
         Returns:
             np.ndarray: (n_site, n_atoms) boolean matrix
         """
-        return chordless_cycles(self.__IGRAPH, batch, max_ncore)
+        return chordless_cycles(
+            igraph=self.__IGRAPH,
+            batch_nbr_order=batch_nbr_order,
+            max_ncore=max_ncore,
+            batch=batch,
+        )
 
     def get_match_mode(
         self,
@@ -390,17 +398,20 @@ class BondGraph(Matter, OurFrozenModel):
 
 def chordless_cycles(
     igraph: IGraph,
-    batch: ArrayLike | list[int | bool] | int | None = None,
     max_ncore: Literal[3, 4, 5, 6] = 3,
+    batch: ArrayLike | list[int | bool] | int | None = None,
+    batch_nbr_order: int = 3,
 ) -> np.ndarray:
     """Got chordless cycles mask array for specific core numbers.
 
     Args:
         igraph (igraph.Graph): The graph to calculate.
-        batch (np.ndarray | list[int | bool] | None, optional):
-            the batch atoms of calculation. Default to None.
         max_ncore (Literal[3, 4, 5, 6], optional): The maximum
             number of core atoms in a site. Defaults to 3.
+        batch (np.ndarray | list[int | bool] | None, optional):
+            the batch atoms of calculation. Default to None.
+        batch_nbr_order (int, optional): The order of neighborhood.
+            Defaults to 3.
 
     Returns:
         np.ndarray: (n_site, n_atoms) boolean matrix
@@ -420,7 +431,7 @@ def chordless_cycles(
         f"Invalid max_ncore value: {max_ncore}."
         " Only 3, 4, 5 and 6 are supported here."
     )
-    nbr = igraph.neighborhood(batch, order=3, mindist=0)
+    nbr = igraph.neighborhood(batch, order=batch_nbr_order, mindist=0)
     nbr = np.unique(reduce(np.append, nbr))
     g: IGraph = _subgraph_edges(igraph, nbr)
     if not g.is_simple():

@@ -138,7 +138,7 @@ class RTGP(OurFrozenModel, MoveABC):
 
     @override
     def __call__(self, atoms: Atoms, *args, **kwargs) -> Atoms:
-        r = self.R.__class__.from_ase(atoms, *args, **kwargs)
+        self.R.__class__.from_ase(atoms, *args, **kwargs)
         raise NotImplementedError()
 
     def __reversed__(self) -> Self:  # type: ignore
