@@ -15,7 +15,7 @@ description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
 license-files = ["src/LICENSE"]
 license = "GPL-3.0-or-later"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = [
     "chemistry",    #
     "graph theory",
