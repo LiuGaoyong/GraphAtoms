@@ -211,7 +211,11 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 | (
                     set()
                     if not exclude_bond_attibutes
-                    else BondGraph.__pydantic_fields__.keys()
+                    else {
+                        k
+                        for k in BondGraph.__pydantic_fields__.keys()
+                        if k not in Matter.__pydantic_fields__.keys()
+                    }
                 )
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,
