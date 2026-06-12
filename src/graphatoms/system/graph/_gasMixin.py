@@ -1,7 +1,6 @@
-from typing import override
+from typing import Self, override
 
 from pydantic import NonNegativeFloat, model_validator
-from typing_extensions import Self
 
 from graphatoms.dataclasses import OurBaseModel
 

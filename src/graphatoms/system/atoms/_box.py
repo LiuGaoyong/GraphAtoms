@@ -1,12 +1,11 @@
 from functools import cached_property
-from typing import Annotated, override
+from typing import Annotated, Self, override
 
 import numpy as np
 from ase.cell import Cell
 from ase.geometry import cell as cellutils
 from pydantic import model_validator
 from pymatgen.core.lattice import Lattice
-from typing_extensions import Self
 
 from graphatoms.dataclasses import NDArray, OurBaseModel, numpy_validator
 

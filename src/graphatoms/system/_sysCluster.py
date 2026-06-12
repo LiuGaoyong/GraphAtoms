@@ -1,6 +1,7 @@
+from typing import Self, override
+
 import numpy as np
 from pydantic import model_validator
-from typing_extensions import Self, override
 
 from .graph import SysGraph
 

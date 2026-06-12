@@ -3,11 +3,11 @@
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/graphatoms.svg)](https://anaconda.org/conda-forge/graphatoms)  [![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/graphatoms.svg)](https://anaconda.org/conda-forge/graphatoms)    [![Pypi version](https://img.shields.io/pypi/v/graphatoms)](https://pypi.org/project/graphatoms/) [![PyPI Downloads](https://static.pepy.tech/badge/graphatoms)](https://pepy.tech/projects/graphatoms)
 
 
-The Chemical Core Class for Graph Theory Analysis & Graph Neural Network.
+The Chemical Core Class for Graph Theory Analysis.
 
 ## Overview
 
-The `graphatoms` is a Python library designed for chemical graph theory analysis and graph neural network applications. It provides core classes for representing chemical systems and reactions with graph-based data structures.
+The `graphatoms` is a Python library designed for chemical graph theory analysis. It provides core classes for representing chemical systems and reactions with graph-based data structures.
 
 ## Features
 

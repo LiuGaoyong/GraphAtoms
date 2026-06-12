@@ -117,7 +117,7 @@ dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 test = "pytest -s -vv"
-benchmark = 'pytest -s src/benchmark/*.py'
+benchmark = 'pytest -s src/tests-benchmark/*.py'
 
 [tool.pixi.dependencies]
 python = ">=3.12"

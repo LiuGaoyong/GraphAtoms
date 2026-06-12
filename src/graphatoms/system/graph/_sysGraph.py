@@ -2,7 +2,7 @@ import json
 from abc import abstractmethod
 from collections.abc import Mapping, Sequence
 from functools import cached_property
-from typing import Annotated, Any, override
+from typing import Annotated, Any, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -11,7 +11,6 @@ from igraph import Graph as IGraph
 from pandas import DataFrame
 from pydantic import model_validator
 from scipy import sparse as sp
-from typing_extensions import Self
 
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ...geometry import bond_list
