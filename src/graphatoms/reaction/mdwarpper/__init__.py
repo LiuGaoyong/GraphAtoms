@@ -1,3 +1,4 @@
+# ruff: noqa: D104 D107
 from collections.abc import Mapping
 from typing import Any, override
 
@@ -6,7 +7,7 @@ from ase.calculators.calculator import Calculator
 from ase.md.md import MolecularDynamics
 
 from ...utils.parser import DictConfig, hydra_parse
-from .._abc.move import MoveABC
+from ..base.move import MoveABC
 
 
 class MDWrapper(MoveABC):

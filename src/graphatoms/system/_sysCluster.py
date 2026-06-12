@@ -2,7 +2,7 @@ import numpy as np
 from pydantic import model_validator
 from typing_extensions import Self, override
 
-from .._graph import SysGraph
+from .graph import SysGraph
 
 
 class Cluster(SysGraph):

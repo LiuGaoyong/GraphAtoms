@@ -1,12 +1,11 @@
 from pathlib import Path
-from typing import override
+from typing import Self, override
 
 from ase import Atoms
 from ase.io.trajectory import TrajectoryReader
 from pydantic import model_validator
-from typing_extensions import Self
 
-from .._abc.rtgp import RTGP
+from ..base.rtgp import RTGP
 
 
 class Event(RTGP):

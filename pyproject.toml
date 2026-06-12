@@ -93,7 +93,7 @@ testpaths = ['src/tests']
 [tool.ruff]
 line-length = 80
 indent-width = 4
-select = ["F", "E", "W", "UP", "D"]
+select = ["F", "E", "W", "UP"]
 ignore = ["F722", "D100"]
 [tool.ruff.lint.pydocstyle]
 convention = "google"

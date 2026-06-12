@@ -1,7 +1,8 @@
-from pydantic import model_validator
-from typing_extensions import Self
+from typing import Self
 
-from .._abc.rtgp import RTGP
+from pydantic import model_validator
+
+from ..base.rtgp import RTGP
 
 
 class Desorption(RTGP):

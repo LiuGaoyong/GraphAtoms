@@ -8,8 +8,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.system import SysGraph
 
+from ...system.database.sqliteASE import AseSqliteDB
 from ...utils.logger import LoggerBase
-from ...system._database.sqliteASE import AseSqliteDB
 
 
 class RxNetABC(ABC):

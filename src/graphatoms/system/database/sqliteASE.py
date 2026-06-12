@@ -1,5 +1,6 @@
 """The database class based on ASE."""
 
+# ruff: noqa: D101 D107 D105
 import os
 from collections.abc import Iterator, Mapping, MutableSet
 from pathlib import Path

@@ -1,5 +1,5 @@
 from functools import cached_property, partial, reduce
-from typing import Annotated, Literal, override
+from typing import Annotated, Literal, Self, override
 
 import numpy as np
 import pydantic
@@ -8,12 +8,11 @@ from numpy.typing import ArrayLike
 from pandas import DataFrame
 from rdkit.Chem import Mol as RDMol
 from scipy import sparse as sp
-from typing_extensions import Self
 
 from ...dataclasses import NDArray, OurFrozenModel, numpy_validator
 from ...utils.bytestool import hash_string
 from ...utils.rdutils import get_rdmol
-from .._atoms._struct import Matter
+from ..atoms._struct import Matter
 
 DEFAULT_WH_HASH_DEPTH = 3
 DEFAULT_WH_HASH_SIZE = 6

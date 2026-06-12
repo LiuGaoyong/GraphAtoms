@@ -15,7 +15,7 @@ from typing_extensions import Self
 
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ...geometry import bond_list
-from .._atoms import Box, Energetics, Matter, Structure
+from ..atoms import Box, Energetics, Matter, Structure
 from ._bonds import BondGraph
 from ._gasMixin import GasMixin
 
