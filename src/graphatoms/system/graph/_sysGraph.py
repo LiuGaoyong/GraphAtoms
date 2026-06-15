@@ -39,6 +39,25 @@ class AtomTag(OurBaseModel):
             assert self.isfix.sum != self.natoms, "`ismoved` sum == 0"
         return self
 
+    @override
+    def _string(self) -> str:
+        lst: list[str] = []
+        if self.move_fix_tag is not None:
+            lst.extend(
+                [
+                    f"NCORE={self.ncore}",
+                    f"NMOVED={self.nmoved}",
+                    f"NFIX={self.nfix}",
+                ]
+            )
+        if self.is_outer is not None:
+            lst.append(f"NOUTER={np.sum(self.is_outer)}")
+        if self.is_adsorbate is not None:
+            lst.append(f"NADS={np.sum(self.is_adsorbate)}")
+        else:
+            lst.append("NADS=0")
+        return ",".join(lst)
+
     @cached_property
     @abstractmethod
     def natoms(self) -> int: ...
@@ -108,14 +127,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         ]
         if self.is_gas:
             lst.insert(0, GasMixin._string(self))
-        if self.move_fix_tag is not None:
-            lst.extend(
-                [
-                    f"NCORE={self.ncore}",
-                    f"NMOVED={self.nmoved}",
-                    f"NFIX={self.nfix}",
-                ]
-            )
+        lst.append(AtomTag._string(self))
         return ",".join(lst)
 
     ###################################################
