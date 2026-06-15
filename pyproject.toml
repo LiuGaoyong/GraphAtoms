@@ -37,6 +37,7 @@ dependencies = [
     # Scientific Computing
     # numpy pandas, scipy
     "scikit-learn>=1.5",
+    "array-api-compat",
     "pyarrow",
 
     # Graph Theory
@@ -56,6 +57,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff>=0.11",
+    "array-api-strict",
     "pytest>=8.3",
     "pytest-xdist",
     "jupyter",
@@ -122,6 +124,8 @@ benchmark = 'pytest -s src/tests-benchmark/*.py'
 [tool.pixi.dependencies]
 python = ">=3.12"
 pytest = ">=9.0.3,<10"
+array-api-compat = ">=1.15.0,<2"
+array-api-strict = ">=2.5,<3"
 ase = ">=3.28.0,<4"
 pymatgen = ">=2026.5.4,<2027"
 rdkit = ">=2025.9.5,<2027"
