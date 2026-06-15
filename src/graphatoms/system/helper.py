@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -24,8 +24,25 @@ def get_hash_of_atoms(
     ).hash
 
 
-def analysis(atoms: Atoms, bonds_cfg: Mapping[str, Any] = {}) -> System:
+def analysis(
+    atoms: Atoms,
+    bonds_cfg: Mapping[str, Any] = {},
+    clear_info: bool | Sequence[str] = True,
+) -> System:
     """A helper function for analysis of `ase.Atoms`."""
+    if clear_info is False:
+        pass
+    else:
+        atoms = atoms.copy()
+        if clear_info is True:
+            clear_info = list(atoms.info.keys())
+            atoms.info.clear()
+        atoms.info = {
+            k: atoms.info[k]
+            for k in atoms.info  #
+            if k not in clear_info
+        }
+
     sys = System.from_ase(
         atoms,
         parse_bonds=bonds_cfg.get("parser", {"method": "raw"}),
@@ -83,15 +100,6 @@ def analysis_site(
         max_ncore=max_ncore,  # type: ignore
         batch=active,
     )
-    # result_2 = [
-    #     site
-    #     for site in sys.get_chordless_cycles(
-    #         batch_nbr_order=0,
-    #         max_ncore=max_ncore,  # type: ignore
-    #         batch=active,
-    #     )
-    #     if np.sum(site) == np.sum(active & site)
-    # ]
     result = np.vstack([result_1, result_2])
     hashes = [
         hash_string(
