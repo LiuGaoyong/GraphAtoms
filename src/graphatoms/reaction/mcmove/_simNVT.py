@@ -1,8 +1,8 @@
 from pathlib import Path
+from typing import override
 
 import numpy as np
 from ase.calculators.calculator import Calculator
-from typing_extensions import override
 
 from ...commands.runner3.abc import SimABC
 from ._base import CanonicalState

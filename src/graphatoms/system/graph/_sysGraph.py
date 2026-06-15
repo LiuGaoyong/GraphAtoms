@@ -2,7 +2,7 @@ import json
 from abc import abstractmethod
 from collections.abc import Mapping, Sequence
 from functools import cached_property
-from typing import Annotated, Any, override
+from typing import Annotated, Any, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -11,11 +11,10 @@ from igraph import Graph as IGraph
 from pandas import DataFrame
 from pydantic import model_validator
 from scipy import sparse as sp
-from typing_extensions import Self
 
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ...geometry import bond_list
-from .._atoms import Box, Energetics, Matter, Structure
+from ..atoms import Box, Energetics, Matter, Structure
 from ._bonds import BondGraph
 from ._gasMixin import GasMixin
 
@@ -212,7 +211,11 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 | (
                     set()
                     if not exclude_bond_attibutes
-                    else BondGraph.__pydantic_fields__.keys()
+                    else {
+                        k
+                        for k in BondGraph.__pydantic_fields__.keys()
+                        if k not in Matter.__pydantic_fields__.keys()
+                    }
                 )
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,

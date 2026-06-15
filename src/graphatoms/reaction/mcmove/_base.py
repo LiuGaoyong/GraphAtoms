@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Literal
+from typing import Literal, override
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 from pydantic import BaseModel
-from typing_extensions import override
 
 from ...commands.runner3.abc import SimState as MonteCarloState
 

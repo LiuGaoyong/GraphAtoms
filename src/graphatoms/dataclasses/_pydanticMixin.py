@@ -1,6 +1,7 @@
 # ruff: noqa: D100 D102 E501
 from collections.abc import Mapping, Sequence
 from sys import version_info
+from typing import Any, Self
 
 import numpy as np
 import pydantic
@@ -8,11 +9,10 @@ import tomli_w as toml_w
 import yaml
 from joblib import dump, load
 from omegaconf import OmegaConf
-from typing_extensions import Any, Self
 
 from ..utils import bytestool as bytesutils
 
-if version_info < (3, 11):
+if version_info < (3, 11):  # type: ignore  # noqa: UP036
     import tomli as tomllib  # type: ignore
 else:
     import tomllib

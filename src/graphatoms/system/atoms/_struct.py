@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from functools import cached_property
-from typing import Annotated, Any, override
+from typing import Annotated, Any, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -9,7 +9,6 @@ from ase.symbols import Symbols
 from pydantic import model_validator
 from pymatgen.core.structure import Molecule as PmgMol
 from pymatgen.core.structure import Structure as PmgStrct
-from typing_extensions import Self
 
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ._box import Box

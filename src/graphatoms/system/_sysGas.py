@@ -1,5 +1,6 @@
 import warnings
 from functools import cached_property
+from typing import Self, override
 
 import numpy as np
 import pydantic
@@ -15,10 +16,9 @@ from pydantic import (
     model_validator,
     validate_call,
 )
-from typing_extensions import Self, override
 
-from ...utils import rdutils as rdtool
-from .._graph import SysGraph
+from ..utils import rdutils as rdtool
+from .graph import SysGraph
 
 
 class System(SysGraph):
