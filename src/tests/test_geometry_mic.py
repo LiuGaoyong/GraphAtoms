@@ -3,8 +3,8 @@ import pytest
 from ase.geometry import geometry as ase_geometry
 from ase.geometry import minkowski_reduce
 
-from graphatoms.geometry import _mic as this_geometry
-from graphatoms.utils import ArrayNamespace
+from graphatoms.arrayapi import ArrayNamespace
+from graphatoms.geometry import mic as this_geometry
 
 
 @pytest.mark.parametrize(
@@ -13,6 +13,7 @@ from graphatoms.utils import ArrayNamespace
         (np.random.randint(100, size=(5, 3)) / 50, "translate_pretty"),
         (np.random.rand(5, 3), "naive_find_mic"),
         (np.random.rand(5, 3), "find_mic"),
+        (np.random.rand(3), "find_mic"),
     ],
 )
 def test_array_api(test_arr: np.ndarray, function_name: str) -> None:

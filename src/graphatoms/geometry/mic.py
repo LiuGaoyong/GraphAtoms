@@ -2,8 +2,8 @@ import itertools
 
 import array_api_extra as xpx
 
-from graphatoms.utils import Array, ArrayNamespace, get_namespace
-from graphatoms.utils._array_api_typing import LinalgNamespace
+from graphatoms.arrayapi import Array, ArrayNamespace, get_namespace
+from graphatoms.arrayapi._array_api_typing import LinalgNamespace
 
 
 def pbc2pbc(pbc: bool, np: ArrayNamespace) -> Array:
@@ -179,6 +179,11 @@ def find_mic(
     assert linalg is not None and isinstance(linalg, LinalgNamespace), (
         f"ArrayNamespace({np}) does not have linalg attribute."
     )
+    if v.ndim == 1:
+        assert v.shape[0] == 3, f"Invalid vector shape: {v.shape}."
+        v, single = np.reshape(v, (-1, 3)), True
+    else:
+        single = False
     assert v.ndim == 2 and v.shape[1] == 3, f"Invalid vector shape: {v.shape}."
 
     cell = minkowski_rcell
@@ -186,6 +191,7 @@ def find_mic(
         pbc = pbc2pbc(pbc, np)  # type: ignore
     pbc = np.any(cell, axis=1) & pbc
     dim = np.sum(pbc)
+    vmin, vlen = None, None
     if dim > 0:
         naive_find_mic_is_safe = False
         if dim == 3:
@@ -199,4 +205,9 @@ def find_mic(
     else:
         vmin = np.asarray(v, copy=True)
         vlen = linalg.vector_norm(vmin, axis=1, ord=2)  # L2 norm
+    assert vmin is not None and vlen is not None, "vmin or vlen are None."
+
+    if single:
+        vmin = vmin[0]
+        vlen = vlen[0]
     return vmin, vlen  # type: ignore
