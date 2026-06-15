@@ -19,6 +19,7 @@ DEFAULT_WH_HASH_SIZE = 6
 
 __all__ = ["BondGraph"]
 
+_BOND_ATTRS = ("pair", "distance", "order")
 
 class BondGraph(Matter, OurFrozenModel):
     coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None

@@ -15,7 +15,7 @@ from scipy import sparse as sp
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ...geometry import bond_list
 from ..atoms import Box, Energetics, Matter, Structure
-from ._bonds import BondGraph
+from ._bonds import _BOND_ATTRS, BondGraph
 from ._gasMixin import GasMixin
 
 
@@ -220,15 +220,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                     if not exclude_energetics
                     else Energetics.__pydantic_fields__.keys()
                 )
-                | (
-                    set()
-                    if not exclude_bond_attibutes
-                    else {
-                        k
-                        for k in BondGraph.__pydantic_fields__.keys()
-                        if k not in Matter.__pydantic_fields__.keys()
-                    }
-                )
+                | (set() if not exclude_bond_attibutes else set(_BOND_ATTRS))
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,
             numpy_convert_to_list=numpy_convert_to_list,
