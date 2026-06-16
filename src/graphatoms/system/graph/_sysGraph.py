@@ -140,8 +140,13 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         else:
             idxs = np.concatenate(np.where(self.is_adsorbate))
             idxs = np.unique(np.append(idxs, self.get_neighbors(idxs)))
-            for idx in idxs:
-                ...
+            idxs_lst: list[int] = idxs.tolist()
+            igraph: IGraph = self.get_igraph()
+            for idx in idxs_lst:
+                this_idxs = igraph.get_shortest_paths(idx, idxs_lst)
+                this_idxs = np.concatenate(this_idxs)
+                idxs = np.append(idxs, this_idxs)
+            subg = self.get_sub
         return (
             self.smiles_adsorbate
             if np.all(self.is_adsorbate)
