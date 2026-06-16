@@ -1,11 +1,16 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from graphatoms.system import SysGraph
 
 this_dir = Path(__file__).parent
-for p in this_dir.glob("*.npz"):
+data_dir = this_dir.parent / "tests-data"
+
+
+@pytest.mark.parametrize("p", data_dir.glob("*.npz"))
+def test_smarts(p: Path) -> None:
     print(p)
     sys = SysGraph.read_npz(p)
     sys = SysGraph.read_npz(
