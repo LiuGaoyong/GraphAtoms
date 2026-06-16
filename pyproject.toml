@@ -55,7 +55,6 @@ dependencies = [
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
     "typing-extensions",
-    "types-array-api",
     "loguru",
 ]
 [dependency-groups]
