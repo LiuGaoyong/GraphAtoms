@@ -6,8 +6,8 @@ from ase import Atoms
 from ase.data import chemical_symbols as AN2ELEM
 from ase.io.xyz import read_xyz
 from rdkit import Chem, RDLogger
-from rdkit.Chem import AllChem, rdDetermineBonds, rdFreeSASA
-from rdkit.Chem import Mol as RDMol
+from rdkit.Chem import AllChem, rdDetermineBonds, rdFreeSASA  # type: ignore
+from rdkit.Chem import Mol as RDMol  # type: ignore
 from scipy import sparse as sp
 
 
@@ -139,7 +139,7 @@ def _get_rdmol_without_bonds(
         numbers=numbers,
         geometry=geometry,
     )
-    rdmol = Chem.MolFromXYZBlock(xyz_block)
+    rdmol = Chem.MolFromXYZBlock(xyz_block)  # type: ignore
     if rdmol is None:
         raise RuntimeError("The `Mol` object's rdmol is None.")
 
@@ -175,13 +175,14 @@ def _get_rdmol_with_bonds(
         target=target,
         order=order,
     )
-    rdmol = Chem.MolFromMolBlock(sdf_block, removeHs=False)
+    rdmol = Chem.MolFromMolBlock(sdf_block, removeHs=False)  # type: ignore
     if rdmol is None:
         raise RuntimeError("The `Mol` object's rdmol is None.")
 
     if infer_order:
         # assert order is None, (
-        #     "Please set order is None when you want infer bond order by RDKit."
+        #     "Please set order is None when you "  # type: ignore
+        #     "want infer bond order by RDKit."
         # )
         rdDetermineBonds.DetermineBondOrders(rdmol, charge=charge)
 
@@ -232,7 +233,7 @@ def get_rdmol(
 
 def rdmol2smiles(rdmol: RDMol, canonical: bool = True) -> str:
     """Convert RDKit Mol object as SMILES string."""
-    result = Chem.MolToSmiles(rdmol)
+    result = Chem.MolToSmiles(rdmol)  # type: ignore
     if canonical:
         result = Chem.CanonSmiles(result)
     return result
@@ -240,7 +241,7 @@ def rdmol2smiles(rdmol: RDMol, canonical: bool = True) -> str:
 
 def smiles2rdmol(smi: str) -> RDMol:
     """Convert SMILES string as RDKit Mol object."""
-    rdmol = Chem.AddHs(Chem.MolFromSmiles(str(smi)))
+    rdmol = Chem.AddHs(Chem.MolFromSmiles(str(smi)))  # type: ignore
     AllChem.EmbedMolecule(rdmol, useRandomCoords=True)  # type: ignore
     AllChem.MMFFOptimizeMolecule(rdmol)  # type: ignore
     return rdmol
@@ -291,12 +292,12 @@ def get_smiles(
 
 def rdmol2ase(rdmol: RDMol) -> Atoms:
     """Convert rdmol to `ase.Atoms`."""
-    xyz = Chem.MolToXYZBlock(mol=rdmol, precision=15)
+    xyz = Chem.MolToXYZBlock(mol=rdmol, precision=15)  # type: ignore
     return Atoms(list(read_xyz(StringIO(xyz), -1)))
 
 
 def _get_adjacency(rdmol: RDMol) -> sp.coo_array:
-    m = Chem.GetAdjacencyMatrix(rdmol, useBO=True)
+    m = Chem.GetAdjacencyMatrix(rdmol, useBO=True)  # type: ignore
     return sp.coo_array(m)  # type: ignore
 
 

@@ -10,12 +10,14 @@ from ase.geometry import find_mic
 from igraph import Graph as IGraph
 from pandas import DataFrame
 from pydantic import model_validator
+from rdkit import Chem
 from scipy import sparse as sp
 
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ...geometry import bond_list
+from ...utils import rdutils
 from ..atoms import Box, Energetics, Matter, Structure
-from ._bonds import _BOND_ATTRS, BondGraph
+from ._bonds import _BOND_ATTRS, BondGraph, _subgraph_edges
 from ._gasMixin import GasMixin
 
 
@@ -131,9 +133,8 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         return ",".join(lst)
 
     @cached_property
-    def smiles(self) -> str:
+    def smarts(self) -> str:
         """Get the SMILES string of this object."""
-        raise NotImplementedError("Not implemented.")
         fml = self.symbols.get_chemical_formula("metal", True)
         if self.is_adsorbate is None or np.sum(self.is_adsorbate) == 0:
             return f"{fml}-{self.hash}"
@@ -146,12 +147,22 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 this_idxs = igraph.get_shortest_paths(idx, idxs_lst)
                 this_idxs = np.concatenate(this_idxs)
                 idxs = np.append(idxs, this_idxs)
-            subg = self.get_sub
-        return (
-            self.smiles_adsorbate
-            if np.all(self.is_adsorbate)
-            else self.smiles_non_adsorbate
-        )
+            subgraph: IGraph = _subgraph_edges(igraph, idxs)
+            adj = sp.coo_matrix(subgraph.get_adjacency_sparse())
+            source, target = adj.coords
+            rdmol: rdutils.RDMol = rdutils.get_rdmol(
+                # numbers=np.where(self.is_adsorbate, self.numbers, 0),
+                numbers=self.numbers,
+                source=source,
+                target=target,
+            )
+            fragments = Chem.GetMolFrags(rdmol, asMols=True)  # type: ignore
+            largest_frag = max(
+                fragments,
+                default=rdmol,
+                key=lambda m: m.GetNumAtoms(),
+            )
+            return Chem.MolToSmarts(largest_frag)  # type: ignore
 
     ###################################################
     # from/to dict

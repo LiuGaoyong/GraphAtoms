@@ -6,7 +6,7 @@ import pydantic
 from igraph import Graph as IGraph
 from numpy.typing import ArrayLike
 from pandas import DataFrame
-from rdkit.Chem import Mol as RDMol
+from rdkit.Chem import Mol as RDMol  # type: ignore
 from scipy import sparse as sp
 
 from ...dataclasses import NDArray, OurFrozenModel, numpy_validator
