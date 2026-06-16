@@ -10044,9 +10044,10 @@ packages:
   - igraph>=0.11
   - h5py>=3.16
   - hydra-core
+  - numpy>=2.0.0,<3
   - numpydantic
   - ovld
-  - pydantic>=2.11
+  - pydantic>=2.10
   - python-snappy>=0.7.3
   - tomli ; python_full_version < '3.11'
   - tomli-w
