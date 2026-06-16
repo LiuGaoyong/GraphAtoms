@@ -9,7 +9,7 @@ this_dir = Path(__file__).parent
 data_dir = this_dir.parent / "tests-data"
 
 
-@pytest.mark.parametrize("p", data_dir.glob("*.npz"))
+@pytest.mark.parametrize("p", list(data_dir.glob("*.npz")))
 def test_smarts(p: Path) -> None:
     print(p)
     sys = SysGraph.read_npz(p)
