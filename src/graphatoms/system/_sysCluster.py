@@ -1,6 +1,5 @@
 from typing import Self, override
 
-import numpy as np
 from pydantic import model_validator
 
 from .graph import SysGraph
@@ -20,10 +19,7 @@ class Cluster(SysGraph):
 
     @override
     def _string(self) -> str:
-        result = f"{super()._string()}"
-        result += f",NCORE={np.sum(self.ncore)}"
-        result += f",NFIX={np.sum(self.nfix)}"
-        return result
+        return SysGraph._string(self)
 
     # @classmethod
     # def __select(

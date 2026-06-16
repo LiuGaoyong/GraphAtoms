@@ -47,8 +47,10 @@ dependencies = [
     # Data Model
     "h5py>=3.16",
     "hydra-core",
+    "numpy>=2.0.0,<3",
     "numpydantic",
-    "pydantic>=2.11",
+    "ovld", # singledispatch which works for multiple arguments.
+    "pydantic>=2.10",
     "python-snappy>=0.7.3",           # More Fase Data Compression
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
@@ -136,6 +138,8 @@ openbabel = ">=3.1.1,<4"
 pyarrow = ">=21.0.0,<25"
 scikit-learn = ">=1.8.0,<2"
 python-igraph = ">=0.11.9,<0.12"
+numpy = ">=2.0.0,<3"
+pydantic = ">=2.10.0,<3"
 numpydantic = ">=1.8.1,<2"
 python-snappy = ">=0.7.3,<0.8"
 h5py = ">=3.16.0,<4"
@@ -144,3 +148,5 @@ tomli-w = ">=1.2.0,<2"
 loguru = ">=0.7.3,<0.8"
 pytorch = ">=2.10.0,<3"
 jax = ">=0.9.0,<0.10"
+jupyterlab = ">=4.5.8,<5"
+ovld = ">=0.5.15,<0.6"

@@ -6,7 +6,7 @@ import pydantic
 from igraph import Graph as IGraph
 from numpy.typing import ArrayLike
 from pandas import DataFrame
-from rdkit.Chem import Mol as RDMol
+from rdkit.Chem import Mol as RDMol  # type: ignore
 from scipy import sparse as sp
 
 from ...dataclasses import NDArray, OurFrozenModel, numpy_validator
@@ -19,6 +19,7 @@ DEFAULT_WH_HASH_SIZE = 6
 
 __all__ = ["BondGraph"]
 
+_BOND_ATTRS = ("pair", "distance", "order")
 
 class BondGraph(Matter, OurFrozenModel):
     coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None
@@ -26,6 +27,7 @@ class BondGraph(Matter, OurFrozenModel):
     distance: Annotated[NDArray, numpy_validator("float32")] | None = None
     order: Annotated[NDArray, numpy_validator("float16")] | None = None
     hashes: list[str] | None = None
+    # hash: str | None = None
 
     @pydantic.model_validator(mode="after")
     def __check_atoms_and_bonds(self) -> Self:
@@ -233,11 +235,38 @@ class BondGraph(Matter, OurFrozenModel):
             v1 = self.coordination
             return bool(np.all(v0 == v1))
 
-    def get_neighbors(self, i: int) -> np.ndarray:
+    def _get_neighbors_numpy(self, i: int) -> np.ndarray:
         """Get the first neighbors of index `i`."""
         idx1 = self.source[self.target == i]
         idx2 = self.target[self.source == i]
         return np.unique(np.append(idx1, idx2))
+
+    def _get_neighbor_igraph(self, i: int | list[int]) -> np.ndarray:
+        if isinstance(i, int):
+            i = [i]
+        result: list[list[int]] = self.__IGRAPH.neighborhood(
+            i,
+            order=1,
+            mode="all",
+            mindist=0,
+        )
+        if len(result) == 0:
+            return np.array([])
+        else:
+            return np.unique(np.concatenate(result))
+
+    def get_neighbors(
+        self,
+        i: int | list[int] | np.ndarray,
+        exclude_i: bool = False,
+    ) -> np.ndarray:
+        """Get the first neighbors of index `i`."""
+        if isinstance(i, np.ndarray):
+            i = i.astype(int).tolist()
+        nbrs = self._get_neighbor_igraph(i)  # type: ignore
+        if exclude_i:
+            nbrs = np.setdiff1d(nbrs, np.array(i))
+        return nbrs
 
     @cached_property
     def __get_connected_components(self) -> tuple[int, np.ndarray]:
@@ -299,7 +328,8 @@ class BondGraph(Matter, OurFrozenModel):
         return np.asarray(
             [
                 hash_string(
-                    label + "".join(np.sort(igcolor[self.get_neighbors(i)])),
+                    label
+                    + "".join(np.sort(igcolor[self._get_neighbors_numpy(i)])),
                     digest_size=digest_size,
                 )
                 for i, label in enumerate(igcolor)

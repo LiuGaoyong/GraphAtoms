@@ -10,12 +10,14 @@ from ase.geometry import find_mic
 from igraph import Graph as IGraph
 from pandas import DataFrame
 from pydantic import model_validator
+from rdkit import Chem
 from scipy import sparse as sp
 
 from ...dataclasses import NDArray, OurBaseModel, numpy_validator
 from ...geometry import bond_list
+from ...utils import rdutils
 from ..atoms import Box, Energetics, Matter, Structure
-from ._bonds import BondGraph
+from ._bonds import _BOND_ATTRS, BondGraph, _subgraph_edges
 from ._gasMixin import GasMixin
 
 
@@ -38,6 +40,25 @@ class AtomTag(OurBaseModel):
             assert self.iscore.sum() != 0, "`iscore` sum == 0"
             assert self.isfix.sum != self.natoms, "`ismoved` sum == 0"
         return self
+
+    @override
+    def _string(self) -> str:
+        lst: list[str] = []
+        if self.move_fix_tag is not None:
+            lst.extend(
+                [
+                    f"NCORE={self.ncore}",
+                    f"NMOVED={self.nmoved}",
+                    f"NFIX={self.nfix}",
+                ]
+            )
+        if self.is_outer is not None:
+            lst.append(f"NOUTER={np.sum(self.is_outer)}")
+        if self.is_adsorbate is not None:
+            lst.append(f"NADS={np.sum(self.is_adsorbate)}")
+        else:
+            lst.append("NADS=0")
+        return ",".join(lst)
 
     @cached_property
     @abstractmethod
@@ -108,15 +129,40 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         ]
         if self.is_gas:
             lst.insert(0, GasMixin._string(self))
-        if self.move_fix_tag is not None:
-            lst.extend(
-                [
-                    f"NCORE={self.ncore}",
-                    f"NMOVED={self.nmoved}",
-                    f"NFIX={self.nfix}",
-                ]
-            )
+        lst.append(AtomTag._string(self))
         return ",".join(lst)
+
+    @cached_property
+    def smarts(self) -> str:
+        """Get the SMILES string of this object."""
+        fml = self.symbols.get_chemical_formula("metal", True)
+        if self.is_adsorbate is None or np.sum(self.is_adsorbate) == 0:
+            return f"{fml}-{self.hash}"
+        else:
+            idxs = np.concatenate(np.where(self.is_adsorbate))
+            idxs = np.unique(np.append(idxs, self.get_neighbors(idxs)))
+            idxs_lst: list[int] = idxs.tolist()
+            igraph: IGraph = self.get_igraph()
+            for idx in idxs_lst:
+                this_idxs = igraph.get_shortest_paths(idx, idxs_lst)
+                this_idxs = np.concatenate(this_idxs)
+                idxs = np.append(idxs, this_idxs)
+            subgraph: IGraph = _subgraph_edges(igraph, idxs)
+            adj = sp.coo_matrix(subgraph.get_adjacency_sparse())
+            source, target = adj.coords
+            rdmol: rdutils.RDMol = rdutils.get_rdmol(
+                # numbers=np.where(self.is_adsorbate, self.numbers, 0),
+                numbers=self.numbers,
+                source=source,
+                target=target,
+            )
+            fragments = Chem.GetMolFrags(rdmol, asMols=True)  # type: ignore
+            largest_frag = max(
+                fragments,
+                default=rdmol,
+                key=lambda m: m.GetNumAtoms(),
+            )
+            return Chem.MolToSmarts(largest_frag)  # type: ignore
 
     ###################################################
     # from/to dict
@@ -208,15 +254,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                     if not exclude_energetics
                     else Energetics.__pydantic_fields__.keys()
                 )
-                | (
-                    set()
-                    if not exclude_bond_attibutes
-                    else {
-                        k
-                        for k in BondGraph.__pydantic_fields__.keys()
-                        if k not in Matter.__pydantic_fields__.keys()
-                    }
-                )
+                | (set() if not exclude_bond_attibutes else set(_BOND_ATTRS))
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,
             numpy_convert_to_list=numpy_convert_to_list,

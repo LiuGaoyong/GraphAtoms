@@ -3,7 +3,7 @@ import pytest
 from ase.geometry import geometry as ase_geometry
 from ase.geometry import minkowski_reduce
 
-from graphatoms.arrayapi import ArrayNamespace
+from graphatoms.arrayapi import Array, ArrayNamespace
 from graphatoms.geometry import mic as this_geometry
 
 
@@ -62,6 +62,7 @@ def test_array_api(test_arr: np.ndarray, function_name: str) -> None:
             pass
         else:
             y0 = y0[1]
+        print(type(y0), isinstance(y0, Array))
         if xp is torch and torch is not None:
             assert isinstance(y0, torch.Tensor)
             y0_np = np.asarray(y0.clone().detach().numpy())

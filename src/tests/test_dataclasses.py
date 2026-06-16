@@ -9,6 +9,7 @@ import pytest
 
 from graphatoms.dataclasses._numpydantic import NDArray, numpy_validator
 from graphatoms.dataclasses._pydanticModel import OurBaseModel
+from graphatoms.dataclasses.graph import Graph
 
 
 ###########################################################################
@@ -62,3 +63,17 @@ def test_convert_for_OurBaseModel(mock_object: Mock, format) -> None:
 
 def test_get_pyarrow_schema() -> None:
     print(Mock.get_pyarrow_schema())
+
+
+class Test_Graph:
+    def test_init(self) -> None:
+        nvertex = 4
+        edges = np.random.randint(0, nvertex, size=(10, 2))
+        edge_attrs = {"weight": np.random.rand(10)}
+        print(nvertex, edges, edge_attrs)
+        graph = Graph(
+            nvertex=nvertex,
+            edges=edges,
+            edge_attrs=edge_attrs,
+        )
+        print(graph)
