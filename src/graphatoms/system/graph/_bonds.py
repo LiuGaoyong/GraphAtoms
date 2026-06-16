@@ -257,11 +257,13 @@ class BondGraph(Matter, OurFrozenModel):
 
     def get_neighbors(
         self,
-        i: int | list[int],
+        i: int | list[int] | np.ndarray,
         exclude_i: bool = False,
     ) -> np.ndarray:
         """Get the first neighbors of index `i`."""
-        nbrs = self._get_neighbor_igraph(i)
+        if isinstance(i, np.ndarray):
+            i = i.astype(int).tolist()
+        nbrs = self._get_neighbor_igraph(i)  # type: ignore
         if exclude_i:
             nbrs = np.setdiff1d(nbrs, np.array(i))
         return nbrs

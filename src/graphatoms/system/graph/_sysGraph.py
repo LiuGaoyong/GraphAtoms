@@ -130,6 +130,24 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         lst.append(AtomTag._string(self))
         return ",".join(lst)
 
+    @cached_property
+    def smiles(self) -> str:
+        """Get the SMILES string of this object."""
+        raise NotImplementedError("Not implemented.")
+        fml = self.symbols.get_chemical_formula("metal", True)
+        if self.is_adsorbate is None or np.sum(self.is_adsorbate) == 0:
+            return f"{fml}-{self.hash}"
+        else:
+            idxs = np.concatenate(np.where(self.is_adsorbate))
+            idxs = np.unique(np.append(idxs, self.get_neighbors(idxs)))
+            for idx in idxs:
+                ...
+        return (
+            self.smiles_adsorbate
+            if np.all(self.is_adsorbate)
+            else self.smiles_non_adsorbate
+        )
+
     ###################################################
     # from/to dict
 
