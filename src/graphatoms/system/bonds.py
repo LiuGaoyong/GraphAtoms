@@ -10,7 +10,7 @@ from rdkit.Chem import Mol as RDMol  # type: ignore
 from scipy import sparse as sp
 
 from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
-from graphatoms.system.atoms._struct import Matter
+from graphatoms.system.atoms import Matter
 from graphatoms.utils.bytestool import hash_string
 from graphatoms.utils.rdutils import get_rdmol
 
@@ -19,7 +19,6 @@ DEFAULT_WH_HASH_SIZE = 6
 
 __all__ = ["BondGraph"]
 
-_BOND_ATTRS = ("pair", "distance", "order")
 
 class BondGraph(Matter, OurFrozenModel):
     coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None
@@ -31,6 +30,7 @@ class BondGraph(Matter, OurFrozenModel):
 
     @pydantic.model_validator(mode="after")
     def __check_atoms_and_bonds(self) -> Self:
+        self._BOND_ATTRS = ("pair", "distance", "order")
         for k in ("coordination", "hashes"):
             v = getattr(self, k, None)
             if v is not None:
@@ -64,6 +64,7 @@ class BondGraph(Matter, OurFrozenModel):
                             f"Invalid shape for `{k}`: Len({k})="
                             f"{len(v)} but nbonds={self.nbonds}."
                         )
+            # assert self.__IGRAPH.is_simple(), "The graph should be simple."
         return self
 
     @override
@@ -111,7 +112,8 @@ class BondGraph(Matter, OurFrozenModel):
     @cached_property
     def __IGRAPH(self) -> IGraph:
         edges = np.column_stack([self.source, self.target])
-        return IGraph(n=self.natoms, edges=edges, directed=False)
+        g = IGraph(n=self.natoms, edges=edges, directed=False)
+        return g.as_undirected()  # make sure it is undirected
 
     @cached_property
     def __COLOR(self) -> np.ndarray:
@@ -233,7 +235,7 @@ class BondGraph(Matter, OurFrozenModel):
         else:
             v0 = self.__CN_MATRIX
             v1 = self.coordination
-            return bool(np.all(v0 == v1))
+            return bool(np.any(v0 != v1))
 
     def _get_neighbors_numpy(self, i: int) -> np.ndarray:
         """Get the first neighbors of index `i`."""

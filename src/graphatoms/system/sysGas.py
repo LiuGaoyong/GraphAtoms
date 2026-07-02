@@ -1,6 +1,7 @@
 import warnings
+from collections.abc import Mapping
 from functools import cached_property
-from typing import Self, override
+from typing import Any, Self, override
 
 import numpy as np
 import pydantic
@@ -17,17 +18,8 @@ from pydantic import (
     validate_call,
 )
 
+from graphatoms.system.system import System
 from graphatoms.utils import rdutils as rdtool
-
-from .graph import SysGraph
-
-
-class System(SysGraph):
-    @model_validator(mode="after")
-    def __some_keys_should_be_none(self) -> Self:
-        msg = "The `{:s}` should be None for " + f"{self.__class__.__name__}."
-        assert self.coordination is None, msg.format("coordination")
-        return self
 
 
 class Gas(System):
@@ -57,15 +49,78 @@ class Gas(System):
             canonical=True,
         )
 
+    @override
     @classmethod
-    def from_molecule(cls, name: str, **kw) -> Self:
-        return cls.from_ase(molecule(name), **kw)
+    def from_ase(  # type: ignore
+        cls,
+        atoms: Atoms,
+        *,
+        sticking: float = 1.0,
+        pressure: float = 101325.0,
+        parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
+        parse_bonds_distance: bool = False,
+        parse_bonds_order: bool = False,
+        **kwargs,
+    ) -> Self:
+        return super().from_ase(
+            atoms=atoms,
+            parse_bonds=parse_bonds,
+            parse_bonds_order=parse_bonds_order,
+            parse_bonds_distance=parse_bonds_distance,
+            **(
+                kwargs
+                | dict(
+                    sticking=sticking,
+                    pressure=pressure,
+                )
+            ),
+        )
 
     @classmethod
-    def new_from_smiles(cls, smiles: str, **kw) -> Self:
+    def from_molecule(
+        cls,
+        name: str,
+        *,
+        sticking: float = 1.0,
+        pressure: float = 101325.0,
+        parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
+        parse_bonds_distance: bool = False,
+        parse_bonds_order: bool = False,
+        **kwargs,
+    ) -> Self:
+        return cls.from_ase(
+            atoms=molecule(name),
+            sticking=sticking,
+            pressure=pressure,
+            parse_bonds=parse_bonds,
+            parse_bonds_distance=parse_bonds_distance,
+            parse_bonds_order=parse_bonds_order,
+            **kwargs,
+        )
+
+    @classmethod
+    def new_from_smiles(
+        cls,
+        smiles: str,
+        *,
+        sticking: float = 1.0,
+        pressure: float = 101325.0,
+        parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
+        parse_bonds_distance: bool = False,
+        parse_bonds_order: bool = False,
+        **kwargs,
+    ) -> Self:
         rdmol = rdtool.smiles2rdmol(smiles)
         atoms: Atoms = rdtool.rdmol2ase(rdmol)
-        return cls.from_ase(atoms, **kw)
+        return cls.from_ase(
+            atoms=atoms,
+            sticking=sticking,
+            pressure=pressure,
+            parse_bonds=parse_bonds,
+            parse_bonds_distance=parse_bonds_distance,
+            parse_bonds_order=parse_bonds_order,
+            **kwargs,
+        )
 
     @property
     def __geometry_type(self) -> IDEAL_GAS_GEOMETRY_OPTIONS:
