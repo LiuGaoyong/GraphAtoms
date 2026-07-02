@@ -2,7 +2,6 @@
 
 [![Conda Version](https://img.shields.io/conda/vn/conda-forge/graphatoms.svg)](https://anaconda.org/conda-forge/graphatoms)  [![Conda Downloads](https://img.shields.io/conda/dn/conda-forge/graphatoms.svg)](https://anaconda.org/conda-forge/graphatoms)    [![Pypi version](https://img.shields.io/pypi/v/graphatoms)](https://pypi.org/project/graphatoms/) [![PyPI Downloads](https://static.pepy.tech/badge/graphatoms)](https://pepy.tech/projects/graphatoms)
 
-
 The Chemical Core Class for Graph Theory Analysis.
 
 ## Overview
@@ -16,7 +15,8 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 - **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), and sampling
 - **Data Storage**: Support for HDF5 and SQLite databases for efficient data persistence
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
-- **Array API Compatibility**: Support for array API standard for cross-framework compatibility
+- **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
+- **Subgraph Operations**: Backend-agnostic subgraph extraction with relabeling support using array-api-compat and array-api-extra
 
 ## Module Structure
 
@@ -36,6 +36,7 @@ src/graphatoms/
 │   ├── database/    # Database storage backends
 │   └── graph/       # Graph-based system representation
 └── utils/           # Utility functions
+    └── subgraph.py  # Array API compatible subgraph operations
 ```
 
 ## Requirements
@@ -45,8 +46,8 @@ src/graphatoms/
 - pymatgen > 2023.6
 - rdkit >= 2025
 - scikit-learn >= 1.5
-- array-api-compat >= 1.10
-- array-api-extra >= 0.10
+- array-api-compat >= 1.15.0
+- array-api-extra >= 0.11.0
 - pyarrow
 - igraph >= 0.11
 - h5py >= 3.16
@@ -81,13 +82,24 @@ pixi run test
 
 ## Running Tests
 
-```bash
 # Run all tests
+
 pytest src/tests/ -v
 
 # Run benchmark tests
+
 pytest src/tests-benchmark/ -v
-```
+
+## Array API Compatibility
+
+The library leverages `array-api-compat` and `array-api-extra` for backend-agnostic array operations. Key utilities include:
+
+- `subgraph()`: Extracts induced subgraphs from edge indices
+- `map_index()`: Maps indices across arrays
+- `index_to_mask()`: Converts index arrays to boolean masks
+- `maybe_num_nodes()`: Determines the number of nodes from edge indices
+
+These functions work seamlessly with NumPy, PyTorch, JAX, and other array API compliant libraries.
 
 ## License
 
