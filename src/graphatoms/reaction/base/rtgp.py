@@ -1,17 +1,16 @@
 from abc import abstractmethod
 from functools import cached_property
 from pathlib import Path
-from typing import override
+from typing import Self, override
 
 import numpy as np
 from ase import Atoms
 from pydantic import model_validator
-from typing_extensions import Self
 
-from ...dataclasses import OurFrozenModel
-from ...system import DEFAULT_WH_HASH_DEPTH, Gas, SysGraph
-from ...utils.bytestool import hash_string
-from .move import MoveABC
+from graphatoms.dataclasses import OurFrozenModel
+from graphatoms.reaction.base.move import MoveABC
+from graphatoms.system import DEFAULT_WH_HASH_DEPTH, Gas, SysGraph
+from graphatoms.utils.bytestool import hash_string
 
 DEFAULT_CHECK_MINIMA_FMAX = 0.05  #    eV/Å
 DEFAULT_CHECK_MINIMA_FQMIN = 30.0  #   cm^-1

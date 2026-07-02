@@ -1,5 +1,5 @@
 """The move is a variation between two structures."""
 
-from ._abc import MoveABC
+from graphatoms.reaction.mcmove._abc import MoveABC
 
 __all__ = ["MoveABC"]

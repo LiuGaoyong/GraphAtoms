@@ -3,7 +3,7 @@ import itertools
 import array_api_extra as xpx
 
 from graphatoms.arrayapi import Array, ArrayNamespace, get_namespace
-from graphatoms.arrayapi._array_api_typing import LinalgNamespace
+from graphatoms.arrayapi.typing import LinalgNamespace
 
 
 def pbc2pbc(pbc: bool, np: ArrayNamespace) -> Array:

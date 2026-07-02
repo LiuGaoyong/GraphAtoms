@@ -1,7 +1,7 @@
 import typer
 from numpy import nan
 
-from ._simNVT import MonteCarloNVT
+from graphatoms.reaction.mcmove._simNVT import MonteCarloNVT
 
 mmc_app = typer.Typer()
 

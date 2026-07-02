@@ -6,7 +6,7 @@ from ase.neighborlist import build_neighbor_list as __build_neighbor_list_ase
 from ase.neighborlist import neighbor_list as _ase_neighbor_list_3loop
 from numpy.typing import ArrayLike
 
-from ._distance_pairs import distance_pairs
+from graphatoms.geometry._distance_pairs import distance_pairs
 
 __all__ = ["neighbor_list"]
 

@@ -5,7 +5,7 @@ from ase import Atoms
 from ase.io.trajectory import TrajectoryReader
 from pydantic import model_validator
 
-from ..base.rtgp import RTGP
+from graphatoms.reaction.base.rtgp import RTGP
 
 
 class Event(RTGP):

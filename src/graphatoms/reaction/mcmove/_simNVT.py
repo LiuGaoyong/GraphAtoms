@@ -4,12 +4,12 @@ from typing import override
 import numpy as np
 from ase.calculators.calculator import Calculator
 
-from ...commands.runner3.abc import SimABC
-from ._base import CanonicalState
-from ._base import MonteCarloRecord as Record
-from ._moveFB import FBDispC
-from ._moveSP import SPDispC
-from ._moveSwap import Swap, SwapCutoff
+from graphatoms.commands.runner3.abc import SimABC
+from graphatoms.reaction.mcmove._base import CanonicalState
+from graphatoms.reaction.mcmove._base import MonteCarloRecord as Record
+from graphatoms.reaction.mcmove._moveFB import FBDispC
+from graphatoms.reaction.mcmove._moveSP import SPDispC
+from graphatoms.reaction.mcmove._moveSwap import Swap, SwapCutoff
 
 
 class MonteCarloNVT(SimABC):

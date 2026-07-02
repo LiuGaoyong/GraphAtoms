@@ -10,7 +10,7 @@ import yaml
 from joblib import dump, load
 from omegaconf import OmegaConf
 
-from ..utils import bytestool as bytesutils
+from graphatoms.utils import bytestool as bytesutils
 
 if version_info < (3, 11):  # type: ignore  # noqa: UP036
     import tomli as tomllib  # type: ignore

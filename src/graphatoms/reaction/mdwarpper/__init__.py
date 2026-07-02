@@ -6,8 +6,8 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.md.md import MolecularDynamics
 
-from ...utils.parser import DictConfig, hydra_parse
-from ..base.move import MoveABC
+from graphatoms.reaction.base.move import MoveABC
+from graphatoms.utils.parser import DictConfig, hydra_parse
 
 
 class MDWrapper(MoveABC):

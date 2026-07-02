@@ -6,19 +6,47 @@ from typing import Annotated, Any, Self, override
 
 import numpy as np
 from ase import Atoms
-from ase.geometry import find_mic
+from ase.constraints import FixAtoms
 from igraph import Graph as IGraph
 from pandas import DataFrame
-from pydantic import model_validator
+from pydantic import NonNegativeFloat, model_validator
 from rdkit import Chem
 from scipy import sparse as sp
 
-from ...dataclasses import NDArray, OurBaseModel, numpy_validator
-from ...geometry import bond_list
-from ...utils import rdutils
-from ..atoms import Box, Energetics, Matter, Structure
-from ._bonds import _BOND_ATTRS, BondGraph, _subgraph_edges
-from ._gasMixin import GasMixin
+from graphatoms.dataclasses import NDArray, OurBaseModel, numpy_validator
+from graphatoms.geometry import bond_list
+from graphatoms.geometry._inner_outer import check_atom_is_inner
+from graphatoms.geometry.mic import find_mic
+from graphatoms.system.atoms import Box, Energetics, Matter, Structure
+from graphatoms.system.bonds import BondGraph, _subgraph_edges
+from graphatoms.utils import rdutils
+
+
+class GasMixin(OurBaseModel):
+    sticking: NonNegativeFloat | None = None
+    pressure: NonNegativeFloat | None = None
+
+    @model_validator(mode="after")
+    def __check_gas(self) -> Self:
+        if not self.is_gas:
+            object.__setattr__(self, "sticking", None)
+            object.__setattr__(self, "pressure", None)
+        else:
+            if self.sticking is None:
+                object.__setattr__(self, "sticking", 1.0)
+            assert isinstance(self.sticking, float)
+            assert 0.0 <= self.sticking <= 10.0
+            assert isinstance(self.pressure, float)
+            assert 0.0 <= self.pressure
+        return self
+
+    @property
+    def is_gas(self) -> bool:
+        return self.pressure is not None
+
+    @override
+    def _string(self) -> str:
+        return "GAS" if self.is_gas else ""
 
 
 class AtomTag(OurBaseModel):
@@ -172,11 +200,19 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
     def from_dict(
         cls,
         data: Mapping[str, Any],
+        *,
         parse_bonds: Mapping[str, Any] | None = None,
         parse_bonds_distance: bool = False,
         parse_bonds_order: bool = False,
+        parse_bonds_outer: bool = False,
         **kwargs,
     ) -> Self:
+        if parse_bonds_outer:
+            assert parse_bonds is not None, (
+                "parse_bonds must be provided "  #
+                "when parse_bonds_outer is True"
+            )
+
         obj = super().from_dict(data, **kwargs)
         dct: dict[str, np.ndarray | float] = obj.to_dict()
 
@@ -220,12 +256,30 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             # parse bonds distance
             if obj.distance is None and parse_bonds_distance:
                 v, c = obj.positions[i] - obj.positions[j], obj.ase_cell
-                _, dct["distance"] = find_mic(v, c, obj.is_periodic)
+                _, dct["distance"] = find_mic(v, c, obj.is_periodic)  # type: ignore
 
-        if len(dct) == ndata:
-            return obj
-        else:
-            return super().from_dict(dct, **kwargs)
+        if len(dct) != ndata:
+            obj = super().from_dict(dct, **kwargs)
+        if parse_bonds_outer:
+            if obj.pair is None:
+                raise RuntimeError(
+                    "pair must be provided "  #
+                    "when parse_bonds_outer is True"
+                )
+            is_outer = np.logical_not(
+                [
+                    check_atom_is_inner(
+                        index=i,
+                        numbers=obj.numbers,
+                        geometry=obj.positions,
+                        adjacency_array=obj.MATRIX[i, :].reshape(1, -1),
+                        cell=obj.ase_cell,
+                    )
+                    for i in range(len(obj.numbers))
+                ]
+            )
+            obj = obj.model_copy(update={"is_outer": is_outer})
+        return obj
 
     @override
     def to_dict(
@@ -254,7 +308,11 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                     if not exclude_energetics
                     else Energetics.__pydantic_fields__.keys()
                 )
-                | (set() if not exclude_bond_attibutes else set(_BOND_ATTRS))
+                | (
+                    set()
+                    if not exclude_bond_attibutes
+                    else set(self._BOND_ATTRS)
+                )
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,
             numpy_convert_to_list=numpy_convert_to_list,
@@ -266,17 +324,25 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
     def from_ase(
         cls,
         atoms: Atoms,
+        *,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
         parse_bonds_distance: bool = False,
         parse_bonds_order: bool = False,
+        parse_bonds_outer: bool = False,
+        attach_is_adsorbate: bool = False,
         **kwargs,
     ) -> Self:
+        if not attach_is_adsorbate:
+            is_adsorbate = None
+        else:
+            is_adsorbate = np.zeros_like(atoms.numbers, dtype=bool)
         return cls.from_dict(
             Structure._ase2dct(atoms=atoms, **kwargs),
             parse_bonds_distance=parse_bonds_distance,
             parse_bonds_order=parse_bonds_order,
+            parse_bonds_outer=parse_bonds_outer,
             parse_bonds=parse_bonds,
-            **kwargs,
+            **(kwargs | dict(is_adsorbate=is_adsorbate)),
         )
 
     def to_ase(
@@ -286,7 +352,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         exclude_bond_attibutes: bool = False,
         **kwargs,
     ) -> Atoms:
-        return Atoms(
+        atoms = Atoms(
             numbers=self.numbers,
             positions=self.positions,
             pbc=self.is_periodic,
@@ -305,6 +371,9 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 numpy_convert_to_list=False,
             ),
         )
+        if self.move_fix_tag is not None:
+            atoms.set_constraint(FixAtoms(mask=self.isfix))
+        return atoms
 
     ###################################################
     # from/to igraph
@@ -364,7 +433,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             v = getattr(self, k)
             if v is not None:
                 G[k] = v
-        return G
+        return G.as_undirected()
 
     @override
     @classmethod

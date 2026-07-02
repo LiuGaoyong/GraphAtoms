@@ -9,17 +9,15 @@ the base class based on Graph Theory.
 """
 
 # ruff: noqa: F401
-from ._sysCluster import Cluster
-from ._sysGas import Gas, System
-from .atoms._box import Box
-from .atoms._eng import Energetics
-from .atoms._struct import Matter, Structure
-from .graph._bonds import (
+from graphatoms.system.atoms import Box, Energetics, Matter, Structure
+from graphatoms.system.bonds import (
     DEFAULT_WH_HASH_DEPTH,
     DEFAULT_WH_HASH_SIZE,
     BondGraph,
 )
-from .graph._sysGraph import SysGraph
+from graphatoms.system.graph import SysGraph
+from graphatoms.system.sysCluster import Cluster
+from graphatoms.system.sysGas import Gas, System
 
 __all__ = [
     "SysGraph",
