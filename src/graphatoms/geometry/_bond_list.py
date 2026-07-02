@@ -9,10 +9,9 @@ from pymatgen.core.structure import Molecule, Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 from scipy import sparse as sp
 
+from graphatoms.geometry._neighbor_list import neighbor_list
 from graphatoms.utils.parser import DictConfig, hydra_parse
 from graphatoms.utils.rdutils import get_adjacency_by_rdkit
-
-from ._neighbor_list import neighbor_list
 
 try:
     with warnings.catch_warnings():

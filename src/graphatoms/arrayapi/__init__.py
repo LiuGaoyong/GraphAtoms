@@ -1,7 +1,7 @@
 """The array api wrapper of this packages."""
 
-from .compat import get_namespace
-from .typing import Array, ArrayNamespace, LinalgNamespace
+from graphatoms.arrayapi.compat import get_namespace
+from graphatoms.arrayapi.typing import Array, ArrayNamespace, LinalgNamespace
 
 __all__ = [
     "get_namespace",

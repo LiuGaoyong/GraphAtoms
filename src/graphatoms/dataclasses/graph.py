@@ -3,9 +3,13 @@ from typing import Annotated, Self
 import numpy as np
 import pydantic
 
-from ._numpydantic import NDArray, numpy_validator
-from ._pydanticMixin import PydanticIoFactoryMixin as PydanticMixin
-from ._pydanticModel import _IndexMaskMixin as IndexMaskMixin
+from graphatoms.dataclasses._numpydantic import NDArray, numpy_validator
+from graphatoms.dataclasses._pydanticMixin import (
+    PydanticIoFactoryMixin as PydanticMixin,
+)
+from graphatoms.dataclasses._pydanticModel import (
+    _IndexMaskMixin as IndexMaskMixin,
+)
 
 
 class Graph(PydanticMixin, IndexMaskMixin):

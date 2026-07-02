@@ -10,8 +10,10 @@ import pydantic
 from numpy.typing import ArrayLike
 from pyarrow import Schema
 
-from ._pydantic2pyarrow import get_pyarrow_schema
-from ._pydanticMixin import PydanticIoFactoryMixin as PydanticFactoryMixin
+from graphatoms.dataclasses._pydantic2pyarrow import get_pyarrow_schema
+from graphatoms.dataclasses._pydanticMixin import (
+    PydanticIoFactoryMixin as PydanticFactoryMixin,
+)
 
 __all__ = ["OurBaseModel", "OurFrozenModel"]
 

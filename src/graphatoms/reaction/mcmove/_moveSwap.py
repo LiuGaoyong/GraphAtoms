@@ -9,10 +9,9 @@ from ase.data import chemical_symbols, covalent_radii
 from ase.geometry import find_mic
 
 from graphatoms.geometry import neighbor_list as ase_neighbor_list
-
-from ._base import CanonicalState
-from ._base import MonteCarloRecord as Record
-from ._moveSP import SPDispC
+from graphatoms.reaction.mcmove._base import CanonicalState
+from graphatoms.reaction.mcmove._base import MonteCarloRecord as Record
+from graphatoms.reaction.mcmove._moveSP import SPDispC
 
 
 class NoSwap(RuntimeError):

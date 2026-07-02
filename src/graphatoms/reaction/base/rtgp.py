@@ -8,10 +8,9 @@ from ase import Atoms
 from pydantic import model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
+from graphatoms.reaction.base.move import MoveABC
 from graphatoms.system import DEFAULT_WH_HASH_DEPTH, Gas, SysGraph
 from graphatoms.utils.bytestool import hash_string
-
-from .move import MoveABC
 
 DEFAULT_CHECK_MINIMA_FMAX = 0.05  #    eV/Å
 DEFAULT_CHECK_MINIMA_FQMIN = 30.0  #   cm^-1

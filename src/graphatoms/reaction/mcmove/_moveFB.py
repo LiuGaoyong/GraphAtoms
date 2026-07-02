@@ -11,9 +11,9 @@ from ase.calculators.calculator import Calculator
 from ase.geometry.geometry import find_mic
 from ase.units import kB
 
-from ._base import CanonicalState
-from ._base import MonteCarloMove as Move
-from ._base import MonteCarloRecord as Record
+from graphatoms.reaction.mcmove._base import CanonicalState
+from graphatoms.reaction.mcmove._base import MonteCarloMove as Move
+from graphatoms.reaction.mcmove._base import MonteCarloRecord as Record
 
 
 class ForceBiasMixin:

@@ -1,7 +1,7 @@
 """The abstract base class for reaction classes."""
 
-from .move import MoveABC
-from .rtgp import RTGP
+from graphatoms.reaction.base.move import MoveABC
+from graphatoms.reaction.base.rtgp import RTGP
 
 __all__ = [
     "MoveABC",

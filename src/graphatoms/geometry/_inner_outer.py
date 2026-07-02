@@ -5,8 +5,10 @@ from ase.cell import Cell
 from ase.data import covalent_radii as COV_R
 from scipy import sparse as sp
 
-from ._distance_pairs import distance_pairs
-from .sample import fibonacci_lattice as inverse_3d_sphere_surface_sampling
+from graphatoms.geometry._distance_pairs import distance_pairs
+from graphatoms.geometry.sample import (
+    fibonacci_lattice as inverse_3d_sphere_surface_sampling,
+)
 
 
 def check_atom_is_inner(  # noqa: D417

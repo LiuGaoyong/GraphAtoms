@@ -3,10 +3,9 @@ from typing import Self
 import numpy as np
 from pydantic import model_validator
 
+from graphatoms.system.bonds import DEFAULT_WH_HASH_SIZE
 from graphatoms.system.graph import SysGraph
 from graphatoms.utils.bytestool import hash_string
-
-from .bonds import DEFAULT_WH_HASH_SIZE
 
 
 class System(SysGraph):
