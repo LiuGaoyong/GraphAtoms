@@ -8,7 +8,15 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from pydantic import BaseModel
 
-from ...commands.runner3.abc import SimState as MonteCarloState
+
+@dataclass(slots=True)
+class MonteCarloState:
+    """The base class for all Monte Carlo states."""
+
+    atoms: Atoms
+
+    def __post_init__(self) -> None:
+        pass
 
 
 @dataclass(slots=True)

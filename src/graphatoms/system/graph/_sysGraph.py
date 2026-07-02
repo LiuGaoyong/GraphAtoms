@@ -13,10 +13,11 @@ from pydantic import model_validator
 from rdkit import Chem
 from scipy import sparse as sp
 
-from ...dataclasses import NDArray, OurBaseModel, numpy_validator
-from ...geometry import bond_list
-from ...utils import rdutils
-from ..atoms import Box, Energetics, Matter, Structure
+from graphatoms.dataclasses import NDArray, OurBaseModel, numpy_validator
+from graphatoms.geometry import bond_list
+from graphatoms.system.atoms import Box, Energetics, Matter, Structure
+from graphatoms.utils import rdutils
+
 from ._bonds import _BOND_ATTRS, BondGraph, _subgraph_edges
 from ._gasMixin import GasMixin
 

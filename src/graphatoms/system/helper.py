@@ -4,8 +4,9 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
-from ..geometry._inner_outer import check_atom_is_inner
-from ..utils.bytestool import hash_string
+from graphatoms.geometry._inner_outer import check_atom_is_inner
+from graphatoms.utils.bytestool import hash_string
+
 from ._sysGas import System
 from .graph._bonds import DEFAULT_WH_HASH_SIZE
 from .graph._sysGraph import SysGraph

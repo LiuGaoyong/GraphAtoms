@@ -9,10 +9,10 @@ from pandas import DataFrame
 from rdkit.Chem import Mol as RDMol  # type: ignore
 from scipy import sparse as sp
 
-from ...dataclasses import NDArray, OurFrozenModel, numpy_validator
-from ...utils.bytestool import hash_string
-from ...utils.rdutils import get_rdmol
-from ..atoms._struct import Matter
+from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
+from graphatoms.system.atoms._struct import Matter
+from graphatoms.utils.bytestool import hash_string
+from graphatoms.utils.rdutils import get_rdmol
 
 DEFAULT_WH_HASH_DEPTH = 3
 DEFAULT_WH_HASH_SIZE = 6

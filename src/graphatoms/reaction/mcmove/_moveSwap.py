@@ -7,7 +7,8 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.data import chemical_symbols, covalent_radii
 from ase.geometry import find_mic
-from vesin._ase import ase_neighbor_list
+
+from graphatoms.geometry import neighbor_list as ase_neighbor_list
 
 from ._base import CanonicalState
 from ._base import MonteCarloRecord as Record

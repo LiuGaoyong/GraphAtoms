@@ -9,8 +9,9 @@ from pymatgen.core.structure import Molecule, Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 from scipy import sparse as sp
 
-from ..utils.parser import DictConfig, hydra_parse
-from ..utils.rdutils import get_adjacency_by_rdkit
+from graphatoms.utils.parser import DictConfig, hydra_parse
+from graphatoms.utils.rdutils import get_adjacency_by_rdkit
+
 from ._neighbor_list import neighbor_list
 
 try:
@@ -107,7 +108,7 @@ def bond_list(
             f"The method of `{method}` is not supported."  #
             "Please use `raw` or `pymatgen`."
         )
-    assert edges.ndim == 2 and edges.shape[1] == 2, (
+    assert edges.ndim == 2 and edges.shape[1] == 2, (  # type: ignore
         f"The edges must be Nx2 array. But {edges.shape} got."
     )
     matrix = sp.csr_matrix(

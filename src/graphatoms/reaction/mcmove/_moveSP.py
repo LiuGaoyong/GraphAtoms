@@ -1,11 +1,12 @@
 """The Monte Carlo move for single particle displacement."""
 
+from typing import override
+
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.geometry.geometry import find_mic
 from ase.units import kB
-from typing_extensions import override
 
 from ._base import CanonicalState
 from ._base import MonteCarloMove as Move

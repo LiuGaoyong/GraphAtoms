@@ -17,7 +17,8 @@ from pydantic import (
     validate_call,
 )
 
-from ..utils import rdutils as rdtool
+from graphatoms.utils import rdutils as rdtool
+
 from .graph import SysGraph
 
 

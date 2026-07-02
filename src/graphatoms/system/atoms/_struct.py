@@ -10,7 +10,8 @@ from pydantic import model_validator
 from pymatgen.core.structure import Molecule as PmgMol
 from pymatgen.core.structure import Structure as PmgStrct
 
-from ...dataclasses import NDArray, OurBaseModel, numpy_validator
+from graphatoms.dataclasses import NDArray, OurBaseModel, numpy_validator
+
 from ._box import Box
 from ._eng import Energetics
 

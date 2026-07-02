@@ -6,10 +6,9 @@ from typing import Literal
 from igraph import Graph
 from omegaconf import DictConfig, OmegaConf
 
+from graphatoms.reaction.database.sqliteASE import AseSqliteDB
 from graphatoms.system import SysGraph
-
-from ...system.database.sqliteASE import AseSqliteDB
-from ...utils.logger import LoggerBase
+from graphatoms.utils.logger import LoggerBase
 
 
 class RxNetABC(ABC):

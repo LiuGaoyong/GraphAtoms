@@ -1,7 +1,7 @@
 from array_api_compat import array_namespace
 from array_api_compat.common._typing import Namespace
 
-from ._array_api_typing import Array, ArrayNamespace
+from .typing import Array, ArrayNamespace
 
 
 def get_namespace(
