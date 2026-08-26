@@ -6,7 +6,7 @@ import pytest
 from graphatoms.system import SysGraph
 
 this_dir = Path(__file__).parent
-data_dir = this_dir.parent / "tests-data"
+data_dir = this_dir.parent / "tests-data-for-smarts"
 
 
 @pytest.mark.parametrize("p", list(data_dir.glob("*.npz")))

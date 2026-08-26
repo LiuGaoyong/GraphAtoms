@@ -64,7 +64,7 @@ class BondGraph(Matter, OurFrozenModel):
                             f"Invalid shape for `{k}`: Len({k})="
                             f"{len(v)} but nbonds={self.nbonds}."
                         )
-            # assert self.__IGRAPH.is_simple(), "The graph should be simple."
+            assert self.__IGRAPH.is_simple(), "The graph should be simple."
         return self
 
     @override
@@ -112,7 +112,9 @@ class BondGraph(Matter, OurFrozenModel):
     @cached_property
     def __IGRAPH(self) -> IGraph:
         edges = np.column_stack([self.source, self.target])
-        g = IGraph(n=self.natoms, edges=edges, directed=False)
+        g = IGraph(n=self.natoms, edges=edges, directed=True)
+        # use directed graph for compatibility of full neighbor list
+        assert not g.has_multiple(), "This graph has multiple edges."
         return g.as_undirected()  # make sure it is undirected
 
     @cached_property
@@ -165,7 +167,7 @@ class BondGraph(Matter, OurFrozenModel):
 
     def get_match_mode(
         self,
-        pattern: Self,  # big graph
+        pattern: "BondGraph",
         algorithm: Literal["lad", "vf2"] = "lad",
         return_match_target: bool = True,
         only_number_color: bool = False,
