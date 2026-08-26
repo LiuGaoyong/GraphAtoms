@@ -9,7 +9,7 @@ Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
 
 [project]
 name = "graphatoms"
-version = "1.2.0"
+version = "1.2.1"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -49,7 +49,7 @@ dependencies = [
     "hydra-core",
     "numpy>=2.0.0,<3",
     "numpydantic",
-    "ovld", # singledispatch which works for multiple arguments.
+    "ovld",                           # singledispatch which works for multiple arguments.
     "pydantic>=2.10",
     "python-snappy>=0.7.3",           # More Fase Data Compression
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
@@ -64,7 +64,7 @@ dev = [
     "pytest>=8.3",
     "pytest-xdist",
     "jupyter",
-    "sqlmodel",        # SQL + pydantic
+    "sqlmodel",         # SQL + pydantic
     'openbabel-wheel',
 ]
 
