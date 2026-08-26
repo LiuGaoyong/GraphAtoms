@@ -2,7 +2,7 @@
 
 # ruff: noqa: F401
 from graphatoms.reaction.base import RTGP, MoveABC
-from graphatoms.reaction.base.rtgp import (
+from graphatoms.reaction.event._event import (
     DEFAULT_CHECK_MINIMA_FMAX,
     DEFAULT_CHECK_MINIMA_FQMIN,
     DEFAULT_CHECK_TS_FMAX,
