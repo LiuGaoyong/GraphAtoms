@@ -425,7 +425,12 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             df_bonds["order"] = self.order
         if self.distance is not None:
             df_bonds["distance"] = self.distance
-        G = IGraph.DataFrame(df_bonds, False, df_atoms, True)
+        G = IGraph.DataFrame(
+            edges=df_bonds,
+            directed=True,  # use directed graph to avoid duplicate edges
+            vertices=df_atoms,
+            use_vids=True,
+        )
         for k in (
             Box.__pydantic_fields__.keys()
             | Energetics.__pydantic_fields__.keys()
