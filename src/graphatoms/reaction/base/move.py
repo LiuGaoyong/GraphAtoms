@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-
-import numpy as np
+from typing import Any
 
 from graphatoms.system import System
 
@@ -12,8 +11,7 @@ class MoveABC(ABC):
     def apply(
         self,
         atoms: System,
-        *,
-        match: np.ndarray | None = None,
+        *args,
         **kwargs,
-    ) -> System:
+    ) -> Any:
         """Apply this move to the given atoms."""

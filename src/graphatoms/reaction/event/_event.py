@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from functools import cached_property
 from pathlib import Path
 from typing import Self, override
@@ -9,13 +8,14 @@ from ase.io.trajectory import TrajectoryReader
 from pydantic import model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
+from graphatoms.geometry.rotation import kabsch
 from graphatoms.reaction.base.move import MoveABC
-from graphatoms.system import DEFAULT_WH_HASH_DEPTH, Gas, SysGraph
+from graphatoms.system import DEFAULT_WH_HASH_DEPTH, Gas, SysGraph, System
 from graphatoms.utils.bytestool import hash_string
 
 DEFAULT_CHECK_MINIMA_FMAX = 0.05  #    eV/Å
 DEFAULT_CHECK_MINIMA_FQMIN = 30.0  #   cm^-1
-DEFAULT_CHECK_TS_FQMIN = 50.0  #       cm^-1
+DEFAULT_CHECK_TS_FQMIN = 20.0  #       cm^-1
 DEFAULT_CHECK_TS_FMAX = 0.1  #         eV/Å
 
 
@@ -25,7 +25,6 @@ class RTGP(OurFrozenModel, MoveABC):
     G: Gas | None = None
     P: SysGraph
 
-    @abstractmethod
     @classmethod
     def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
         raise NotImplementedError
@@ -136,6 +135,11 @@ class RTGP(OurFrozenModel, MoveABC):
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
         return hash_string(v, digest_size=DEFAULT_WH_HASH_DEPTH)
 
+    def simplify(self) -> Self:
+        raise NotImplementedError(
+            "The `simplify` method is not implemented yet."
+        )
+
     def __reversed__(self) -> Self:  # type: ignore
         return self.__class__(R=self.P, G=self.G, T=self.T, P=self.R)
 
@@ -181,6 +185,74 @@ class Event(RTGP):
             "Eley-Rideal model, an adsorption or a desorption."
         )
         return self
+
+    @override
+    def apply(
+        self,
+        atoms: System | Atoms,
+        *args,
+        matched_indxs: list[int] | np.ndarray | None = None,
+        **kwargs,
+    ) -> tuple[Atoms, float]:
+        if matched_indxs is None:
+            assert isinstance(atoms, System), (
+                "The `atoms` should be a System "
+                + "when `matched_indxs` is None."
+            )
+            matched_indxs = atoms.get_match_mode(self.R)  # type: ignore
+        elif not isinstance(atoms, Atoms):
+            atoms = atoms.to_ase(
+                exclude_energetics=True,
+                exclude_bond_attibutes=True,
+            )
+
+        matched_indxs = np.asarray(matched_indxs, dtype=int)
+
+        if matched_indxs.ndim == 1:
+            matched_indxs = matched_indxs.flatten()
+            assert len(matched_indxs) == len(atoms)
+            assert isinstance(atoms, Atoms)
+            atoms.info = {}
+
+            _i = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())(
+                np.arange(len(self.R))
+            )
+            rot, t, rmsd = kabsch(
+                A=self.R.positions,
+                B=atoms.positions[_i, :],
+            )
+            rot_inv, t_inv = rot.inv(), -t
+
+            # 1. geom --> geom reactant
+            geom = rot.apply(atoms.positions) + t
+            # 2. geom reactant --> geom product
+            geom[_i, :] += self.P.positions - self.R.positions
+            # 3. geom product --> result
+            geom = rot_inv.apply(geom) + t_inv
+
+            return Atoms(
+                numbers=atoms.numbers,
+                positions=geom,
+                cell=atoms.cell,
+                pbc=atoms.pbc,
+            ), rmsd
+
+        elif matched_indxs.ndim == 2:
+            res_lst, rmsd_lst = [], []
+            for i in range(len(matched_indxs)):
+                res, rmsd = self.apply(
+                    atoms=atoms,
+                    matched_indxs=matched_indxs[i, :],
+                )
+                res_lst.append(res)
+                rmsd_lst.append(rmsd)
+            i = np.argmin(rmsd_lst)
+            return res_lst[i], rmsd_lst[i]
+
+        else:
+            raise ValueError(
+                "The `matched_indxs` should be either a 1D or 2D array."
+            )
 
     ########################################################################
     #           Properties for checking the type of the event.
