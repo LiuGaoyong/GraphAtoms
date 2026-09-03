@@ -1,11 +1,9 @@
 from functools import cached_property
-from pathlib import Path
 from typing import Self, override
 
 import igraph
 import numpy as np
 from ase import Atoms
-from ase.io.trajectory import TrajectoryReader
 from pydantic import model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
@@ -32,9 +30,9 @@ class RTGP(OurFrozenModel, MoveABC):
     G: Gas | None = None
     P: SysGraph
 
-    @classmethod
-    def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
-        raise NotImplementedError
+    # @classmethod
+    # def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
+    #     raise NotImplementedError
 
     ########################################################################
     #                       Validation for the event.
@@ -213,15 +211,15 @@ class Event(RTGP):
     can be represented by the change of the graph.
     """
 
-    @override
-    @classmethod
-    def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
-        if not isinstance(traj, list):
-            traj = list(TrajectoryReader(traj))  # type: ignore
-        assert isinstance(traj, list), "The trajectory must be a list."
-        if any(not isinstance(t, Atoms) for t in traj):
-            raise ValueError("The trajectory must be a list of ase.Atoms.")
-        raise NotImplementedError("Adsorption is not implemented.")
+    # @override
+    # @classmethod
+    # def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
+    #     if not isinstance(traj, list):
+    #         traj = list(TrajectoryReader(traj))  # type: ignore
+    #     assert isinstance(traj, list), "The trajectory must be a list."
+    #     if any(not isinstance(t, Atoms) for t in traj):
+    #         raise ValueError("The trajectory must be a list of ase.Atoms.")
+    #     raise NotImplementedError("Adsorption is not implemented.")
 
     @model_validator(mode="after")
     def __check_something(self) -> Self:
