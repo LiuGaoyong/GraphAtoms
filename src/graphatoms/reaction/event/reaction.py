@@ -2,7 +2,7 @@ from typing import Self
 
 from pydantic import model_validator
 
-from graphatoms.reaction.base.rtgp import RTGP
+from graphatoms.reaction.event._event import RTGP
 
 
 class Reaction(RTGP):

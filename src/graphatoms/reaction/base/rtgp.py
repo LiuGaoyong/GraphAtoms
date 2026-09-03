@@ -1,6 +1,4 @@
-from abc import abstractmethod
 from functools import cached_property
-from pathlib import Path
 from typing import Self, override
 
 import numpy as np
@@ -24,10 +22,10 @@ class RTGP(OurFrozenModel, MoveABC):
     G: Gas | None = None
     P: SysGraph
 
-    @abstractmethod
-    @classmethod
-    def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
-        raise NotImplementedError
+    # @abstractmethod
+    # @classmethod
+    # def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
+    #     raise NotImplementedError
 
     ########################################################################
     #                       Validation for the event.
