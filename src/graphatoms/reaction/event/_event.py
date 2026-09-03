@@ -273,15 +273,23 @@ class Event(RTGP):
             rot, t, rmsd = kabsch(
                 A=self.R.positions,
                 B=atoms.positions[_i, :],
-            )
+            )  # A = rotate(B) + t
             rot_inv, t_inv = rot.inv(), -t
 
-            # 1. geom --> geom reactant
-            geom = rot.apply(atoms.positions) + t
-            # 2. geom reactant --> geom product
-            geom[_i, :] += self.P.positions - self.R.positions
-            # 3. geom product --> result
-            geom = rot_inv.apply(geom) + t_inv
+            # Old Usage: original atoms will be rotated.
+            # # 1. geom --> geom reactant
+            # geom = rot.apply(atoms.positions) + t
+            # # 2. geom reactant --> geom product
+            # geom[_i, :] += self.P.positions - self.R.positions
+            # # 3. geom product --> result
+            # geom = rot_inv.apply(geom) + t_inv
+
+            # New Usage: original atoms will not be rotated.
+            pos_r = rot_inv.apply(self.R.positions) + t_inv
+            pos_p = rot_inv.apply(self.P.positions) + t_inv
+            pos_diff = pos_p - pos_r
+            geom = atoms.positions.copy()
+            geom[_i, :] += pos_diff
 
             return Atoms(
                 numbers=atoms.numbers,

@@ -38,3 +38,7 @@ def test_apply(rxn: Event, n: int, simplify: bool) -> None:
 
     res, rmsd = rxn.apply(sys)
     print(f"n={n}: RMSD={rmsd:.4f}")
+
+    # from ase.io import write
+    # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
+    # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
