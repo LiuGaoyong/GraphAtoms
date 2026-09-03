@@ -98,7 +98,7 @@ class Cluster(SysGraph):
         idxs = np.where(hop <= int(max_moved_hop + env_hop))[0]
         hop = hop[idxs].astype(int)
         tag = np.where(hop > max_moved_hop, -hop, hop)
-        return cls.__select(system, sub_idxs=idxs, movefixtag=tag)
+        return cls.select(system, sub_idxs=idxs, movefixtag=tag)
 
     @classmethod
     def __select_by_distance(
@@ -139,14 +139,16 @@ class Cluster(SysGraph):
         idxs = np.unique(np.where(d1 <= float(env_distance)))
         hop = np.round(d1[idxs]).astype(int)
         tag = np.where(d1[idxs] > max_moved_distance, -hop, hop)
-        return cls.__select(system, sub_idxs=idxs, movefixtag=tag)
+        return cls.select(system, sub_idxs=idxs, movefixtag=tag)
 
     @classmethod
-    def __select(
+    def select(
         cls,
-        sys: System,
+        sys: SysGraph,
         sub_idxs: np.ndarray,
-        movefixtag: np.ndarray,
+        movefixtag: np.ndarray | None = None,
+        *,
+        exclude_energetics: bool = True,
     ) -> Self:
         """Select a Cluster object from a System object.
 
@@ -154,14 +156,19 @@ class Cluster(SysGraph):
         """
         idxs = cls.get_index(sub_idxs, sys.natoms)
         dct: dict[str, np.ndarray] = sys.to_dict(
+            exclude_energetics=False,
             exclude_none=True,
             exclude=(
-                set(Energetics.__pydantic_fields__.keys())
-                | set(GasMixin.__pydantic_fields__.keys())
+                set(GasMixin.__pydantic_fields__.keys())
                 | set(AtomTag.__pydantic_fields__.keys())
                 | {"coordination", "hashes"}
             ),
         ) | {"coordination": sys.CN}
+
+        dct_eng: dict[str, np.ndarray | float | None] = {}
+        for k in set(Energetics.__pydantic_fields__.keys()):
+            dct_eng[k] = dct.pop(k, None)
+
         dct["pair"], _, pair_mask = subgraph(  # type: ignore
             subset=idxs,  # type: ignore
             edge_index=dct["pair"],  # type: ignore
@@ -177,4 +184,10 @@ class Cluster(SysGraph):
                     dct[k] = v[idxs]
                 elif len(v) == sys.nbonds:
                     dct[k] = v[pair_mask]
-        return super().from_dict(dct | dict(move_fix_tag=movefixtag))
+        if not exclude_energetics:
+            dct = dct | dct_eng  # type: ignore
+
+        if movefixtag is None:
+            assert sys.move_fix_tag is not None
+            movefixtag = sys.move_fix_tag[idxs]
+        return super().from_dict(dct | {"move_fix_tag": movefixtag})

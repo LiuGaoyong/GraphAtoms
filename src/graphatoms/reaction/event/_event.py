@@ -2,6 +2,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Self, override
 
+import igraph
 import numpy as np
 from ase import Atoms
 from ase.io.trajectory import TrajectoryReader
@@ -10,7 +11,13 @@ from pydantic import model_validator
 from graphatoms.dataclasses import OurFrozenModel
 from graphatoms.geometry.rotation import kabsch
 from graphatoms.reaction.base.move import MoveABC
-from graphatoms.system import DEFAULT_WH_HASH_DEPTH, Gas, SysGraph, System
+from graphatoms.system import (
+    DEFAULT_WH_HASH_DEPTH,
+    Cluster,
+    Gas,
+    SysGraph,
+    System,
+)
 from graphatoms.utils.bytestool import hash_string
 
 DEFAULT_CHECK_MINIMA_FMAX = 0.05  #    eV/Å
@@ -135,10 +142,56 @@ class RTGP(OurFrozenModel, MoveABC):
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
         return hash_string(v, digest_size=DEFAULT_WH_HASH_DEPTH)
 
-    def simplify(self) -> Self:
-        raise NotImplementedError(
-            "The `simplify` method is not implemented yet."
-        )
+    def simplify(self, env_radius: float = 5.0) -> Self:
+        """Simplify the event by removing the atoms that are not involved."""
+        graph_node_moved: set[int] = set()
+        g0: igraph.Graph = self.R.get_igraph()
+        for g1 in [i.get_igraph() for i in [self.P, self.T] if i is not None]:
+            for g2 in [g1.difference(g0), g0.difference(g1)]:
+                for e in g2.es:
+                    for vid in e.tuple:
+                        graph_node_moved.add(vid)
+        # print(f"graph_node_moved: {graph_node_moved}")
+
+        # Got geometry-based simplification, but it is not used for now.
+        # n = min(len(i) for i in [self.R, self.P, self.T] if i is not None)
+        # r_geom, p_geom = self.R.positions[:n, :], self.P.positions[:n, :]
+        # rp_var = np.linalg.norm(r_geom - p_geom, axis=1) < 0.05  # Angstrom
+        # if self.T is not None:
+        #     t_geom = self.T.positions[:n, :]
+        #     rt_var = np.linalg.norm(r_geom - t_geom, axis=1) < 0.05
+        #     tp_var = np.linalg.norm(t_geom - p_geom, axis=1) < 0.05
+        #     rp_var = rp_var | rt_var | tp_var
+        # geom_moved = set(np.argwhere(np.logical_not(rp_var)).flatten())
+        # print(f"geom_moved: {geom_moved}")
+
+        moved: np.ndarray = np.asarray(list(graph_node_moved), dtype=int)
+        pos = self.R.positions[moved, :].reshape(-1, len(moved), 3)
+        v = self.R.positions[:, np.newaxis, :] - pos
+        d = np.linalg.norm(v, axis=-1).min(-1)
+        sub = np.argwhere(d < env_radius).flatten()
+
+        rtgp: list[SysGraph | None] = []
+        for i in [self.R, self.T, self.G, self.P]:
+            if i is None or isinstance(i, Gas):
+                rtgp.append(i)
+            elif isinstance(i, SysGraph):
+                rtgp.append(
+                    Cluster.select(
+                        i,
+                        sub_idxs=sub,
+                        exclude_energetics=False,
+                    )  # type: ignore
+                )
+            else:
+                raise TypeError(f"Unknown type: {type(i)}")
+
+        r, t, g, p = rtgp
+        assert isinstance(r, SysGraph)
+        assert isinstance(p, SysGraph)
+        assert g is None or isinstance(g, Gas)
+        assert t is None or isinstance(t, SysGraph)
+        return self.__class__(R=r, T=t, G=g, P=p)
 
     def __reversed__(self) -> Self:  # type: ignore
         return self.__class__(R=self.P, G=self.G, T=self.T, P=self.R)

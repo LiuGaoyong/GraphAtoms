@@ -17,15 +17,22 @@ def rxn() -> Event:
     ts = SysGraph.read_npz(data_dir / "ts" / "Pd236" / "1824a8.npz")
     return Event(R=r, T=ts, P=p)
 
+    # def test_simplify(rxn: Event) -> None:
+    #     rxn.simplify()
+
 
 @pytest.mark.parametrize("n", [8, 9, 10])
-def test_apply(rxn: Event, n: int) -> None:
+@pytest.mark.parametrize("simplify", [True, False])
+def test_apply(rxn: Event, n: int, simplify: bool) -> None:
     sys = System.from_ase(Octahedron("Pd", n))
-
+    if simplify:
+        rxn = rxn.simplify()
     matched = sys.get_match_mode(rxn.R)
 
+    print()
     print("-" * 32)
-    if matched is None:
+    print(n, simplify)
+    if matched is None and not simplify:
         print(f"n={n}: No match found.")
         return
 
