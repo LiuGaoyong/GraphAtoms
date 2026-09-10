@@ -123,8 +123,11 @@ class RayExecutor(BaseExecutor):
                 "ray is not installed. Install it with: pip install ray"
             )
         if not ray.is_initialized():  # type: ignore
-            ray.init(ignore_reinit_error=True, **kwargs)  # type: ignore
-        self._max_workers = max_workers
+            ray.init(  # type: ignore
+                ignore_reinit_error=True,
+                num_cpus=max_workers,
+                **kwargs,
+            )
 
     def submit(
         self,
@@ -134,8 +137,7 @@ class RayExecutor(BaseExecutor):
         **kwargs: Any,
     ) -> RayFuture:
         remote_fn = ray.remote(fn)  # type: ignore
-        if self._max_workers is not None:
-            remote_fn = remote_fn.options(num_cpus=1)
+        remote_fn = remote_fn.options(num_cpus=1)
         obj_ref = remote_fn.remote(*args, **kwargs)
         return RayFuture(obj_ref)
 

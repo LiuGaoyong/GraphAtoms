@@ -6,12 +6,12 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import MISSING, OmegaConf
 
-from otfkmc.config.atoms import AseReadAtomsConfig, AtomsConfig
-from otfkmc.config.atoms import OctahedronAtomsConfig as OctAtomsConfig
-from otfkmc.config.bonds import BondsConfig, RawBondsConfig
-from otfkmc.config.calculator import CalcConfig, EMTCalcConfig
-from otfkmc.config.calculator import NequipCalcConfig as NequipConfig
-from otfkmc.config.gas import AseReadGasConfig, GasConfig
+from .atoms import AseReadAtomsConfig, AtomsConfig
+from .atoms import OctahedronAtomsConfig as OctAtomsConfig
+from .bonds import BondsConfig, RawBondsConfig
+from .calculator import CalcConfig, EMTCalcConfig
+from .calculator import NequipCalcConfig as NequipConfig
+from .gas import AseReadGasConfig, GasConfig
 
 CONFIG_DIR = Path(__file__).parent
 
@@ -90,5 +90,4 @@ def my_app(cfg: Config) -> None:
     print(OmegaConf.to_yaml(cfg))
 
 
-if __name__ == "__main__":
-    my_app()
+

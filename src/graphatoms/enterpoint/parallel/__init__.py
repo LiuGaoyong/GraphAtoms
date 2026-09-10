@@ -31,7 +31,10 @@ _BACKENDS: dict[str, type[BaseExecutor]] = {
 
 
 def get_executor(
-    name: str, *, max_workers: int | None = None, **kwargs: object
+    name: str,
+    *,
+    max_workers: int | None = None,
+    **kwargs,
 ) -> BaseExecutor:
     """Create an executor by backend name.
 
