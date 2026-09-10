@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import CancelledError
 from typing import Any
 
-from graphatoms.parallel.abc import BaseExecutor, BaseFuture
+from graphatoms.enterpoint.parallel.abc import BaseExecutor, BaseFuture
 
 try:
     import ray

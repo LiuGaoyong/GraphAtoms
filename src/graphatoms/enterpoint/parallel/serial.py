@@ -8,7 +8,7 @@ uniformly across all backends.
 
 from __future__ import annotations
 
-from graphatoms.parallel.multiprocessing import ProcessPoolExecutor
+from graphatoms.enterpoint.parallel.multiprocessing import ProcessPoolExecutor
 
 
 class SerialExecutor(ProcessPoolExecutor):

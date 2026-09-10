@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor as _ProcessPoolExecutor
 from typing import Any
 
-from graphatoms.parallel.abc import BaseExecutor, BaseFuture
+from graphatoms.enterpoint.parallel.abc import BaseExecutor, BaseFuture
 
 
 class ProcessPoolExecutor(BaseExecutor):

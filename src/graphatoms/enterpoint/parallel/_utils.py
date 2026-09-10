@@ -10,7 +10,7 @@ import concurrent.futures as _cf
 import time
 from collections.abc import Iterator, Sequence
 
-from graphatoms.parallel.abc import BaseFuture
+from graphatoms.enterpoint.parallel.abc import BaseFuture
 
 
 def _detect_backend(futures: Sequence[BaseFuture]) -> str:

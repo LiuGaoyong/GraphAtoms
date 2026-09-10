@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from graphatoms.parallel import as_completed, get_executor
+from graphatoms.enterpoint.parallel import as_completed, get_executor
 
 
 def _sample_task(index: int) -> int:
@@ -69,7 +69,7 @@ def run_batch_wait_cancel(
     Uses :func:`graphatoms.parallel.wait` instead of ``as_completed`` to
     show the alternative non-blocking pattern.
     """
-    from graphatoms.parallel import wait
+    from graphatoms.enterpoint.parallel import wait
 
     with get_executor(backend, **kwargs) as executor:
         futures = [executor.submit(_sample_task, i) for i in range(n_tasks)]
