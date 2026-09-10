@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import CancelledError
 from typing import Any
 
-from graphatoms.enterpoint.parallel.abc import BaseExecutor, BaseFuture
+from graphatoms.enterpoint.parallel.base import BaseExecutor, BaseFuture
 
 try:
     import ray
@@ -72,11 +72,20 @@ class RayFuture(BaseFuture):
         self._fetch(timeout=timeout)
         return self._exception
 
-    def cancel(self) -> bool:
+    def cancel(
+        self,
+        *,
+        force: bool = True,
+        recursive: bool = True,
+    ) -> bool:
         if self._fetched:
             return False
         try:
-            ray.cancel(self._obj_ref, force=True, recursive=True)  # type: ignore
+            ray.cancel(  # type: ignore
+                self._obj_ref,
+                force=force,
+                recursive=recursive,
+            )
         except Exception:  # noqa: BLE001
             pass
         self._cancelled = True
@@ -148,28 +157,4 @@ class RayExecutor(BaseExecutor):
         # other parts of the program.
         del wait, cancel_futures
 
-    def cancel(
-        self,
-        future: BaseFuture,
-        *,
-        force: bool = False,
-        recursive: bool = False,
-    ) -> bool:
-        """Cancel a Ray future with force and recursive options."""
-        if not isinstance(future, RayFuture):
-            return future.cancel()
-        if future._fetched:
-            return False
-        try:
-            ray.cancel(  # type: ignore
-                future._obj_ref,
-                force=force,
-                recursive=recursive,
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        future._cancelled = True
-        future._fetched = True
-        for cb in future._callbacks:
-            cb(future)
-        return True
+

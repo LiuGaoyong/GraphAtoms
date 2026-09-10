@@ -32,7 +32,6 @@ from graphatoms.enterpoint.parallel import (  # noqa: E402
     BaseFuture,
     ProcessPoolExecutor,
     SerialExecutor,
-
     as_completed,
     get_executor,
     wait,
@@ -229,7 +228,8 @@ def test_cancel_multiprocessing_pending() -> None:
     try:
         blocker = executor.submit(_slow_add_one, 0)
         pending = executor.submit(_add_one, 1)
-        assert executor.cancel(pending) is True
+        pending.cancel()
+        assert pending.cancelled() is True
         blocker.result()
     finally:
         executor.shutdown()
@@ -241,7 +241,7 @@ def test_executor_cancel_default_delegates_to_future() -> None:
     try:
         future = executor.submit(_add_one, 1)
         future.result()
-        assert executor.cancel(future) is False
+        assert future.cancelled() is False
     finally:
         executor.shutdown()
 
@@ -249,10 +249,12 @@ def test_executor_cancel_default_delegates_to_future() -> None:
 @pytest.mark.skipif(not HAS_RAY, reason="ray is not installed")
 def test_executor_cancel_ray_with_force() -> None:
     """RayExecutor.cancel supports force and recursive options."""
+    from graphatoms.enterpoint.parallel.ray import RayFuture
     executor = get_executor("ray", max_workers=2)
     try:
         future = executor.submit(_slow_add_one, 0)
-        assert executor.cancel(future, force=True, recursive=True) is True
+        assert isinstance(future, RayFuture)
+        future.cancel(force=True, recursive=True)
         assert future.cancelled() is True
     finally:
         executor.shutdown()
@@ -497,7 +499,7 @@ def test_parallel_call(
             result = list(executor.map(return_big_object, range(20)))
             print(result)
         else:
-            futures: list = [
+            futures: list[BaseFuture] = [
                 executor.submit(return_big_object, i) for i in range(200)
             ]
             i = 0
@@ -510,6 +512,6 @@ def test_parallel_call(
 
             for f in futures:
                 if not f.done():
-                    executor.cancel(f, force=True, recursive=True)
+                    f.cancel()
 
     print(f"Time: {time.perf_counter() - start_time:.5f}s")

@@ -12,7 +12,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import CancelledError
 from typing import Any
 
-from graphatoms.enterpoint.parallel.abc import BaseExecutor, BaseFuture
+from graphatoms.enterpoint.parallel.base import BaseExecutor, BaseFuture
 
 try:
     import dask.config  # type: ignore[import]
@@ -118,26 +118,3 @@ class DaskExecutor(BaseExecutor):
     ) -> None:
         self._client.close()
         del wait, cancel_futures
-
-    def cancel(
-        self,
-        future: BaseFuture,
-        *,
-        force: bool = False,
-        recursive: bool = False,
-    ) -> bool:
-        """Cancel a Dask future via the client."""
-        del recursive
-        if not isinstance(future, DaskFuture):
-            return future.cancel()
-        if future._cancelled or future.done():
-            return False
-
-        with dask.config.set({"logging.distributed": "error"}):  # type: ignore
-            try:
-                future._client.cancel(future._future, force=force)
-            except Exception:  # noqa: BLE001
-                return False
-
-        future._cancelled = True
-        return True

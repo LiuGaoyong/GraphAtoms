@@ -73,6 +73,7 @@ dev = [
     "ray",
     "dask",
     "distributed",
+    "mpi4py",
 
 ]
 

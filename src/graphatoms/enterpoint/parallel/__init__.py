@@ -7,9 +7,12 @@ backends: serial, multiprocessing, ray, dask, executorlib.
 from __future__ import annotations
 
 from graphatoms.enterpoint.parallel._utils import as_completed, wait
-from graphatoms.enterpoint.parallel.multiprocessing import ProcessPoolExecutor
-from graphatoms.enterpoint.parallel.serial import SerialExecutor
-from graphatoms.enterpoint.parallel.abc import BaseExecutor, BaseFuture
+from graphatoms.enterpoint.parallel.base import (
+    BaseExecutor,
+    BaseFuture,
+    ProcessPoolExecutor,
+    SerialExecutor,
+)
 
 __all__ = [
     "BaseExecutor",
@@ -68,3 +71,13 @@ def get_executor(
     if name in ("serial",):
         return cls(**kwargs)  # type: ignore[call-arg]
     return cls(max_workers=max_workers or 1, **kwargs)  # type: ignore[call-arg]
+
+
+if __name__ == "__main__":
+    from concurrent.futures import Executor
+
+    from graphatoms.enterpoint.parallel.dask import DaskExecutor
+    from graphatoms.enterpoint.parallel.ray import RayExecutor
+
+    for cls in [SerialExecutor, ProcessPoolExecutor, RayExecutor, DaskExecutor]:
+        assert issubclass(cls, Executor)

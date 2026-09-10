@@ -53,7 +53,7 @@ def run_batch_consume_cancel(
         # Cancel remaining tasks
         for f in futures:
             if not f.done():
-                executor.cancel(f, force=True, recursive=True)
+                f.cancel()
 
     return results
 
@@ -85,7 +85,7 @@ def run_batch_wait_cancel(
 
         for f in pending:
             if not f.done():
-                executor.cancel(f, force=True, recursive=True)
+                f.cancel()
 
     return results
 
