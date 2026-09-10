@@ -10,7 +10,7 @@ from graphatoms.geometry import mic as this_geometry
 @pytest.mark.parametrize(
     "test_arr, function_name",
     [
-        (np.random.randint(100, size=(5, 3)) / 50, "translate_pretty"),
+        (np.random.randint(100, size=(5, 3)) / 50.0, "translate_pretty"),
         (np.random.rand(5, 3), "naive_find_mic"),
         (np.random.rand(5, 3), "find_mic"),
         (np.random.rand(3), "find_mic"),
@@ -19,12 +19,12 @@ from graphatoms.geometry import mic as this_geometry
 def test_array_api(test_arr: np.ndarray, function_name: str) -> None:
     lst: list[ArrayNamespace] = [np]  # type: ignore
     try:
-        import torch
+        import torch  # type: ignore  # noqa: F401
     except ImportError:
         torch = None
     try:
-        import jax
-        import jax.numpy as jnp
+        import jax  # type: ignore  # noqa: F401
+        import jax.numpy as jnp  # type: ignore  # noqa: F401
     except ImportError:
         jnp, jax = None, None
     if jax is not None:

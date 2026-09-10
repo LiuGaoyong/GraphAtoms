@@ -9,7 +9,7 @@ Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
 
 [project]
 name = "graphatoms"
-version = "1.2.2"
+version = "1.3.0"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -24,9 +24,9 @@ keywords = [
     "KMC",
 ]
 classifiers = [
-    'Development Status :: 5 - Production/Stable',
-    'Topic :: Scientific/Engineering :: Chemistry',
-    'Intended Audience :: Science/Research',
+    "Development Status :: 5 - Production/Stable",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Intended Audience :: Science/Research",
 ]
 dependencies = [
     # Chemoinformatics
@@ -65,7 +65,12 @@ dev = [
     "pytest-xdist",
     "jupyter",
     "sqlmodel",         # SQL + pydantic
-    'openbabel-wheel',
+    "openbabel-wheel",
+    "ray",
+    "dask",
+    "distributed",
+    "executorlib",
+
 ]
 
 # uv config
@@ -87,13 +92,13 @@ default = true
 filterwarnings = [
     "error", # All other warnings are transformed into errors.
     # ignore the following warnings that matching a regex
-    # example: 'ignore:function ham\(\) is deprecated:DeprecationWarning',
+    # example: "ignore:function ham\(\) is deprecated:DeprecationWarning",
     "ignore::RuntimeWarning",
     "ignore::DeprecationWarning",
 
 ]
-addopts = '--maxfail=1 -rf' # exit after 1 failures, report fail info
-testpaths = ['src/tests']
+addopts = "--maxfail=1 -rf" # exit after 1 failures, report fail info
+testpaths = ["src/tests"]
 
 # ruff config
 [tool.ruff]
@@ -125,7 +130,7 @@ dev = { features = ["dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 test = "pytest -s -vv"
-benchmark = 'pytest -s src/tests-benchmark/*.py'
+benchmark = "pytest -s src/tests-benchmark/*.py"
 
 [tool.pixi.dependencies]
 python = ">=3.12"
