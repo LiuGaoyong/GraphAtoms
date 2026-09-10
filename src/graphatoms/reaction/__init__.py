@@ -6,6 +6,7 @@ from graphatoms.reaction.base.event import (
     DEFAULT_CHECK_MINIMA_FQMIN,
     DEFAULT_CHECK_TS_FMAX,
     DEFAULT_CHECK_TS_FQMIN,
+    EventBase,
 )
 from graphatoms.reaction.events import (
     Adsorption,
@@ -25,4 +26,5 @@ __all__ = [
     "ReactionLH",
     "ReactionER",
     "Reaction",
+    "EventBase",
 ]

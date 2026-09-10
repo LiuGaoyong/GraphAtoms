@@ -10,8 +10,8 @@ from graphatoms.system import DEFAULT_WH_HASH_DEPTH, Cluster, Gas, SysGraph
 from graphatoms.utils.bytestool import hash_string
 
 DEFAULT_CHECK_MINIMA_FMAX = 0.05  #    eV/Å
-DEFAULT_CHECK_MINIMA_FQMIN = 30.0  #   cm^-1
-DEFAULT_CHECK_TS_FQMIN = 50.0  #       cm^-1
+DEFAULT_CHECK_MINIMA_FQMIN = 20.0  #   cm^-1
+DEFAULT_CHECK_TS_FQMIN = 20.0  #       cm^-1
 DEFAULT_CHECK_TS_FMAX = 0.1  #         eV/Å
 
 class RTGP(OurFrozenModel):

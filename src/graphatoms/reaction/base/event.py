@@ -15,7 +15,7 @@ DEFAULT_CHECK_TS_FQMIN = 20.0  #       cm^-1
 DEFAULT_CHECK_TS_FMAX = 0.1  #         eV/Å
 
 
-class EventABC(RTGP, MoveABC):
+class EventBase(RTGP, MoveABC):
     """The base class for all KMC events in the reaction process.
 
     An event is a change of the system, which can be a reaction, a diffusion,

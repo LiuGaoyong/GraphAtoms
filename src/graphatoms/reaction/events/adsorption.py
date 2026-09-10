@@ -4,11 +4,11 @@ import numpy as np
 from ase import Atoms
 from pydantic import model_validator
 
-from graphatoms.reaction.base.event import EventABC
+from graphatoms.reaction.base.event import EventBase
 from graphatoms.system.system import System
 
 
-class Adsorption(EventABC):
+class Adsorption(EventBase):
     @model_validator(mode="after")
     def __check_something(self) -> Self:
         assert self.G is not None, "The gas must be not None."

@@ -1,5 +1,5 @@
 """The abstract base class for reaction classes."""
 
-from graphatoms.reaction.base.event import EventABC
+from graphatoms.reaction.base.event import EventBase
 
-__all__ = ["EventABC"]
+__all__ = ["EventBase"]
