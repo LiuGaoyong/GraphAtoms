@@ -325,7 +325,7 @@ def test_get_executor_unknown_raises() -> None:
 
 @pytest.mark.skipif(not HAS_RAY, reason="ray is not installed")
 def test_get_executor_ray() -> None:
-    from graphatoms.parallel.backends.ray import RayExecutor
+    from graphatoms.parallel.ray import RayExecutor
 
     ex = get_executor("ray", max_workers=2)
     assert isinstance(ex, RayExecutor)
@@ -334,7 +334,7 @@ def test_get_executor_ray() -> None:
 
 @pytest.mark.skipif(not HAS_DASK, reason="dask is not installed")
 def test_get_executor_dask() -> None:
-    from graphatoms.parallel.backends.dask import DaskExecutor
+    from graphatoms.parallel.dask import DaskExecutor
 
     ex = get_executor("dask", max_workers=2)
     assert isinstance(ex, DaskExecutor)
@@ -409,7 +409,7 @@ def test_wait_ray() -> None:
 # 11. Friendly ImportError when optional dependencies are missing
 # ---------------------------------------------------------------------------
 def test_ray_import_error_when_missing() -> None:
-    from graphatoms.parallel.backends import ray as ray_backend
+    from graphatoms.parallel import ray as ray_backend
 
     with patch.object(ray_backend, "_RAY_AVAILABLE", False):
         with pytest.raises(ImportError, match="ray is not installed"):
@@ -417,7 +417,7 @@ def test_ray_import_error_when_missing() -> None:
 
 
 def test_dask_import_error_when_missing() -> None:
-    from graphatoms.parallel.backends import dask as dask_backend
+    from graphatoms.parallel import dask as dask_backend
 
     with patch.object(dask_backend, "_DASK_AVAILABLE", False):
         with pytest.raises(ImportError, match="dask is not installed"):
@@ -425,7 +425,7 @@ def test_dask_import_error_when_missing() -> None:
 
 
 def test_executorlib_import_error_when_missing() -> None:
-    from graphatoms.parallel.backends import executorlib as el_backend
+    from graphatoms.parallel import executorlib as el_backend
 
     with patch.object(el_backend, "_EXECUTORLIB_AVAILABLE", False):
         with pytest.raises(ImportError, match="executorlib is not installed"):
@@ -436,7 +436,7 @@ def test_executorlib_import_error_when_missing() -> None:
 # 12. Example function
 # ---------------------------------------------------------------------------
 def test_example_batch_consume_cancel() -> None:
-    from graphatoms.parallel.example import run_batch_consume_cancel
+    from graphatoms.parallel._example import run_batch_consume_cancel
 
     results = run_batch_consume_cancel(
         "multiprocessing", n_tasks=10, n_results=3
@@ -446,7 +446,7 @@ def test_example_batch_consume_cancel() -> None:
 
 
 def test_example_batch_wait_cancel() -> None:
-    from graphatoms.parallel.example import run_batch_wait_cancel
+    from graphatoms.parallel._example import run_batch_wait_cancel
 
     results = run_batch_wait_cancel("multiprocessing", n_tasks=10, n_results=3)
     assert len(results) == 3

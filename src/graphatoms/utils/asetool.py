@@ -1,5 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import IO, Any
 
 import ase.optimize
@@ -13,6 +14,8 @@ from ase.mep import DimerControl, MinModeAtoms
 from ase.mep.dimer import DimerTranslate, MinModeTranslate
 from ase.mep.neb import NEB, BaseNEB, DyNEB
 from ase.optimize.optimize import Dynamics, Optimizer
+from ase.units import invcm
+from ase.vibrations import Vibrations, VibrationsData
 
 OPTIMIZE_METHODS: dict[str, type[Optimizer]] = {}
 for k in ase.optimize.__all__:
@@ -21,46 +24,45 @@ for k in ase.optimize.__all__:
         OPTIMIZE_METHODS[k] = v
 
 
-def trajectory_record(container: list[Atoms], object: Dynamics) -> None:
-    """Record the trajectory of the dynamics object.
+def call_vib(
+    atoms: Atoms,
+    calc: Calculator,
+    *,
+    ignore_min_freq: float = 1e-3,
+    **kwargs,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Vibration atoms (frequencies in cm^-1 & harmonic modes).
 
     Parameters
     ----------
-    container : list[Atoms]
-        The container to store the trajectory.
-    object : Dynamics
-        The dynamics object to record.
+    atoms : Atoms
+        The atoms to analyze.
+    calc : Calculator
+        The calculator to use.
+    ignore_min_freq : float, optional
+        The minimum frequency to ignore. Defaults to 1e-3.
 
-    Returns: None
-    -------------
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        The frequencies in cm^-1 and the harmonic modes.
     """
-    if isinstance(object, (DimerTranslate, MinModeTranslate)):
-        d_atoms = object.atoms
-        assert isinstance(d_atoms, MinModeAtoms)
-        atoms0: Atoms = d_atoms.get_atoms()
-        assert isinstance(atoms0.calc, Calculator)
-        d_atoms.get_potential_energy()
-        target = atoms0.copy()
-        target.calc = SPC(target, **atoms0.calc.results)
-        target.info["dimer_curvature"] = d_atoms.get_curvature()
-        container.append(target)
-    elif isinstance(object, Dynamics):
-        if isinstance(object.atoms, (NEB, DyNEB, BaseNEB)):
-            for atoms in object.atoms.images:
-                target = atoms.copy()
-                assert isinstance(atoms.calc, Calculator)
-                target.calc = SPC(target, **atoms.calc.results)
-                container.append(target)
-        else:
-            target = object.atoms.copy()
-            assert isinstance(object.atoms.calc, Calculator)
-            target.calc = SPC(target, **object.atoms.calc.results)
-            container.append(target)
-    else:
-        raise ValueError(f"Unknown type {type(object)}.")
+    if calc is not None:
+        atoms.calc = calc
+    assert atoms.calc is not None, "Please set calculator."
+    atoms.calc.reset()
 
+    with TemporaryDirectory() as tmpdir:
+        vib = Vibrations(atoms, name=tmpdir)
+        vib.run()
+        vibdata: VibrationsData = vib.get_vibrations()
+    eng, modes = vibdata.get_energies_and_modes(all_atoms=True)
+    freq = np.asarray(eng / invcm, dtype=complex)
+    freq = np.real(freq) - np.imag(freq)  # complex to real
+    freq[np.abs(freq) < abs(ignore_min_freq)] = 1e-5
+    return freq, modes
 
-def optimize(
+def call_optimization(
     atoms: Atoms,
     calc: Calculator,
     *,
@@ -107,7 +109,7 @@ def optimize(
         logfile=logfile,
     )
     optimizer.attach(
-        trajectory_record,
+        _trajectory_record,
         container=result_lst,
         object=optimizer,
         interval=1,
@@ -121,6 +123,12 @@ def optimize(
         converged = False
         raise e
     return result_lst, converged
+
+
+def call_dimer_displace() -> np.ndarray:
+    """Call dimer method to search transition state."""
+    raise NotImplementedError
+    pass
 
 
 def call_dimer(
@@ -203,12 +211,12 @@ def call_dimer(
         d_atoms.displace(displacement_vector=displacement)
         with MinModeTranslate(d_atoms, logfile=param["logfile"]) as dim_rlx:
             for _ in range(max_steps):
-                trajectory_record(container=data, object=dim_rlx)
+                _trajectory_record(container=data, object=dim_rlx)
                 if traj is not None:
                     traj.write(atoms=data[-1])
                 converged = dim_rlx.run(fmax=fmax, steps=1)
                 if converged:
-                    trajectory_record(container=data, object=dim_rlx)
+                    _trajectory_record(container=data, object=dim_rlx)
                     if traj is not None:
                         traj.write(atoms=data[-1])
                         traj.close()
@@ -303,7 +311,7 @@ def call_neb(
     images: list[Atoms] = []
     assert nimages >= 3, "nimages must be at least 3."
     for k, at in zip(["first", "final"], [atoms, final_atoms]):
-        lst, converged = optimize(
+        lst, converged = call_optimization(
             at,
             calc,
             method=method4opt,
@@ -332,7 +340,7 @@ def call_neb(
         k=k4spring,
     )
     neb.interpolate(method=method4interpolate)
-    return optimize(
+    return call_optimization(
         neb,  # type: ignore
         calc,
         method=method4opt,
@@ -342,3 +350,42 @@ def call_neb(
         logfile=logfile,
         fmax=fmax,
     )
+
+
+def _trajectory_record(container: list[Atoms], object: Dynamics) -> None:
+    """Record the trajectory of the dynamics object.
+
+    Parameters
+    ----------
+    container : list[Atoms]
+        The container to store the trajectory.
+    object : Dynamics
+        The dynamics object to record.
+
+    Returns: None
+    -------------
+    """
+    if isinstance(object, (DimerTranslate, MinModeTranslate)):
+        d_atoms = object.atoms
+        assert isinstance(d_atoms, MinModeAtoms)
+        atoms0: Atoms = d_atoms.get_atoms()
+        assert isinstance(atoms0.calc, Calculator)
+        d_atoms.get_potential_energy()
+        target = atoms0.copy()
+        target.calc = SPC(target, **atoms0.calc.results)
+        target.info["dimer_curvature"] = d_atoms.get_curvature()
+        container.append(target)
+    elif isinstance(object, Dynamics):
+        if isinstance(object.atoms, (NEB, DyNEB, BaseNEB)):
+            for atoms in object.atoms.images:
+                target = atoms.copy()
+                assert isinstance(atoms.calc, Calculator)
+                target.calc = SPC(target, **atoms.calc.results)
+                container.append(target)
+        else:
+            target = object.atoms.copy()
+            assert isinstance(object.atoms.calc, Calculator)
+            target.calc = SPC(target, **object.atoms.calc.results)
+            container.append(target)
+    else:
+        raise ValueError(f"Unknown type {type(object)}.")

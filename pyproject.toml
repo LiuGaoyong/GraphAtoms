@@ -36,6 +36,7 @@ dependencies = [
 
     # Scientific Computing
     # numpy pandas, scipy
+    "numpy>=2.0.0,<3",
     "scikit-learn>=1.5",
     "array-api-compat>=1.10",
     "array_api-extra>=0.10",
@@ -46,14 +47,17 @@ dependencies = [
 
     # Data Model
     "h5py>=3.16",
-    "hydra-core",
-    "numpy>=2.0.0,<3",
     "numpydantic",
     "ovld",                           # singledispatch which works for multiple arguments.
     "pydantic>=2.10",
     "python-snappy>=0.7.3",           # More Fase Data Compression
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
+
+    # Other
+    "executorlib",
+    "hydra-core",
+    "pipefunc",
     "typing-extensions",
     "loguru",
 ]
@@ -69,7 +73,6 @@ dev = [
     "ray",
     "dask",
     "distributed",
-    "executorlib",
 
 ]
 

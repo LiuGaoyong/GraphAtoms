@@ -7,9 +7,9 @@ backends: serial, multiprocessing, ray, dask, executorlib.
 from __future__ import annotations
 
 from graphatoms.parallel._utils import as_completed, wait
-from graphatoms.parallel.backends.multiprocessing import ProcessPoolExecutor
-from graphatoms.parallel.backends.serial import SerialExecutor
-from graphatoms.parallel.base import BaseExecutor, BaseFuture
+from graphatoms.parallel.multiprocessing import ProcessPoolExecutor
+from graphatoms.parallel.serial import SerialExecutor
+from graphatoms.parallel.abc import BaseExecutor, BaseFuture
 
 __all__ = [
     "BaseExecutor",
@@ -42,15 +42,15 @@ def get_executor(
         An executor instance.
     """
     if name in ("ray",):
-        from graphatoms.parallel.backends.ray import RayExecutor
+        from graphatoms.parallel.ray import RayExecutor
 
         return RayExecutor(max_workers=max_workers, **kwargs)  # type: ignore[arg-type]
     elif name in ("dask",):
-        from graphatoms.parallel.backends.dask import DaskExecutor
+        from graphatoms.parallel.dask import DaskExecutor
 
         return DaskExecutor(max_workers=max_workers, **kwargs)  # type: ignore[arg-type]
     elif name in ("executorlib",):
-        from graphatoms.parallel.backends.executorlib import (
+        from graphatoms.parallel.executorlib import (
             ExecutorLibExecutor,
         )
 

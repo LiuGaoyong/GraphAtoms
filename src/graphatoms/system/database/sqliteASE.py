@@ -2,11 +2,10 @@
 
 # ruff: noqa: D101 D107 D105
 import os
-from collections.abc import Iterator, Mapping, MutableSet
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, override
+from typing import override
 
-import numpy as np
 from ase import Atoms
 from ase.db.core import connect, now
 from ase.db.row import AtomsRow
@@ -14,8 +13,11 @@ from ase.db.sqlite import SQLite3Database
 
 from graphatoms.system import SysGraph
 
+from .abc import DatabaseABC
 
-class AseSqliteDB(Mapping[str, Atoms], MutableSet[str]):
+
+class AseSqliteDB(DatabaseABC):
+    @override
     def __init__(self, path: Path, append: bool = True) -> None:
         assert path.name.endswith(".db"), "The filename must end with .db"
         if append:
@@ -46,9 +48,11 @@ class AseSqliteDB(Mapping[str, Atoms], MutableSet[str]):
                 )
         return str(key) in self.__keys
 
+    @override
     def __iter__(self) -> Iterator[str]:
         return iter(self.__keys)
 
+    @override
     def __getitem__(self, key: str) -> Atoms:
         with SQLite3Database(self.__path.as_posix()) as db:
             out: AtomsRow = db.get(unique_id=key)
@@ -61,6 +65,7 @@ class AseSqliteDB(Mapping[str, Atoms], MutableSet[str]):
         return atoms
 
     @property
+    @override
     def allthing(self) -> Mapping[str, Atoms]:
         with SQLite3Database(self.__path.as_posix()) as db:
             outs: list[AtomsRow] = list(db.select())
@@ -75,67 +80,19 @@ class AseSqliteDB(Mapping[str, Atoms], MutableSet[str]):
                 result[k] = atoms
         return result
 
-    def discard(self, *args, **kwargs) -> None:
-        raise RuntimeError("The discard method is not supported.")
-
-    def add(self, value: SysGraph, event_cfg: Mapping[str, Any] = {}) -> bool:  # type: ignore
-        """Return True if the value is new, False otherwise."""
-        assert isinstance(value, SysGraph), "The value must be a SysGraph."
-        assert value.energy is not None, "The energy of the value is None."
-        assert value.fmax is not None, "The fmax of the value is None."
-        assert value.hash is not None, "The hash of the value is None."
-        assert value.frequencies is not None, (
-            "The frequencies of the value is None."
-        )  # noqa: E501
-        assert value.check_minima(
-            fmax=event_cfg.get("max_force", 0.05),
-            fqmin=event_cfg.get("min_frequency", 30.0),
-        ) or value.check_ts(
-            fmax=event_cfg.get("max_force", 0.1),
-            fqmin=event_cfg.get("min_frequency", 20.0),
-        ), "The value is not `Minima` or `TS`."
-
-        if not self.__contains__(value.hash):
-            with SQLite3Database(self.__path.as_posix()) as db:
-                row = AtomsRow(value.to_ase())
-                row["user"] = os.getenv("USER")
-                row["unique_id"] = value.hash
-                row["energy"] = value.energy
-                row["ctime"] = now()
-                db.write(
-                    row,
-                    data={"frequencies": value.frequencies},
-                    key_value_pairs={"fmax0": value.fmax},
-                )
-                assert db.connection is not None
-                db.connection.commit()
-            self.__keys.add(value.hash)
-            return True
-        else:
-            return False
-
-
-if __name__ == "__main__":
-    import numpy as np
-    from ase.collections import g2
-
-    db = AseSqliteDB(Path("test.db"), False)
-    for k in g2.names[:5]:
-        v = SysGraph.from_ase(
-            g2[k],
-            energy=2.5,
-            fmax=0.05,
-            frequencies=np.array([1.0, 2.0, 3.0]) + 50,
-        )
-        print(v)
-        print(v.hash, k)
-        db.add(v)
-
-    db = AseSqliteDB(Path("test.db"), True)
-    print(db.keys())
-    for k in db:
-        atoms = db[k]
-        print(atoms.info)
-        g = SysGraph.from_ase(atoms)
-        print(g, g.hash)
-        print()
+    @override
+    def _save(self, key: str, value: SysGraph) -> None:
+        with SQLite3Database(self.__path.as_posix()) as db:
+            row = AtomsRow(value.to_ase())
+            row["user"] = os.getenv("USER")
+            row["unique_id"] = value.hash
+            row["energy"] = value.energy
+            row["ctime"] = now()
+            db.write(
+                row,
+                data={"frequencies": value.frequencies},
+                key_value_pairs={"fmax0": value.fmax},
+            )
+            assert db.connection is not None
+            db.connection.commit()
+        self.__keys.add(value.hash)

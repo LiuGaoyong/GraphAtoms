@@ -2,7 +2,6 @@ from functools import cached_property
 from typing import Self, override
 
 import numpy as np
-from ase import Atoms
 from pydantic import model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
@@ -21,11 +20,6 @@ class RTGP(OurFrozenModel, MoveABC):
     T: SysGraph | None = None
     G: Gas | None = None
     P: SysGraph
-
-    # @abstractmethod
-    # @classmethod
-    # def from_ase_trajectory(cls, traj: list[Atoms] | str | Path) -> Self:
-    #     raise NotImplementedError
 
     ########################################################################
     #                       Validation for the event.
@@ -132,11 +126,6 @@ class RTGP(OurFrozenModel, MoveABC):
         g = self.G.hash if self.G is not None else ""
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
         return hash_string(v, digest_size=DEFAULT_WH_HASH_DEPTH)
-
-    @override
-    def __call__(self, atoms: Atoms, *args, **kwargs) -> Atoms:
-        self.R.__class__.from_ase(atoms, *args, **kwargs)
-        raise NotImplementedError()
 
     def __reversed__(self) -> Self:  # type: ignore
         return self.__class__(R=self.P, G=self.G, T=self.T, P=self.R)

@@ -12,14 +12,11 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import CancelledError
 from typing import Any
 
-from graphatoms.parallel.base import BaseExecutor, BaseFuture
+from graphatoms.parallel.abc import BaseExecutor, BaseFuture
 
 try:
     import dask.config  # type: ignore[import]
-    from dask.distributed import (  # type: ignore[import]
-        Client,  # type: ignore[import]
-        Future,  # type: ignore[import]
-    )
+    from dask.distributed import Client  # type: ignore[import]
 
     _DASK_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised when dask absent
