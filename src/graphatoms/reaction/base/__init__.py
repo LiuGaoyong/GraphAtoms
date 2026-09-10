@@ -1,9 +1,5 @@
 """The abstract base class for reaction classes."""
 
-from graphatoms.reaction.base.move import MoveABC
-from graphatoms.reaction.event._event import RTGP
+from graphatoms.reaction.base.event import EventABC
 
-__all__ = [
-    "MoveABC",
-    "RTGP",
-]
+__all__ = ["EventABC"]

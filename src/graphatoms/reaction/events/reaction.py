@@ -2,10 +2,10 @@ from typing import Self
 
 from pydantic import model_validator
 
-from graphatoms.reaction.event._event import RTGP
+from graphatoms.reaction.base.event import EventABC
 
 
-class Reaction(RTGP):
+class Reaction(EventABC):
     @model_validator(mode="after")
     def __check_something(self) -> Self:
         n = int(max(len(self.R), len(self.P)))

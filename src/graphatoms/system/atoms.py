@@ -156,6 +156,7 @@ class Energetics(OurBaseModel):
         self,
         fmax: PositiveFloat = 0.05,
         fqmin: PositiveFloat = 30.0,
+        only_force: bool = False,
     ) -> bool:
         """Whether the system is a minima.
 
@@ -165,6 +166,8 @@ class Energetics(OurBaseModel):
             c) The frequencies are not None and all the frequencies are
                 greater than zero or the absolute value of the maximum
                 imaginary frequencies are less than the threshold.
+            d) If only_force is True, then the system is a minima if the
+                maximum force is less than the threshold.
         """
         if self.energy is None:
             return False
@@ -172,6 +175,8 @@ class Energetics(OurBaseModel):
             return False
         elif self.fmax > abs(float(fmax)):
             return False
+        elif only_force:
+            return True
         elif self.frequencies is None:
             return False
         else:
