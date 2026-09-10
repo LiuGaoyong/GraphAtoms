@@ -1,0 +1,8 @@
+defaults:
+  - bonds_raw
+
+method: "raw" # or pymatgen
+cfg:
+  multiply_factor: 1.0
+  plus_factor: 0.5 # Angstrom
+

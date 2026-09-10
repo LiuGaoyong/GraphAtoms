@@ -1,0 +1,4 @@
+defaults:
+  - gas_aseread
+
+filename: 'gas.xyz'

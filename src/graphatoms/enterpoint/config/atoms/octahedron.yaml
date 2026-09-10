@@ -1,0 +1,7 @@
+defaults:
+  - atoms_octahedron
+
+_target_: ase.cluster.Octahedron
+symbol: Pd
+length: 8
+

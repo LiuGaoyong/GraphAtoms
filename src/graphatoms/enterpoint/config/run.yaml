@@ -1,0 +1,26 @@
+defaults:
+  - base_config
+  - atoms: aseread
+  - bonds: raw
+  - calculator: nequip
+  - gas: none
+  - _self_
+
+
+
+system:
+  _target_: graphatoms.system.System.from_ase
+  attach_is_adsorbate: true
+  parse_bonds_outer: true
+  parse_bonds: ${bonds}
+  atoms: ${atoms}
+
+
+
+outputs: ./zzzz
+hydra:
+  run:
+    dir: ${outputs}
+  verbose: false
+debug: true
+logfile: '-'

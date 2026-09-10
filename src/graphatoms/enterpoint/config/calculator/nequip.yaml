@@ -1,0 +1,9 @@
+defaults:
+  - calc_nequip
+
+_target_: nequip.integrations.ase.NequIPCalculator.from_compiled_model
+chemical_species_to_atom_type_map: true
+compile_path:
+  _target_: os.path.expanduser
+  path: "~/.local/nequip-oam-0.1/NequIP-OAM-S-0.1.nequip.pth"
+device: cpu
