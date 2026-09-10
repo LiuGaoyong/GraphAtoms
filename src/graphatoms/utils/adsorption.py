@@ -27,7 +27,7 @@ from graphatoms.system import Cluster, Gas, System
 from graphatoms.utils.rdutils import rdmol2ase, smiles2rdmol
 
 matplotlib.use("Agg")
-from .asetool import call_optimization as optimize
+from .asetools import call_optimization as optimize
 
 
 #########################################

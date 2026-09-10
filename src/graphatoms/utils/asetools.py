@@ -125,10 +125,23 @@ def call_optimization(
     return result_lst, converged
 
 
-def call_dimer_displace() -> np.ndarray:
+def call_dimer_displace(
+    atoms: Atoms,
+    calc: Calculator,
+    *,
+    parse_mask_from_atoms: bool = True,
+    mask: list[bool] | np.ndarray | None = None,
+    **kwargs,
+) -> np.ndarray:
     """Call dimer method to search transition state."""
-    raise NotImplementedError
-    pass
+    lst, _ = call_dimer(
+        atoms=atoms,
+        calc=calc,
+        mask=mask,
+        parse_mask_from_atoms=parse_mask_from_atoms,
+        max_steps=2,
+    )
+    return lst[1].positions - lst[0].positions
 
 
 def call_dimer(
