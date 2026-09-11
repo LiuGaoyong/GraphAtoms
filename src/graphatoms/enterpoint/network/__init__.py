@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+from graphatoms.enterpoint.config import Config, EventConfig
 from graphatoms.system import SysGraph
 from graphatoms.system.database import DatabaseABC, get_db
 
@@ -19,8 +20,11 @@ class RxNet:
     def __init__(
         self,
         path: Path | str,
+        config: EventConfig,
+        *args,
         restart: bool = False,
         format: str | Literal["dir", "h5", "sqlite"] = "ASE",
+        **kwargs,
     ) -> None:
         self.__path = path = Path(path)
         if restart:

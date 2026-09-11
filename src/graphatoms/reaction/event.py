@@ -5,8 +5,8 @@ from ase import Atoms
 from pydantic import model_validator
 
 from graphatoms.geometry.rotation import kabsch
-from graphatoms.reaction.base.move import MoveABC
-from graphatoms.reaction.base.rtgp import RTGP
+from graphatoms.reaction.move import MoveABC
+from graphatoms.reaction.rtgp import RTGP
 from graphatoms.system import System
 
 DEFAULT_CHECK_MINIMA_FMAX = 0.05  #    eV/Å

@@ -1,30 +1,17 @@
-"""The definition of reaction classes."""
-
 # ruff: noqa: F401
-from graphatoms.reaction.base.event import (
-    DEFAULT_CHECK_MINIMA_FMAX,
-    DEFAULT_CHECK_MINIMA_FQMIN,
-    DEFAULT_CHECK_TS_FMAX,
-    DEFAULT_CHECK_TS_FQMIN,
-    EventBase,
-)
-from graphatoms.reaction.events import (
-    Adsorption,
-    Desorption,
-    Reaction,
-    ReactionER,
-    ReactionLH,
-)
+
+from graphatoms.reaction.adsorption import Adsorption
+from graphatoms.reaction.desorption import Desorption
+from graphatoms.reaction.event import EventBase
+from graphatoms.reaction.reaction import ReactionER, ReactionLH
 
 __all__ = [
-    "DEFAULT_CHECK_MINIMA_FMAX",
-    "DEFAULT_CHECK_MINIMA_FQMIN",
-    "DEFAULT_CHECK_TS_FMAX",
-    "DEFAULT_CHECK_TS_FQMIN",
+    "EventBase",
     "Adsorption",
     "Desorption",
     "ReactionLH",
     "ReactionER",
     "Reaction",
-    "EventBase",
 ]
+
+Reaction = ReactionLH
