@@ -9,12 +9,9 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.io.trajectory import TrajectoryWriter
 from ase.mep import DimerControl, MinModeAtoms
-from otfkmc.abc import hydra_parse
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.system import Cluster, Gas  # type: ignore
-
-from ._funcs import call_optimize, call_vib, run_dimer
+from graphatoms.system import Cluster  # type: igno
 
 
 class OptimizationFailed(RuntimeError):

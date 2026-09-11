@@ -22,21 +22,6 @@ from ._0abc import BaseABC
 class FirstStep(BaseABC):
     """The abstract base class for the runner."""
 
-    def __init__(self, *, config: Config) -> None:
-        super().__init__(config=config)
-
-        # parse the gas list
-        self._gas_lst: list[Gas] = []
-        # for gas in config.gas:
-        #     if gas is None:
-        #         continue
-        #     gas = hydra_parse(gas, Gas)
-        #     assert isinstance(gas, Gas)
-        #     assert gas.sticking is not None
-        #     assert gas.pressure is not None
-        #     self.logger.info("Read the gas:", gas)
-        #     self._gas_lst.append(gas)
-
     def __atoms2system(self, inp: Atoms | None) -> System:
         if inp is None:
             # parse system for first step
@@ -66,6 +51,11 @@ class FirstStep(BaseABC):
         self.logger.info(f"Read the system: {self.catalyst}")
         return self.catalyst
 
+    @property
+    def gas_lst(self) -> list[Gas]:
+        raise NotImplementedError()
+        return self.config.gas
+
     @override
     def run(
         self,
@@ -82,7 +72,7 @@ class FirstStep(BaseABC):
             system = self.__atoms2system(system)
 
         oesc = bool(self.config.exploration.surface_only_explore_single_core)
-        if oesc and len(self._gas_lst) == 0:
+        if oesc and len(self.gas_lst) == 0:
             max_ncore = 1
         else:
             max_ncore = int(self.config.exploration.max_ncore_for_surface)

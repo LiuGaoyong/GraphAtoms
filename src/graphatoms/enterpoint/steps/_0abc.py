@@ -9,7 +9,7 @@ from loguru._logger import Core, Logger
 from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.reaction.network import RxNet
+from graphatoms.enterpoint.network import RxNet
 
 
 class BaseABC:

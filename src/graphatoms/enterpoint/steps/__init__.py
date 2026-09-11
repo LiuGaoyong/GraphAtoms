@@ -35,7 +35,7 @@ class OTFKMC(FirstStep, Adspt, Bulk, Surf, ThirdStep):
                         Surf.run(self, cluster=v)
                     elif ncore <= ncore_4_adspt:
                         # exploration for adsorption process
-                        for gas in self._gas_lst:
+                        for gas in self.gas_lst:
                             Adspt.run(self, cluster=v, gas=gas)
                 else:
                     # exploration for bulk cluster
