@@ -1,7 +1,9 @@
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+os.environ["HYDRA_FULL_ERROR"] = "1"
 import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import MISSING, OmegaConf
@@ -11,7 +13,7 @@ from .atoms import OctahedronAtomsConfig as OctAtomsConfig
 from .bonds import BondsConfig, RawBondsConfig
 from .calculator import CalcConfig, EMTCalcConfig
 from .calculator import NequipCalcConfig as NequipConfig
-from .gas import AseReadGasConfig, GasConfig
+from .gas import GasConfig
 
 CONFIG_DIR = Path(__file__).parent
 
@@ -34,14 +36,17 @@ class ExplConfig:
     thetacutoff: float = 30
     nfibonacci: int = 200
 
-
 @dataclass
 class EventConfig:
+    db_format: str = "folder"
     check_frequency: bool = True  # whether to check the frequency
     max_force: float = 0.05  # eV / Angstrom
     min_frequency: float = 30.0  # cm^-1
     min_frequency_for_ts: float = 20.0  # cm^-1
     simplified_threshold: float = 7.0  # the simplified threshold for event
+    gas_sticking: dict[str, float] = field(default_factory=dict)
+    gas_pressure: dict[str, float] = field(default_factory=dict)
+    temperature: float = 300
 
 
 @dataclass
@@ -81,13 +86,18 @@ cs.store(group="atoms", name="atoms_octahedron", node=OctAtomsConfig)
 cs.store(group="bonds", name="bonds_raw", node=RawBondsConfig)
 cs.store(group="calculator", name="calc_emt", node=EMTCalcConfig)
 cs.store(group="calculator", name="calc_nequip", node=NequipConfig)
-cs.store(group="gas", name="gas_none", node=GasConfig)
-cs.store(group="gas", name="gas_aseread", node=AseReadGasConfig)
 
 
-@hydra.main(config_path=".", config_name="run", version_base=None)
-def my_app(cfg: Config) -> None:
+@hydra.main(
+    config_path=CONFIG_DIR.as_posix(),
+    config_name="run",
+    version_base=None,
+)
+def print_config(cfg: Config) -> None:
+    from shutil import rmtree
+
     print(OmegaConf.to_yaml(cfg))
+    rmtree(Path(cfg.outputs))
 
 
 

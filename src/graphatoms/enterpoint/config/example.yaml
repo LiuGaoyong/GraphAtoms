@@ -1,0 +1,72 @@
+outputs: ./outputs # the output directory, i.e. workdir
+parallel: "serial" # serial, multiprocessing, joblib, ray
+# if hydra.verbose is true, loglevel will be set to DEBUG.
+loglevel: DEBUG # DEBUG, INFO, WARNING, ERROR
+logfile: "-" # the stderr/stdout log file
+restart: false
+hydra:
+  run:
+    dir: ${outputs}
+  verbose: true
+
+##################################
+bonds:
+  method: "raw" # or pymatgen
+  cfg:
+    multiply_factor: 1.0
+    plus_factor: 0.5 # Angstrom
+
+##################################
+calculator:
+  _target_: nequip.integrations.ase.NequIPCalculator.from_compiled_model
+  chemical_species_to_atom_type_map: true
+  compile_path:
+    _target_: os.path.expanduser
+    path: "~/.local/nequip-oam-0.1/NequIP-OAM-S-0.1.nequip.pth"
+  device: cpu
+system:
+  _target_: graphatoms.system.System.from_ase
+  atoms:
+    _target_: ase.cluster.Octahedron
+    symbol: Pd
+    length: 8
+  parse_bonds: ${bonds}
+  parse_bonds_outer: true
+  attach_is_adsorbate: true
+gas:
+  - null
+ray:
+  ncpu_for_runner: 1
+  init:
+    ignore_reinit_error: true
+
+##################################
+site:
+  method: "distance" # or hop
+  env_threshold: 15 # the environment threshold
+  max_moved_threshold: 8 # the maximum moved threshold
+exploration:
+  maxtry: 1000
+  maxconfidence: 10
+  max_ncore_for_surface: 3 # 4, 5, 6
+  surface_only_explore_single_core: true
+  allow_multiple_adsorption: false
+  allow_explore_bulk: false
+  thetacutoff: 30
+  nfibonacci: 200
+
+event:
+  check_frequency: true # whether to check the frequency
+  max_force: 0.05 # eV / Angstrom
+  min_frequency: 30.0 # cm^-1
+  min_frequency_for_ts: 20.0 # cm^-1
+  simplified_threshold: 7.0
+  gas_sticking:
+    CO: 0.5
+    CO2: 0.5
+  gas_pressure: {}
+  temperature: 300.0
+optimizer:
+  method: "lbfgs"
+  fmax: 0.05
+  steps: 200

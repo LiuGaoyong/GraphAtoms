@@ -3,7 +3,6 @@ defaults:
   - atoms: aseread
   - bonds: raw
   - calculator: nequip
-  - gas: none
   - _self_
 
 

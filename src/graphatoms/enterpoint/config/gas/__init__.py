@@ -5,11 +5,6 @@ from omegaconf import MISSING
 
 @dataclass
 class GasConfig:
-    pass
-
-
-@dataclass
-class AseReadGasConfig(GasConfig):
-    _target_: str = "ase.io.read"
-    filename: str = MISSING
-    index: str = ":"
+    name: str = MISSING
+    sticking: float = 1.0
+    pressure: float = 101325.0
