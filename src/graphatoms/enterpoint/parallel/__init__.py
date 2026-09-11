@@ -64,16 +64,21 @@ def get_executor(
             max_workers=max_workers, **kwargs
         )
 
-    if name not in _BACKENDS:
+    elif name in ("serial",):
+        return SerialExecutor(**kwargs)  # type: ignore[call-arg]
+
+    elif name in ("multiprocessing",):
+        if max_workers is None or max_workers <= 0:
+            max_workers = None
+        return ProcessPoolExecutor(max_workers=max_workers, **kwargs)  # type: ignore[call-arg]
+
+    else:
         raise ValueError(
-            f"Unknown backend: {name}. Available: "
-            f"{list(_BACKENDS.keys()) + ['ray', 'dask', 'executorlib']}"
+            f"Unknown backend: {name} Available: "
+            f"{['serial', 'multiprocessing', 'ray', 'dask', 'executorlib']}"
         )
 
-    cls = _BACKENDS[name]
-    if name in ("serial",):
-        return cls(**kwargs)  # type: ignore[call-arg]
-    return cls(max_workers=max_workers or 1, **kwargs)  # type: ignore[call-arg]
+
 
 
 if __name__ == "__main__":

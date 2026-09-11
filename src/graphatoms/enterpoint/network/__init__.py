@@ -1,11 +1,12 @@
+import dataclasses as dc
 from pathlib import Path
 from typing import Literal
 
-from graphatoms.enterpoint.config import Config, EventConfig
+from graphatoms.enterpoint.config import EventConfig
 from graphatoms.system import SysGraph
 from graphatoms.system.database import DatabaseABC, get_db
 
-from ._metadata import MetaData
+from ._metadata import MetaData, MetaDataBasic
 from ._recorder import Recorder
 from ._scheduler import Scheduler
 
@@ -15,6 +16,7 @@ __all__ = [
     "Recorder",
     "Scheduler",
 ]
+
 
 class RxNet:
     def __init__(
@@ -39,12 +41,23 @@ class RxNet:
             ), f"The format of `{format}` is not supported for restart."
             self.scheduler = Scheduler.read_npz(path / "scheduler.npz")
             self.recorder = Recorder.read_json(path / "recorder.json")
+            self.metadata = MetaData.from_storage(path / "metadata")
+            # check equality
+            assert self.metadata.basic == config
         else:
             self.recorder: Recorder = Recorder()
             self.scheduler: Scheduler = Scheduler()
-            self.metadata: MetaData = MetaData()
+            self.metadata: MetaData = MetaData(
+                basic=MetaDataBasic(
+                    **(
+                        dc.asdict(config)  #
+                        if dc.is_dataclass(config)
+                        else config
+                    )
+                ),
+            )
 
-            # initialize the databases
+        # initialize the databases
         lst: list[DatabaseABC] = [
             get_db(
                 path=path,
@@ -60,6 +73,7 @@ class RxNet:
         """Persist the data to the database."""
         self.recorder.write_json(self.__path / "recorder.json")
         self.scheduler.write_npz(self.__path / "scheduler.npz")
+        self.metadata.persistence(self.__path)
 
     def write(
         self,

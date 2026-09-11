@@ -99,6 +99,28 @@ class Gas(System):
         )
 
     @classmethod
+    def from_name(
+        cls,
+        name_or_smiles: str,
+        *,
+        sticking: float = 1.0,
+        pressure: float = 101325.0,
+        parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
+        parse_bonds_distance: bool = False,
+        parse_bonds_order: bool = False,
+        **kwargs,
+    ) -> Self:
+        kwargs["sticking"] = sticking
+        kwargs["pressure"] = pressure
+        kwargs["parse_bonds"] = parse_bonds
+        kwargs["parse_bonds_distance"] = parse_bonds_distance
+        kwargs["parse_bonds_order"] = parse_bonds_order
+        try:
+            return cls.from_molecule(name_or_smiles, **kwargs)
+        except ValueError:
+            return cls.new_from_smiles(name_or_smiles, **kwargs)
+
+    @classmethod
     def new_from_smiles(
         cls,
         smiles: str,

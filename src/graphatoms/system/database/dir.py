@@ -28,14 +28,7 @@ class DirDB(DatabaseABC):
         return len(list(self.__path.glob("*.npz")))
 
     @override
-    def __contains__(self, key: object) -> bool:
-        if not isinstance(key, str):
-            if isinstance(key, SysGraph):
-                key = self.get_key_of(key)
-            else:
-                raise TypeError(
-                    "The key must be a string or a SysGraph object."
-                )
+    def _contains(self, key: str) -> bool:
         return (self.__path / f"{key}.npz").exists()
 
     @override

@@ -22,6 +22,51 @@ from ._0abc import BaseABC
 class FirstStep(BaseABC):
     """The abstract base class for the runner."""
 
+    def __init__(self, config: Config) -> None:
+        super().__init__(config=config)
+        self.__gas_lst: list[Gas] = []
+        for gas_info in self.network.metadata.basic.gas_info_lst:
+            self.__gas_lst.append(
+                Gas.from_name(
+                    gas_info.name,
+                    sticking=gas_info.sticking,
+                    pressure=gas_info.pressure,
+                    parse_bonds=self.config.bonds,  # type: ignore
+                )
+            )
+
+        # optimize the gas in parallel mode
+        with get_executor(
+            name=self.pmode,
+            max_workers=self.pworkers,
+        ) as executor:
+            futures: list[tuple[int, Future]] = []
+            for i, gas in enumerate(self.__gas_lst):
+                futures.append(
+                    (
+                        i,
+                        executor.submit(
+                            self.helper_cluster_optimization,
+                            config=self.config,
+                            cluster=gas,
+                            allow_hash_change=False,
+                            raise_on_failed=False,
+                        ),
+                    )
+                )
+            for i, f in futures:
+                gas_or_msg, cost_time = f.result()
+                if isinstance(gas_or_msg, Gas):
+                    msg: str = f"Optimization (success): {gas_or_msg}."
+                    self.__gas_lst[i] = gas_or_msg
+                elif isinstance(gas_or_msg, str):
+                    msg = str(gas_or_msg)
+                    raise RuntimeError(msg)
+                else:
+                    msg = f"Unknown type of output: {type(gas_or_msg)}."
+                    raise ValueError(msg)
+                self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
+
     def __atoms2system(self, inp: Atoms | None) -> System:
         if inp is None:
             # parse system for first step
@@ -53,8 +98,11 @@ class FirstStep(BaseABC):
 
     @property
     def gas_lst(self) -> list[Gas]:
-        raise NotImplementedError()
-        return self.config.gas
+        if len(self.network.metadata.basic.gas_info_lst) != 0:
+            raise ValueError("First step does not support gas.")
+            return self.__gas_lst
+        else:
+            return []
 
     @override
     def run(
@@ -118,38 +166,49 @@ class FirstStep(BaseABC):
         self.logger.info(f"Find {len(values)} cluster for sys={system.hash}.")
         self.logger.info(f"Find {len(idxs)} unique cluster.")
 
-        # optimize the cluster
+        # optimize the cluster in parallel mode
         result: dict[tuple[bool, int, str], Cluster] = {}
+        self.logger.info(f"Start to optimize the {len(idxs)} clusters.")
+        start: float = perf_counter()
         with get_executor(
             name=self.pmode,
             max_workers=self.pworkers,
         ) as executor:
             futures: list[tuple[int, Future]] = []
             for i in idxs:
-                futures.append(
-                    (
-                        i,
-                        executor.submit(
-                            self.helper_cluster_optimization,
-                            config=self.config,
-                            cluster=values[int(i)],
-                            allow_hash_change=False,
-                            raise_on_failed=False,
-                        ),
+                cluster: Cluster = values[int(i)]
+                if cluster not in self.network.db_minima:
+                    futures.append(
+                        (
+                            i,
+                            executor.submit(
+                                self.helper_cluster_optimization,
+                                config=self.config,
+                                cluster=values[int(i)],
+                                allow_hash_change=False,
+                                raise_on_failed=False,
+                            ),
+                        )
                     )
-                )
+            self.logger.info(
+                f"Submit the optimization jobs by "
+                f"{perf_counter() - start:.2f} seconds."
+            )
             for i, f in futures:
                 cluster_or_msg, cost_time = f.result()
                 if isinstance(cluster_or_msg, Cluster):
                     msg: str = f"Optimization (success): {cluster_or_msg}."
-                    self.logger.info(msg)
                     result[keys[int(i)]] = cluster_or_msg
                 elif isinstance(cluster_or_msg, str):
                     msg = str(cluster_or_msg)
                 else:
                     msg = f"Unknown type of output: {type(cluster_or_msg)}."
                     raise ValueError(msg)
-                self.logger.error(f"CostTime={cost_time:.2f} for {msg}")
+                self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
+            self.logger.info(
+                "All optimization jobs are done in "
+                f"{perf_counter() - start:.2f} seconds."
+            )
         result.update({keys[int(i)]: values[int(i)] for i in idxs})
         return result
 

@@ -38,15 +38,8 @@ class AseSqliteDB(DatabaseABC):
         return len(self.__keys)
 
     @override
-    def __contains__(self, key: object) -> bool:
-        if not isinstance(key, str):
-            if isinstance(key, SysGraph):
-                key = str(key.hash)
-            else:
-                raise TypeError(
-                    "The key must be a string or a SysGraph object."
-                )
-        return str(key) in self.__keys
+    def _contains(self, key: str) -> bool:
+        return key in self.__keys
 
     @override
     def __iter__(self) -> Iterator[str]:

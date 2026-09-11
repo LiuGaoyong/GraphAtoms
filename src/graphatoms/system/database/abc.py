@@ -17,6 +17,19 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
     def __init__(self, *, append: bool = True) -> None:
         """Initialize the database."""
 
+    @override
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            if isinstance(key, SysGraph):
+                key = self.get_key_of(key)
+            else:
+                raise TypeError(
+                    "The key must be a string or a SysGraph object."
+                )
+        return self._contains(key)
+
+    @abstractmethod
+    def _contains(self, key: str) -> bool: ...
     @property
     @abstractmethod
     def allthing(self) -> Mapping[str, Atoms]: ...

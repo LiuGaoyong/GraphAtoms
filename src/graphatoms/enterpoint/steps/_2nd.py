@@ -22,7 +22,7 @@ class SecondStepBulk(BaseABC):
 
     @override
     def run(self, cluster: Cluster) -> None:
-        pass
+        raise NotImplementedError
 
 
 class SecondStepAdsorption(BaseABC):
@@ -30,4 +30,4 @@ class SecondStepAdsorption(BaseABC):
 
     @override
     def run(self, cluster: Cluster, gas: Gas) -> None:
-        pass
+        raise NotImplementedError

@@ -74,6 +74,7 @@ class BaseABC:
         # restart/initialize configuration
         self.network: RxNet = RxNet(
             path=self.path,
+            config=config.event,
             format=config.event.db_format,
             restart=config.restart,
         )

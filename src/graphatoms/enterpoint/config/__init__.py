@@ -46,6 +46,8 @@ class EventConfig:
     simplified_threshold: float = 7.0  # the simplified threshold for event
     gas_sticking: dict[str, float] = field(default_factory=dict)
     gas_pressure: dict[str, float] = field(default_factory=dict)
+    default_pressure: float = 101325
+    default_sticking: float = 1.0
     temperature: float = 300
 
 
@@ -63,9 +65,10 @@ class Config:
     system: Any = MISSING
 
     calculator: CalcConfig = MISSING
-    gas: GasConfig = MISSING
 
     outputs: str = "./zzz"
+    max_steps: int = 100000
+    max_times: float = 1000  # seconds
     parallel_workers: int = 0  # 0 means use all cores
     parallel: str = "serial"  # serial, multiprocessing, ray, dask, executorlib
     loglevel: str = "info"  # Literal["debug", "info", "warning", "error"]

@@ -21,15 +21,8 @@ class DictDB(DatabaseABC):
         return len(self.__data)
 
     @override
-    def __contains__(self, key: object) -> bool:
-        if not isinstance(key, str):
-            if isinstance(key, SysGraph):
-                key = self.get_key_of(key)
-            else:
-                raise TypeError(
-                    "The key must be a string or a SysGraph object."
-                )
-        return str(key) in self.__data
+    def _contains(self, key: str) -> bool:
+        return key in self.__data
 
     @override
     def __iter__(self) -> Iterator[str]:

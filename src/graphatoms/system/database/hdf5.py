@@ -38,14 +38,7 @@ class AseH5DB(DatabaseABC):
             return len(f.keys())
 
     @override
-    def __contains__(self, key: object) -> bool:
-        if not isinstance(key, str):
-            if isinstance(key, SysGraph):
-                key = str(key.hash)
-            else:
-                raise TypeError(
-                    "The key must be a string or a SysGraph object."
-                )
+    def _contains(self, key: str) -> bool:
         with h5py.File(
             self.__path,
             "r",
@@ -53,7 +46,7 @@ class AseH5DB(DatabaseABC):
             swmr=True,
             locking=False,
         ) as f:
-            return str(key) in f.keys()
+            return key in f.keys()
 
     @override
     def __iter__(self) -> Iterator[str]:

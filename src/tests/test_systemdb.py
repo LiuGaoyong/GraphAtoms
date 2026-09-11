@@ -30,7 +30,7 @@ def test_systemdb(fmt: str) -> None:
                 g2[k],
                 energy=2.5,
                 fmax=0.05,
-                frequencies=np.array([1.0, 2.0, 3.0]) + 50,
+                frequencies=np.array([1.0, 2.0, 3.0]) + 50.0,
             )
             print(v)
             print(v.hash, k)
@@ -42,6 +42,7 @@ def test_systemdb(fmt: str) -> None:
             g = SysGraph.from_ase(atoms, parse_bonds=None)
             print(atoms.info)
             print(g, g.hash)
-            print()
+            print(k, k in db)
+            print("-----------------")
 
         print(type(db), tmp)

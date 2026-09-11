@@ -22,64 +22,6 @@ class CheckVibrationFailed(RuntimeError):
     """Check vibrations failed."""
 
 
-
-
-def _angle_to_history(
-    d_new: np.ndarray,
-    history: dict[str, np.ndarray],
-    thetacutoff: float,
-) -> tuple[float, bool]:
-    """Minimum angle (degrees) of ``d_new`` against any history vector.
-
-    Pure function: flattens ``d_new`` and each history value to 1D, computes
-    the cosine similarity ``dot/(|a|*|b|)`` clamped to ``[-1, 1]``, converts
-    to degrees via ``arccos``, and returns
-    ``(min_angle_degrees, should_skip)`` where ``should_skip`` is True iff the
-    minimum angle is below ``thetacutoff`` (i.e. this probe is too close to a
-    historical direction to bother re-running). Empty history returns
-    ``(inf, False)``.
-
-    Parameters
-    ----------
-    d_new : np.ndarray
-        The candidate displacement vector, shape ``(3N,)`` or ``(N, 3)``.
-    history : dict[str, np.ndarray]
-        The historical displacement vectors (e.g. ``Scheduler.diffposition``).
-    thetacutoff : float
-        Skip threshold in degrees.
-
-    Returns
-    -------
-    tuple[float, bool]
-        ``(min_angle_degrees, should_skip)``.
-    """
-    if not history:
-        return float("inf"), False
-    new_flat = np.asarray(d_new, dtype=float).ravel()
-    new_norm = np.linalg.norm(new_flat)
-    if new_norm == 0.0:
-        # zero vector is "trivially collinear"; skip to avoid divide-by-zero
-        return 0.0, True
-    angles: list[float] = []
-    for v in history.values():
-        v_flat = np.asarray(v, dtype=float).ravel()
-        v_norm = np.linalg.norm(v_flat)
-        if v_norm == 0.0:
-            angles.append(0.0)
-            continue
-        cos = float(np.dot(new_flat, v_flat) / (new_norm * v_norm))
-        cos = max(-1.0, min(1.0, cos))  # clamp for numerical safety
-        # snap near-collinear cases to exactly 0/180 deg
-        if cos >= 1.0 - 1e-12:
-            angles.append(0.0)
-        elif cos <= -1.0 + 1e-12:
-            angles.append(180.0)
-        else:
-            angles.append(float(np.degrees(np.arccos(cos))))
-    min_angle = min(angles)
-    return min_angle, min_angle < thetacutoff
-
-
 def _helper_dimer_ts(
     config: Config,
     cluster: Cluster,
