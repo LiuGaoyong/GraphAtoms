@@ -2,7 +2,7 @@
 
 from graphatoms.reaction.events.adsorption import Adsorption
 from graphatoms.reaction.events.desorption import Desorption
-from graphatoms.reaction.events.reaction import Reaction, ReactionER, ReactionLH
+from graphatoms.reaction.events.reaction import ReactionER, ReactionLH
 
 __all__ = [
     "Adsorption",
@@ -11,3 +11,5 @@ __all__ = [
     "ReactionER",
     "Reaction",
 ]
+
+Reaction = ReactionLH

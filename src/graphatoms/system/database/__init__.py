@@ -12,19 +12,28 @@ from .sqliteASE import AseSqliteDB
 def get_db(
     format: str = "dict",
     path: Path | None = None,
+    prefix: str | None = None,
     append: bool = False,
 ) -> DatabaseABC:
     """Get the database."""
     if format.lower() == "sqlite":
         assert path is not None, "The path must be not None."
-        assert path.suffix == ".db", "The path must be a SQLite file."
+        if prefix is None:
+            assert path.suffix == ".db", "The path must be a SQLite file."
+        else:
+            path = path.joinpath(f"{prefix}.db")
         return AseSqliteDB(path, append=append)
-    elif format.lower() == "dir":
+    elif format.lower() in ["folder", "directory", "dir"]:
         assert path is not None, "The path must be not None."
+        if prefix is not None:
+            path = path.joinpath(prefix)
         return DirDB(path, append=append)
-    elif format.lower() == "hdf5":
+    elif format.lower() in ["hdf5", "h5"]:
         assert path is not None, "The path must be not None."
-        assert path.suffix == ".h5", "The path must be a HDF5 file."
+        if prefix is None:
+            assert path.suffix == ".h5", "The path must be a HDF5 file."
+        else:
+            path = path.joinpath(f"{prefix}.h5")
         return AseH5DB(path, append=append)
     else:
         return DictDB()

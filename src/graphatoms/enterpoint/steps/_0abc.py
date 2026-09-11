@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 import hydra
-from igraph import Graph
 from loguru._logger import Core, Logger
 from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.enterpoint.config import Config
+from graphatoms.reaction.network import RxNet
 
 
 class BaseABC:
@@ -25,11 +25,8 @@ class BaseABC:
         self.config: Config = config
         self.path = Path(config.outputs)
         self.path.mkdir(parents=True, exist_ok=True)
-        for k in ["minima", "gas", "ts"]:
-            (self.path / k).mkdir(parents=True, exist_ok=True)
-        self.network_path = self.path / "network.lgl"
-        self.network = Graph(directed=False)
 
+        # Logger Configuration
         loglevel = str(config.loglevel).upper()
         try:
             hydracfg = hydra.core.hydra_config.HydraConfig.get()  # type: ignore
@@ -40,6 +37,7 @@ class BaseABC:
         assert outlogfile is not None
         outlogfile = str(outlogfile)
 
+        # Logger Setting
         self.logger = log = Logger(
             core=Core(),
             exception=None,
@@ -58,12 +56,12 @@ class BaseABC:
             logfile = self.path.joinpath(logname)
             log.add(logfile, level=loglevel)
 
+        # logging directory configuration
         if hydracfg is not None:
             output_dir = hydracfg.runtime.output_dir
         else:
             output_dir = config.outputs
         output_dir = Path(output_dir).absolute()
-
         log.info("=" * 64)
         log.info("The Configuration:\n" + OmegaConf.to_yaml(config))
         log.info(f"Working floder   : {os.getcwd()}")
@@ -72,6 +70,13 @@ class BaseABC:
         log.info(f"Output logfile   : {outlogfile}")
         log.info(f"Output loglevel  : {loglevel.upper()}")
         log.info("=" * 64)
+
+        # restart/initialize configuration
+        self.network: RxNet = RxNet(
+            path=self.path,
+            format=config.event.db_format,
+            restart=config.restart,
+        )
 
         # check parallel mode
         parallel = str(config.parallel).lower()

@@ -5,7 +5,7 @@ from pydantic import model_validator
 from graphatoms.reaction.base.event import EventBase
 
 
-class Reaction(EventBase):
+class _Reaction(EventBase):
     @model_validator(mode="after")
     def __check_something(self) -> Self:
         n = int(max(len(self.R), len(self.P)))
@@ -18,11 +18,12 @@ class Reaction(EventBase):
         return self
 
 
-class ReactionLH(Reaction):
+class ReactionLH(_Reaction):
     """The reaction by Langmuir-Hinshelwood mechanism."""
 
     @model_validator(mode="after")
     def __check_something(self) -> Self:
+
         assert self.G is None, "The gas must be None."
         assert len(self.R) == len(self.P), (
             "The number of atoms must be equal. But got "
@@ -31,11 +32,12 @@ class ReactionLH(Reaction):
         return self
 
 
-class ReactionER(Reaction):
+class ReactionER(_Reaction):
     """The reaction by Eley-Rideal mechanism."""
 
     @model_validator(mode="after")
     def __check_something(self) -> Self:
+        raise NotImplementedError()
         assert self.G is not None, "The gas must be not None."
         assert (
             len(self.P) == len(self.R) + len(self.G)  #
