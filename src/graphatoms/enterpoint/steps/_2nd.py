@@ -161,7 +161,7 @@ class SecondStepSurface(BaseABC):
             frequencies=freqs,
             nadsorbate=0,
         )
-        if not ts.check_minima(
+        if not ts.check_ts(
             fmax=float(config.event.max_force),
             fqmin=float(config.event.min_frequency_for_ts),
         ):

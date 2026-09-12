@@ -4,6 +4,19 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Literal, Self
 
+os.environ["LOGURU_FORMAT"] = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+    + "<level>{level: ^8}</level> | "
+)
+# LOGURU_FORMAT = env(
+#     "LOGURU_FORMAT",
+#     str,
+#     "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+#     "<level>{level: <8}</level> | "
+#     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>"
+#     "{line}</cyan> - <level>{message}</level>",
+# )
+
 import hydra
 from loguru._logger import Core, Logger
 from omegaconf import DictConfig, OmegaConf
@@ -50,6 +63,7 @@ class BaseABC:
             patchers=[],
             extra={},
         )
+        self.logger
         log.add(sys.stderr, level=loglevel)
         logname = Path(outlogfile).name
         if logname != "-":
