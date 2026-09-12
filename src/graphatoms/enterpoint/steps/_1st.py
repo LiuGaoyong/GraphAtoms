@@ -64,7 +64,9 @@ class FirstStep(BaseABC):
                 futures: list[Future[tuple[SysGraph, Any, float]]] = []
                 result: dict[Any, SysGraph] = {}
 
+                # -------------------------------------------------
                 # Submit the sysgraph optimization to the executor
+                # -------------------------------------------------
                 for label, sysgraph in container.items():
                     key: str = self.network.db_minima.get_key_of(sysgraph)
                     if is_minima and sysgraph in self.network.db_minima:
@@ -90,8 +92,9 @@ class FirstStep(BaseABC):
                     f"Submit the optimization {len(futures)} jobs"
                     f" by {perf_counter() - start:.2f} seconds."
                 )
-
+                # -------------------------------------------------
                 # Wait for the sysgraph optimization to finish
+                # -------------------------------------------------
                 while len(futures) > 0:
                     future_result, futures = wait_one(futures)
                     sysgraph_or_msg, label, cost_time = future_result

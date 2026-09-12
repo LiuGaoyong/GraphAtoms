@@ -4,6 +4,7 @@ from re import M
 from typing import Literal
 
 from graphatoms.enterpoint.config import EventConfig
+from graphatoms.reaction import EventBase
 from graphatoms.system import SysGraph
 from graphatoms.system.database import DatabaseABC, get_db
 
@@ -79,17 +80,34 @@ class RxNet:
         self.scheduler.write_npz(self.__path / "scheduler.npz")
         self.metadata.persistence(self.__path)
 
-    def write(
+    def write(self, event: EventBase) -> bool:
+        """Write the event to the database.
+
+        Returns:
+            bool: True if the event is new, False otherwise.
+        """
+        if self.metadata.table.write(event):  # event is new
+            self.__write(event.R, "minima")
+            self.__write(event.P, "minima")
+            if event.G is not None:
+                self.__write(event.G, "gas")
+            if event.T is not None:
+                self.__write(event.T, "ts")
+            return True  # event is new
+        else:
+            return False  # event is already in the database
+
+    def __write(
         self,
         sysgraph: SysGraph,
         type: Literal["minima", "ts", "gas"] | str,
     ) -> bool:
         """Return True if the value is new, False otherwise."""
         if type == "minima":
-            return self.db_minima.add(sysgraph)
+            return self.db_minima.add(sysgraph, check_positions=True)
         elif type == "ts":
-            return self.db_ts.add(sysgraph)
+            return self.db_ts.add(sysgraph, check_positions=True)
         elif type == "gas":
-            return self.db_gas.add(sysgraph)
+            return self.db_gas.add(sysgraph, check_positions=False)
         else:
             raise ValueError(f"Unknown type: {type}")

@@ -37,7 +37,12 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
     def _save(self, key: str, value: SysGraph) -> None: ...
 
     @override
-    def add(self, value: SysGraph) -> bool:  # type: ignore
+    def add(  # type: ignore
+        self,
+        value: SysGraph,
+        check_positions: bool = True,
+        check_threshold: float = 0.05,  # Angstrom
+    ) -> bool:
         """Add a value to the database.
 
         If the value is already in the database, return False.
@@ -48,6 +53,15 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
             self._save(key, value)
             return True
         else:
+            if check_positions:
+                old_value = self[key]
+                vdiff = value.positions - old_value.positions
+                if not np.all(np.abs(vdiff) < check_threshold):
+                    raise ValueError(
+                        "The positions are not the same as the old value. "
+                        f"Check threshold: {check_threshold} Angstrom."
+                        f"Positions difference: {vdiff}"
+                    )
             return False
 
     @override

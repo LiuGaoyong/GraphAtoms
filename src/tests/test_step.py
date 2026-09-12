@@ -7,21 +7,24 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.steps import FirstStep
+from graphatoms.enterpoint.steps import FirstStep, Surf
 
 this_dir = Path(__file__).parent
 
 
-class Mock(FirstStep):
-    pass
+class Mock(FirstStep, Surf):
+    def run(self) -> None:  # type: ignore
+        for k, cluster in FirstStep.run(self, None).items():
+            self.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
+            Surf.run(self, cluster)
 
 
 @pytest.mark.parametrize(
     "parallel",
     [
         # "serial",
-        "multiprocessing",
-        # "ray",
+        # "multiprocessing",
+        "ray",
     ],
 )
 def test_run_step(parallel) -> None:
@@ -47,19 +50,21 @@ def test_run_step(parallel) -> None:
             )
             cfg.restart = False
             cfg.parallel = parallel
+            cfg.exploration.maxtry = 100
             cfg.outputs = Path(tmp).as_posix()
+            cfg.event.min_frequency_for_ts = 10.0
+            cfg.event.min_frequency = 10.0
+            cfg.event.max_force = 0.05
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
 
             obj = Mock(config=cfg)  # type: ignore
-            for k, cluster in obj.run(None).items():
-                obj.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
+            obj.run()
             pprint(list(Path(tmp).rglob("*")))
 
             print("-----------------")
             print("Test restart")
             cfg.restart = True
             obj2 = Mock(config=cfg)  # type: ignore
-            for k, cluster in obj2.run(None).items():
-                obj2.logger.info(f"{k} {cluster.hash} {cluster}")  # type:
+            obj2.run()
             pprint(list(Path(tmp).rglob("*")))

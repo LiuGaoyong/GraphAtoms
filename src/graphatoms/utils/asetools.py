@@ -62,6 +62,7 @@ def call_vib(
     freq[np.abs(freq) < abs(ignore_min_freq)] = 1e-5
     return freq, modes
 
+
 def call_optimization(
     atoms: Atoms,
     calc: Calculator,
@@ -202,6 +203,7 @@ def call_dimer(
     if displacement is not None:
         param["initial_eigenmode_method"] = "displacement"
         param["displacement_method"] = "vector"
+        displacement = np.asarray(displacement, copy=True)
 
     # record initial energy
     atoms.calc.reset()

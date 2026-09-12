@@ -48,12 +48,13 @@ class Scheduler(OurBaseModel):
         cluster: Cluster | str,
         diffpositions: np.ndarray,
         thetacutoff: float = 30.0,
-    ) -> bool:
+    ) -> tuple[bool, float]:
         assert 0 <= thetacutoff <= 180, "thetacutoff must be in 0-180"
         key = cluster if isinstance(cluster, str) else self.get_key_of(cluster)
         if key not in self.dR:
             self.dR[key] = diffpositions.reshape(1, -1)
-            return False
+            # cosine similarity is -1.0 if the angle is 180 degrees
+            return (False, -1.0)
 
         dR: NDArray = self.dR[key]
         dR0 = diffpositions.reshape(1, -1)
@@ -61,8 +62,8 @@ class Scheduler(OurBaseModel):
         cos: np.ndarray = cosine_similarity(dR, dR0)
         if np.max(cos) < np.cos(np.deg2rad(thetacutoff)):
             self.dR[key] = np.vstack((dR, dR0))  # row_stack
-            return False
-        return True
+            return False, np.max(cos)
+        return True, np.max(cos)
 
     @staticmethod
     def get_key_of(cluster: Cluster) -> str:

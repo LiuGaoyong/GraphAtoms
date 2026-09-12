@@ -7,6 +7,8 @@ from pydantic import BaseModel, NonNegativeFloat, computed_field
 
 from graphatoms.dataclasses import OurBaseModel
 from graphatoms.enterpoint.config import EventConfig
+from graphatoms.reaction import EventBase
+from graphatoms.system.database import DatabaseABC
 
 
 class GasInfo(BaseModel):
@@ -69,6 +71,31 @@ class MetaDataTable(BaseModel):
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame) -> Self:
         return cls(**{k: df[k].to_list() for k in df.columns})
+
+    def write(self, event: EventBase, temperature: float = 300.0) -> bool:
+        """Write the event metadata to the Table.
+
+        Returns:
+            bool: True if the event is new, False otherwise.
+        """
+        if event.hash in self.key_rxn:
+            return False  # event is already in the database
+        else:
+            self.key_rxn.append(event.hash)
+            self.key_r.append(DatabaseABC.get_key_of(event.R))
+            if event.G is not None:
+                self.key_g.append(DatabaseABC.get_key_of(event.G))
+            else:
+                self.key_g.append(None)
+            if event.T is not None:
+                self.key_t.append(DatabaseABC.get_key_of(event.T))
+            else:
+                self.key_t.append(None)
+            self.key_p.append(DatabaseABC.get_key_of(event.P))
+            self.Ea.append(event.get_Ea(temperature))
+            self.dE.append(event.get_dE(temperature))
+            self.rate.append(event.get_rate(temperature))
+            return True
 
 
 class MetaData(BaseModel):

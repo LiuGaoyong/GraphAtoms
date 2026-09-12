@@ -4,7 +4,7 @@ import numpy as np
 from ase import Atoms
 from pydantic import model_validator
 
-from graphatoms.reaction.event import EventBase
+from graphatoms.reaction._event import EventBase
 from graphatoms.system.system import System
 
 
