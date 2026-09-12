@@ -208,15 +208,19 @@ class Energetics(OurBaseModel):
         elif self.frequencies is None:
             return False
         else:
-            min_abs_freq = abs(float(fqmin))
-            min_freq = self.frequencies[0]
-            if min_freq > -min_abs_freq:
-                return False
-            if self.frequencies.size != 1:
-                min_freq_1, min_freq_2 = np.sort(self.frequencies)[:2]
-                return min_freq_1 < -min_abs_freq and min_freq_2 > 0
-            else:
-                return True
+            return self._check_freqs(self.frequencies, fqmin)
+
+    @staticmethod
+    def _check_freqs(freqs: NDArray, fqmin: PositiveFloat = 20.0) -> bool:
+        min_abs_freq = abs(float(fqmin))
+        min_freq = freqs[0]
+        if min_freq > -min_abs_freq:
+            return False
+        if freqs.size != 1:
+            min_freq_1, min_freq_2 = np.sort(freqs)[:2]
+            return min_freq_1 < -min_abs_freq and min_freq_2 > 0
+        else:
+            return True
 
     @validate_call
     def _get_thermo(self, fqmin: PositiveFloat = 50.0) -> BaseThermoChem:

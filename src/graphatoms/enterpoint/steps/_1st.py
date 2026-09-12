@@ -1,20 +1,15 @@
-import os
-from typing import Any, override
-
-from graphatoms.system.graph import SysGraph
-
-os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
-
 from concurrent.futures import Future
 from time import perf_counter
+from typing import Any, override
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.parallel import get_executor
+from graphatoms.enterpoint.parallel import get_executor, wait_one
 from graphatoms.system import Cluster, Gas, System  # type: ignore
+from graphatoms.system.graph import SysGraph
 from graphatoms.utils.asetools import call_optimization, call_vib
 from graphatoms.utils.parser import hydra_parse
 
@@ -97,8 +92,9 @@ class FirstStep(BaseABC):
                 )
 
                 # Wait for the sysgraph optimization to finish
-                for future in futures:
-                    sysgraph_or_msg, label, cost_time = future.result()
+                while len(futures) > 0:
+                    future_result, futures = wait_one(futures)
+                    sysgraph_or_msg, label, cost_time = future_result
                     if isinstance(sysgraph_or_msg, Gas | Cluster):
                         msg: str = f"Optimization (success): {sysgraph_or_msg}."
                         if isinstance(sysgraph_or_msg, Cluster):
