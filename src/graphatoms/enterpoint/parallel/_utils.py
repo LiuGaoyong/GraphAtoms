@@ -9,6 +9,7 @@ from __future__ import annotations
 import concurrent.futures as _cf
 import time
 from collections.abc import Iterator, Sequence
+from typing import Any
 
 from graphatoms.enterpoint.parallel.base import BaseFuture
 
@@ -82,6 +83,20 @@ def as_completed(
                 yield f
         if pending:
             time.sleep(0.01)
+
+
+def wait_one(
+    futures: Sequence[BaseFuture],
+    timeout: float | None = None,
+) -> tuple[Any, list[BaseFuture]]:
+    done, pending = wait(futures, timeout=timeout, num_returns=1)
+    assert isinstance(done, list) and len(done) == 1
+    result = done[0]
+
+    if isinstance(result, BaseFuture):
+        result = result.result()
+    assert not isinstance(result, BaseFuture)
+    return result, pending
 
 
 def wait(

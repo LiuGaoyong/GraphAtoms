@@ -6,7 +6,7 @@ backends: serial, multiprocessing, ray, dask, executorlib.
 
 from __future__ import annotations
 
-from graphatoms.enterpoint.parallel._utils import as_completed, wait
+from graphatoms.enterpoint.parallel._utils import as_completed, wait, wait_one
 from graphatoms.enterpoint.parallel.base import (
     BaseExecutor,
     BaseFuture,
@@ -21,6 +21,7 @@ __all__ = [
     "ProcessPoolExecutor",
     "as_completed",
     "wait",
+    "wait_one",
     "get_executor",
 ]
 
@@ -77,8 +78,6 @@ def get_executor(
             f"Unknown backend: {name} Available: "
             f"{['serial', 'multiprocessing', 'ray', 'dask', 'executorlib']}"
         )
-
-
 
 
 if __name__ == "__main__":

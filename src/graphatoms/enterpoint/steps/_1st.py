@@ -1,5 +1,7 @@
 import os
-from typing import override
+from typing import Any, override
+
+from graphatoms.system.graph import SysGraph
 
 os.environ["RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO"] = "0"
 
@@ -24,48 +26,98 @@ class FirstStep(BaseABC):
 
     def __init__(self, config: Config) -> None:
         super().__init__(config=config)
-        self.__gas_lst: list[Gas] = []
-        for gas_info in self.network.metadata.basic.gas_info_lst:
-            self.__gas_lst.append(
+        self.__gas_lst: list[Gas] = self.__batch_optimization_parallel(
+            container=[
                 Gas.from_name(
                     gas_info.name,
                     sticking=gas_info.sticking,
                     pressure=gas_info.pressure,
                     parse_bonds=self.config.bonds,  # type: ignore
                 )
-            )
+                for gas_info in self.network.metadata.basic.gas_info_lst
+            ],
+            raise_on_failed=True,
+            is_minima=False,
+        )
 
-        # optimize the gas in parallel mode
-        with get_executor(
-            name=self.pmode,
-            max_workers=self.pworkers,
-        ) as executor:
-            futures: list[tuple[int, Future]] = []
-            for i, gas in enumerate(self.__gas_lst):
-                futures.append(
-                    (
-                        i,
-                        executor.submit(
-                            self.helper_cluster_optimization,
-                            config=self.config,
-                            cluster=gas,
-                            allow_hash_change=False,
-                            raise_on_failed=False,
-                        ),
-                    )
+    def __batch_optimization_parallel(
+        self,
+        container: list[SysGraph] | dict[Any, SysGraph],
+        raise_on_failed: bool = True,
+        is_minima: bool = True,
+    ) -> list[SysGraph] | dict[Any, SysGraph]:
+        """Optimize the container in parallel mode."""
+        if isinstance(container, list):
+            dct = self.__batch_optimization_parallel(
+                container={
+                    i: cluster  # type: ignore
+                    for i, cluster in enumerate(container)
+                },
+                is_minima=is_minima,
+            )
+            assert isinstance(dct, dict), f"Unknown type of output: {type(dct)}"
+            return [dct[i] for i in sorted(dct.keys())]
+
+        elif isinstance(container, dict):
+            n: int | None = self.pworkers
+            start, msg = perf_counter(), "cluster" if is_minima else "gas"
+            self.logger.info(f"Start to optimize the {len(container)} {msg}.")
+            with get_executor(self.pmode, max_workers=n) as executor:
+                futures: list[Future[tuple[SysGraph, Any, float]]] = []
+                result: dict[Any, SysGraph] = {}
+
+                # Submit the sysgraph optimization to the executor
+                for label, sysgraph in container.items():
+                    key: str = self.network.db_minima.get_key_of(sysgraph)
+                    if is_minima and sysgraph in self.network.db_minima:
+                        atoms: Atoms = self.network.db_minima[key]
+                        result[label] = Cluster.from_ase(atoms)
+                    elif not is_minima and sysgraph in self.network.db_gas:
+                        atoms: Atoms = self.network.db_gas[key]
+                        result[label] = Gas.from_ase(atoms)
+                    else:
+                        futures.append(
+                            executor.submit(
+                                self.helper_cluster_optimization,
+                                config=self.config,
+                                cluster=sysgraph,  # type: ignore
+                                cluster_id=label,
+                                allow_hash_change=False,
+                                raise_on_failed=False,
+                            )
+                        )
+                self.logger.info(
+                    f"Submit the optimization jobs by "
+                    f"{perf_counter() - start:.2f} seconds."
                 )
-            for i, f in futures:
-                gas_or_msg, cost_time = f.result()
-                if isinstance(gas_or_msg, Gas):
-                    msg: str = f"Optimization (success): {gas_or_msg}."
-                    self.__gas_lst[i] = gas_or_msg
-                elif isinstance(gas_or_msg, str):
-                    msg = str(gas_or_msg)
-                    raise RuntimeError(msg)
-                else:
-                    msg = f"Unknown type of output: {type(gas_or_msg)}."
-                    raise ValueError(msg)
-                self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
+
+                # Wait for the sysgraph optimization to finish
+                for future in futures:
+                    sysgraph_or_msg, label, cost_time = future.result()
+                    if isinstance(sysgraph_or_msg, Gas | Cluster):
+                        msg: str = f"Optimization (success): {sysgraph_or_msg}."
+                        if isinstance(sysgraph_or_msg, Cluster):
+                            self.network.db_minima.add(sysgraph_or_msg)
+                        else:
+                            self.network.db_gas.add(sysgraph_or_msg)
+                        result[label] = sysgraph_or_msg
+                    elif isinstance(sysgraph_or_msg, str):
+                        msg = str(sysgraph_or_msg)
+                        if raise_on_failed:
+                            raise RuntimeError(msg)
+                    else:
+                        msg = f"Unknown type: {type(sysgraph_or_msg)}"
+                        raise ValueError(msg)
+                    self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
+                self.logger.info(
+                    "All optimization jobs are done in "
+                    f"{perf_counter() - start:.2f} seconds."
+                )
+
+                return result
+
+        else:
+            raise ValueError(f"Unknown type of container: {type(container)}")
 
     def __atoms2system(self, inp: Atoms | None) -> System:
         if inp is None:
@@ -167,63 +219,26 @@ class FirstStep(BaseABC):
         self.logger.info(f"Find {len(idxs)} unique cluster.")
 
         # optimize the cluster in parallel mode
-        result: dict[tuple[bool, int, str], Cluster] = {}
-        self.logger.info(f"Start to optimize the {len(idxs)} clusters.")
-        start: float = perf_counter()
-        with get_executor(
-            name=self.pmode,
-            max_workers=self.pworkers,
-        ) as executor:
-            futures: list[tuple[int, Future]] = []
-            for i in idxs:
-                cluster: Cluster = values[int(i)]
-                if cluster not in self.network.db_minima:
-                    futures.append(
-                        (
-                            i,
-                            executor.submit(
-                                self.helper_cluster_optimization,
-                                config=self.config,
-                                cluster=values[int(i)],
-                                allow_hash_change=False,
-                                raise_on_failed=False,
-                            ),
-                        )
-                    )
-            self.logger.info(
-                f"Submit the optimization jobs by "
-                f"{perf_counter() - start:.2f} seconds."
-            )
-            for i, f in futures:
-                cluster_or_msg, cost_time = f.result()
-                if isinstance(cluster_or_msg, Cluster):
-                    msg: str = f"Optimization (success): {cluster_or_msg}."
-                    result[keys[int(i)]] = cluster_or_msg
-                elif isinstance(cluster_or_msg, str):
-                    msg = str(cluster_or_msg)
-                else:
-                    msg = f"Unknown type of output: {type(cluster_or_msg)}."
-                    raise ValueError(msg)
-                self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
-            self.logger.info(
-                "All optimization jobs are done in "
-                f"{perf_counter() - start:.2f} seconds."
-            )
-        result.update({keys[int(i)]: values[int(i)] for i in idxs})
-        return result
+        dct = {keys[int(id)]: values[int(id)] for id in idxs}
+        return self.__batch_optimization_parallel(
+            container=dct,  # type: ignore
+            raise_on_failed=False,
+            is_minima=True,
+        )
 
     @staticmethod
     def helper_cluster_optimization(
         config: Config,
+        cluster_id: Any,
         cluster: Cluster | Gas,
         *,
         allow_hash_change: bool = False,
         raise_on_failed: bool = False,
         **kwargs,
-    ) -> tuple[Cluster | Gas | str, float]:
+    ) -> tuple[Cluster | Gas | str, Any, float]:
         """Optimize the cluster, analyze its vibrations and save it.
 
-        Returns the optimized cluster and the time cost in seconds.
+        Returns the optimized cluster, cluster_id, and the time cost in seconds.
         """
         start = perf_counter()
         calc: Calculator = hydra_parse(
@@ -248,7 +263,7 @@ class FirstStep(BaseABC):
             if raise_on_failed:
                 raise BaseABC.OptimizationFailed(msg)
             else:
-                return msg, perf_counter() - start
+                return msg, cluster_id, perf_counter() - start
 
         # analyze vibrations & convert to Cluster/Gas
         new_atoms = lst[-1]
@@ -286,7 +301,7 @@ class FirstStep(BaseABC):
             if raise_on_failed:
                 raise BaseABC.CheckVibrationFailed(msg)
             else:
-                return msg, perf_counter() - start
+                return msg, cluster_id, perf_counter() - start
 
         # check hash change or not
         if not allow_hash_change and result.hash != cluster.hash:  # type: ignore
@@ -294,5 +309,5 @@ class FirstStep(BaseABC):
             if raise_on_failed:
                 raise ValueError(msg)
             else:
-                return msg, perf_counter() - start
-        return result, perf_counter() - start
+                return msg, cluster_id, perf_counter() - start
+        return result, cluster_id, perf_counter() - start
