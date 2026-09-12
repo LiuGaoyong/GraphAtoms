@@ -13,7 +13,6 @@ from .atoms import OctahedronAtomsConfig as OctAtomsConfig
 from .bonds import BondsConfig, RawBondsConfig
 from .calculator import CalcConfig, EMTCalcConfig
 from .calculator import NequipCalcConfig as NequipConfig
-from .gas import GasConfig
 
 CONFIG_DIR = Path(__file__).parent
 
@@ -35,6 +34,7 @@ class ExplConfig:
     allow_explore_bulk: bool = False
     thetacutoff: float = 30
     nfibonacci: int = 200
+
 
 @dataclass
 class EventConfig:
@@ -101,6 +101,3 @@ def print_config(cfg: Config) -> None:
 
     print(OmegaConf.to_yaml(cfg))
     rmtree(Path(cfg.outputs))
-
-
-

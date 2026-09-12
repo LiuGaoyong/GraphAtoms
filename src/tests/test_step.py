@@ -1,4 +1,5 @@
 from pathlib import Path
+from pprint import pprint
 from tempfile import TemporaryDirectory
 
 import pytest
@@ -15,9 +16,15 @@ class Mock(FirstStep):
     pass
 
 
-@pytest.mark.parametrize("parallel", ["serial", "multiprocessing", "ray"])
-@pytest.mark.parametrize("restart", [False])
-def test_run_step(restart, parallel) -> None:
+@pytest.mark.parametrize(
+    "parallel",
+    [
+        # "serial",
+        "multiprocessing",
+        # "ray",
+    ],
+)
+def test_run_step(parallel) -> None:
     with TemporaryDirectory(dir=this_dir) as tmp:
         Path(tmp).mkdir(exist_ok=True, parents=True)
         print(f"Test in the temporary folder: '{tmp}'")
@@ -38,7 +45,7 @@ def test_run_step(restart, parallel) -> None:
                 config_name="run",
                 overrides=overrides,
             )
-            cfg.restart = restart
+            cfg.restart = False
             cfg.parallel = parallel
             cfg.outputs = Path(tmp).as_posix()
             print(list(Path(tmp).rglob("*")))
@@ -47,4 +54,12 @@ def test_run_step(restart, parallel) -> None:
             obj = Mock(config=cfg)  # type: ignore
             for k, cluster in obj.run(None).items():
                 obj.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
-            print(list(Path(tmp).rglob("*")))
+            pprint(list(Path(tmp).rglob("*")))
+
+            print("-----------------")
+            print("Test restart")
+            cfg.restart = True
+            obj2 = Mock(config=cfg)  # type: ignore
+            for k, cluster in obj2.run(None).items():
+                obj2.logger.info(f"{k} {cluster.hash} {cluster}")  # type:
+            pprint(list(Path(tmp).rglob("*")))

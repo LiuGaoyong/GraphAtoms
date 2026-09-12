@@ -76,14 +76,14 @@ class MetaData(BaseModel):
     table: MetaDataTable = MetaDataTable()
 
     def persistence(self, path: Path | str) -> None:
-        self.basic.write_json(Path(path) / "metadata.json")
-        self.table.dataframe.to_feather(Path(path) / "metadata.feather")
+        self.basic.write_json(Path(path) / "metadata-basic.json")
+        self.table.dataframe.to_feather(Path(path) / "metadata-table.feather")
 
     @classmethod
     def from_storage(cls, path: Path | str) -> Self:
         Path(path).mkdir(parents=True, exist_ok=True)
-        basic = MetaDataBasic.read_json(Path(path) / "metadata.json")
-        df = pd.read_feather(Path(path) / "metadata.feather")
+        basic = MetaDataBasic.read_json(Path(path) / "metadata-basic.json")
+        df = pd.read_feather(Path(path) / "metadata-table.feather")
         table = MetaDataTable.from_dataframe(df)
         return cls(basic=basic, table=table)
 

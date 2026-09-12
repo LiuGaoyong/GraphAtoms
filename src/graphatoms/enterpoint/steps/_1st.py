@@ -39,6 +39,8 @@ class FirstStep(BaseABC):
             raise_on_failed=True,
             is_minima=False,
         )
+        # persist the network for restart. [gas list]
+        self.network.persistence()
 
     def __batch_optimization_parallel(
         self,
@@ -54,6 +56,7 @@ class FirstStep(BaseABC):
                     for i, cluster in enumerate(container)
                 },
                 is_minima=is_minima,
+                raise_on_failed=raise_on_failed,
             )
             assert isinstance(dct, dict), f"Unknown type of output: {type(dct)}"
             return [dct[i] for i in sorted(dct.keys())]
@@ -71,10 +74,12 @@ class FirstStep(BaseABC):
                     key: str = self.network.db_minima.get_key_of(sysgraph)
                     if is_minima and sysgraph in self.network.db_minima:
                         atoms: Atoms = self.network.db_minima[key]
-                        result[label] = Cluster.from_ase(atoms)
+                        result[label] = v = Cluster.from_ase(atoms)
+                        self.logger.info(f"Read '{key}' from the DB for {v}.")
                     elif not is_minima and sysgraph in self.network.db_gas:
                         atoms: Atoms = self.network.db_gas[key]
-                        result[label] = Gas.from_ase(atoms)
+                        result[label] = v = Gas.from_ase(atoms)
+                        self.logger.info(f"Read '{key}' from the DB for {v}.")
                     else:
                         futures.append(
                             executor.submit(
@@ -87,8 +92,8 @@ class FirstStep(BaseABC):
                             )
                         )
                 self.logger.info(
-                    f"Submit the optimization jobs by "
-                    f"{perf_counter() - start:.2f} seconds."
+                    f"Submit the optimization {len(futures)} jobs"
+                    f" by {perf_counter() - start:.2f} seconds."
                 )
 
                 # Wait for the sysgraph optimization to finish
@@ -219,12 +224,18 @@ class FirstStep(BaseABC):
         self.logger.info(f"Find {len(idxs)} unique cluster.")
 
         # optimize the cluster in parallel mode
-        dct = {keys[int(id)]: values[int(id)] for id in idxs}
-        return self.__batch_optimization_parallel(
-            container=dct,  # type: ignore
-            raise_on_failed=False,
-            is_minima=True,
+        result: dict[tuple[bool, int, str], Cluster] = (  # type: ignore
+            self.__batch_optimization_parallel(
+                container={keys[int(id)]: values[int(id)] for id in idxs},
+                raise_on_failed=False,
+                is_minima=True,
+            )
         )
+
+        # persist the network for restart. [minima list]
+        self.network.persistence()
+
+        return result
 
     @staticmethod
     def helper_cluster_optimization(

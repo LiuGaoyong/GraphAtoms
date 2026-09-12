@@ -55,14 +55,20 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         raise RuntimeError("The discard method is not supported.")
 
     @staticmethod
-    def get_key_of(value: SysGraph) -> str:
-        """Get the key of the value."""
+    def get_key_of(value: SysGraph, use_positions_uuid: bool = False) -> str:
+        """Get the key of the value.
+
+        Note: Donot use_positions_uuid if you want reuse the data.
+        """
         symbols: Symbols = Symbols(value.numbers)
         fml: str = symbols.get_chemical_formula("metal")
-        geometry: np.ndarray = value.positions
-        x = np.char.rjust(np.char.mod("%.1f", geometry[:, 0]), 20)
-        y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
-        z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
-        pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
-        uuid = hash_string(pos_str, digest_size=8)
-        return f"{value.hash}-{fml}-{uuid}"
+        if use_positions_uuid:
+            geometry: np.ndarray = value.positions
+            x = np.char.rjust(np.char.mod("%.1f", geometry[:, 0]), 20)
+            y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
+            z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
+            pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
+            uuid = hash_string(pos_str, digest_size=8)
+            return f"{fml}-{value.hash}-{uuid}"
+        else:
+            return f"{fml}-{value.hash}"
