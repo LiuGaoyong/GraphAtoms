@@ -2,7 +2,7 @@ import os
 import sys
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any
 
 os.environ["LOGURU_FORMAT"] = (
     "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
@@ -24,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import RxNet
+from graphatoms.enterpoint.parallel import get_executor
 
 
 class BaseABC:
@@ -114,35 +115,9 @@ class BaseABC:
             f"Invalid parallel mode: {parallel}. Please choose one from "
             "'serial', 'multiprocessing', 'ray', 'dask', 'executorlib'."
         )
-        self.pmode: Literal[
-            "serial",
-            "multiprocessing",
-            "ray",
-            "dask",
-            "executorlib",
-        ] = parallel  # type: ignore
-        pworkers: int = int(self.config.parallel_workers)
-        self.pworkers: int | None = None if pworkers <= 0 else pworkers
-
-    def __enter__(self) -> Self:
-        if self.pmode == "ray":
-            import ray
-
-            self._ray_module = ray
-            ray.init(ignore_reinit_error=True)
-
-        elif self.pmode == "dask":
-            import dask.distributed as dds
-
-            self._dask_client = dds.Client()
-
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.pmode == "ray":
-            self._ray_module.shutdown()
-        elif self.pmode == "dask":
-            self._dask_client.close()
+        pworkers = int(self.config.parallel_workers)
+        pworkers: int | None = None if pworkers <= 0 else pworkers
+        self.executor = get_executor(parallel, pworkers)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Any:

@@ -1,13 +1,11 @@
-from concurrent.futures import Future
 from time import perf_counter
-from typing import Any, override
+from typing import override
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.parallel import get_executor, wait_one
 from graphatoms.reaction import Desorption, Reaction
 from graphatoms.system import Cluster, Gas  # type: ignore
 from graphatoms.system.database import DatabaseABC
@@ -31,73 +29,71 @@ class SecondStepSurface(BaseABC):
             self.config.calculator,  # type: ignore
             Calculator,
         )
-
         start: float = perf_counter()
-        with get_executor(self.pmode, max_workers=self.pworkers) as executor:
-            futures: list[Future[tuple[Any, float]]] = []
+        futures: list = []
 
-            # -----------------------------------------
-            # submit dimer tasks to executor
-            # -----------------------------------------
-            for _ in range(int(self.config.exploration.maxtry)):
-                disp = asetools.call_dimer_displace(
-                    atoms=cluster.to_ase().copy(),
-                    calc=calc,
-                    mask=None,
-                    parse_mask_from_atoms=True,
-                    start=start,
-                )
-                can_be_skip, cosine = self.network.scheduler.can_be_skip(
-                    cluster_key,
-                    diffpositions=disp,
-                    thetacutoff=float(self.config.exploration.thetacutoff),
-                )
-                if can_be_skip:
-                    self.network.recorder.exploration[cluster_key].skip += 1
-                    msg = "Skip to submit dimer task for "
-                else:
-                    msg = "Submit dimer task for "
-                    futures.append(
-                        executor.submit(
-                            self.helper_dimer,
-                            config=self.config,
-                            cluster=cluster,
-                            displacement=disp,
-                            raise_on_failed=False,
-                        )
-                    )
-
-                self.logger.info(f"{msg}{cluster_key}, cosine={cosine:.2f}")
-            self.logger.info(
-                f"Submit {len(futures)} dimer tasks by "
-                f"{perf_counter() - start:.2f} seconds"
+        # -----------------------------------------
+        # submit dimer tasks to executor
+        # -----------------------------------------
+        for _ in range(int(self.config.exploration.maxtry)):
+            disp = asetools.call_dimer_displace(
+                atoms=cluster.to_ase().copy(),
+                calc=calc,
+                mask=None,
+                parse_mask_from_atoms=True,
+                start=start,
             )
+            can_be_skip, cosine = self.network.scheduler.can_be_skip(
+                cluster_key,
+                diffpositions=disp,
+                thetacutoff=float(self.config.exploration.thetacutoff),
+            )
+            if can_be_skip:
+                self.network.recorder.exploration[cluster_key].skip += 1
+                msg = "Skip to submit dimer task for "
+            else:
+                msg = "Submit dimer task for "
+                futures.append(
+                    self.executor.submit(
+                        self.helper_dimer,
+                        config=self.config,
+                        cluster=cluster,
+                        displacement=disp,
+                        raise_on_failed=False,
+                    )
+                )
 
-            # -----------------------------------------
-            # wait for the dimer tasks to finish
-            # -----------------------------------------
-            while len(futures) > 0:
-                future_result, futures = wait_one(futures)
-                event, cost_time = future_result
-                if isinstance(event, str):
-                    self.network.recorder.exploration[cluster_key].fail += 1
-                    msg: str = "DimerSearch(failed),CostTime="
-                elif isinstance(event, Reaction | Desorption):
-                    msg: str = "DimerSearch(success),CostTime="
-                    if self.network.write(event):  # event is new
-                        self.network.recorder.exploration[cluster_key].new += 1
-                    else:
-                        self.network.recorder.exploration[cluster_key].old += 1
+            self.logger.info(f"{msg}{cluster_key}, cosine={cosine:.2f}")
+        self.logger.info(
+            f"Submit {len(futures)} dimer tasks by "
+            f"{perf_counter() - start:.2f} seconds"
+        )
+
+        # -----------------------------------------
+        # wait for the dimer tasks to finish
+        # -----------------------------------------
+        while len(futures) > 0:
+            future_result, futures = self.executor.wait(futures)  # type: ignore
+            event, cost_time = future_result
+            if isinstance(event, str):
+                self.network.recorder.exploration[cluster_key].fail += 1
+                msg: str = "DimerSearch(failed),CostTime="
+            elif isinstance(event, Reaction | Desorption):
+                msg: str = "DimerSearch(success),CostTime="
+                if self.network.write(event):  # event is new
+                    self.network.recorder.exploration[cluster_key].new += 1
                 else:
-                    raise ValueError(f"Unknown event type: {type(event)}")
-                self.logger.info(f"{msg}{cost_time:.2f} for {event}.")
+                    self.network.recorder.exploration[cluster_key].old += 1
+            else:
+                raise ValueError(f"Unknown event type: {type(event)}")
+            self.logger.info(f"{msg}{cost_time:.2f} for {event}.")
 
-                confidence = self.config.exploration.maxconfidence
-                newold = self.network.recorder.exploration[cluster_key]
-                if newold.exploration_can_be_finished(confidence):
-                    break
-            for future in futures:
-                future.cancel()
+            confidence = self.config.exploration.maxconfidence
+            newold = self.network.recorder.exploration[cluster_key]
+            if newold.exploration_can_be_finished(confidence):
+                break
+        for future in futures:
+            future.cancel()
 
         self.network.persistence()
 

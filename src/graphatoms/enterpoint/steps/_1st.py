@@ -1,4 +1,3 @@
-from concurrent.futures import Future
 from time import perf_counter
 from typing import Any, override
 
@@ -7,7 +6,6 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.parallel import get_executor, wait_one
 from graphatoms.system import Cluster, Gas, System  # type: ignore
 from graphatoms.system.graph import SysGraph
 from graphatoms.utils.asetools import call_optimization, call_vib
@@ -57,68 +55,66 @@ class FirstStep(BaseABC):
             return [dct[i] for i in sorted(dct.keys())]
 
         elif isinstance(container, dict):
-            n: int | None = self.pworkers
             start, msg = perf_counter(), "cluster" if is_minima else "gas"
             self.logger.info(f"Start to optimize the {len(container)} {msg}.")
-            with get_executor(self.pmode, max_workers=n) as executor:
-                futures: list[Future[tuple[SysGraph, Any, float]]] = []
-                result: dict[Any, SysGraph] = {}
+            result: dict[Any, SysGraph] = {}
+            futures: list = []
 
-                # -------------------------------------------------
-                # Submit the sysgraph optimization to the executor
-                # -------------------------------------------------
-                for label, sysgraph in container.items():
-                    key: str = self.network.db_minima.get_key_of(sysgraph)
-                    if is_minima and sysgraph in self.network.db_minima:
-                        atoms: Atoms = self.network.db_minima[key]
-                        result[label] = v = Cluster.from_ase(atoms)
-                        self.logger.info(f"Read '{key}' from the DB for {v}.")
-                    elif not is_minima and sysgraph in self.network.db_gas:
-                        atoms: Atoms = self.network.db_gas[key]
-                        result[label] = v = Gas.from_ase(atoms)
-                        self.logger.info(f"Read '{key}' from the DB for {v}.")
-                    else:
-                        futures.append(
-                            executor.submit(
-                                self.helper_cluster_optimization,
-                                config=self.config,
-                                cluster=sysgraph,  # type: ignore
-                                cluster_id=label,
-                                allow_hash_change=False,
-                                raise_on_failed=False,
-                            )
+            # -------------------------------------------------
+            # Submit the sysgraph optimization to the executor
+            # -------------------------------------------------
+            for label, sysgraph in container.items():
+                key: str = self.network.db_minima.get_key_of(sysgraph)
+                if is_minima and sysgraph in self.network.db_minima:
+                    atoms: Atoms = self.network.db_minima[key]
+                    result[label] = v = Cluster.from_ase(atoms)
+                    self.logger.info(f"Read '{key}' from the DB for {v}.")
+                elif not is_minima and sysgraph in self.network.db_gas:
+                    atoms: Atoms = self.network.db_gas[key]
+                    result[label] = v = Gas.from_ase(atoms)
+                    self.logger.info(f"Read '{key}' from the DB for {v}.")
+                else:
+                    futures.append(
+                        self.executor.submit(
+                            self.helper_cluster_optimization,
+                            config=self.config,
+                            cluster=sysgraph,  # type: ignore
+                            cluster_id=label,
+                            allow_hash_change=False,
+                            raise_on_failed=False,
                         )
-                self.logger.info(
-                    f"Submit the optimization {len(futures)} jobs"
-                    f" by {perf_counter() - start:.2f} seconds."
-                )
-                # -------------------------------------------------
-                # Wait for the sysgraph optimization to finish
-                # -------------------------------------------------
-                while len(futures) > 0:
-                    future_result, futures = wait_one(futures)
-                    sysgraph_or_msg, label, cost_time = future_result
-                    if isinstance(sysgraph_or_msg, Gas | Cluster):
-                        msg: str = f"Optimization (success): {sysgraph_or_msg}."
-                        if isinstance(sysgraph_or_msg, Cluster):
-                            self.network.db_minima.add(sysgraph_or_msg)
-                        else:
-                            self.network.db_gas.add(sysgraph_or_msg)
-                        result[label] = sysgraph_or_msg
-                    elif isinstance(sysgraph_or_msg, str):
-                        msg = str(sysgraph_or_msg)
-                        if raise_on_failed:
-                            raise RuntimeError(msg)
+                    )
+            self.logger.info(
+                f"Submit the optimization {len(futures)} jobs"
+                f" by {perf_counter() - start:.2f} seconds."
+            )
+            # -------------------------------------------------
+            # Wait for the sysgraph optimization to finish
+            # -------------------------------------------------
+            while len(futures) > 0:
+                future_result, futures = self.executor.wait(futures)  # type: ignore
+                sysgraph_or_msg, label, cost_time = future_result
+                if isinstance(sysgraph_or_msg, Gas | Cluster):
+                    msg: str = f"Optimization (success): {sysgraph_or_msg}."
+                    if isinstance(sysgraph_or_msg, Cluster):
+                        self.network.db_minima.add(sysgraph_or_msg)
                     else:
-                        msg = f"Unknown type: {type(sysgraph_or_msg)}"
-                        raise ValueError(msg)
-                    self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
-                self.logger.info(
-                    "All optimization jobs are done in "
-                    f"{perf_counter() - start:.2f} seconds."
-                )
+                        self.network.db_gas.add(sysgraph_or_msg)
+                    result[label] = sysgraph_or_msg
+                elif isinstance(sysgraph_or_msg, str):
+                    msg = str(sysgraph_or_msg)
+                    if raise_on_failed:
+                        raise RuntimeError(msg)
+                else:
+                    msg = f"Unknown type: {type(sysgraph_or_msg)}"
+                    raise ValueError(msg)
+                self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
+            self.logger.info(
+                "All optimization jobs are done in "
+                f"{perf_counter() - start:.2f} seconds."
+            )
 
-                return result
+            return result
 
         else:
             raise ValueError(f"Unknown type of container: {type(container)}")

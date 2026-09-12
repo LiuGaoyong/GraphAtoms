@@ -1,90 +1,66 @@
-"""Parallel execution framework for graphatoms.
+import random
+import time
 
-Provides a unified ``concurrent.futures``-compatible API across multiple
-backends: serial, multiprocessing, ray, dask, executorlib.
-"""
-
-from __future__ import annotations
-
-from graphatoms.enterpoint.parallel._utils import as_completed, wait, wait_one
-from graphatoms.enterpoint.parallel.base import (
-    BaseExecutor,
-    BaseFuture,
-    ProcessPoolExecutor,
+from graphatoms.enterpoint.parallel._base import (
+    MultiprocessingExecutor,
+    ParallelExecutorABC,
     SerialExecutor,
 )
 
 __all__ = [
-    "BaseExecutor",
-    "BaseFuture",
     "SerialExecutor",
-    "ProcessPoolExecutor",
-    "as_completed",
-    "wait",
-    "wait_one",
+    "MultiprocessingExecutor",
+    "ParallelExecutorABC",
     "get_executor",
 ]
 
-_BACKENDS: dict[str, type[BaseExecutor]] = {
-    "serial": SerialExecutor,
-    "multiprocessing": ProcessPoolExecutor,
-}
-
 
 def get_executor(
-    name: str,
-    *,
-    max_workers: int | None = None,
+    backend: str,
+    nworkers: int | None = None,
+    *args,
     **kwargs,
-) -> BaseExecutor:
-    """Create an executor by backend name.
+) -> ParallelExecutorABC:
+    """Create an executor by backend backend.
 
     Args:
-        name: Backend name. One of 'serial', 'multiprocessing', 'ray',
+        backend: Backend backend. One of 'serial', 'multiprocessing', 'ray',
             'dask', 'executorlib'.
-        max_workers: Maximum number of workers.
+        nworkers: Maximum number of workers.
         **kwargs: Backend-specific arguments.
 
     Returns:
         An executor instance.
     """
-    if name in ("ray",):
-        from graphatoms.enterpoint.parallel.ray import RayExecutor
+    if backend in ("ray",):
+        from graphatoms.enterpoint.parallel._ray import RayExecutor
 
-        return RayExecutor(max_workers=max_workers, **kwargs)  # type: ignore[arg-type]
-    elif name in ("dask",):
-        from graphatoms.enterpoint.parallel.dask import DaskExecutor
+        return RayExecutor(nworkers=nworkers, **kwargs)  # type: ignore[arg-type]
 
-        return DaskExecutor(max_workers=max_workers, **kwargs)  # type: ignore[arg-type]
-    elif name in ("executorlib",):
-        from graphatoms.enterpoint.parallel.executorlib import (
+    elif backend in ("dask",):
+        from graphatoms.enterpoint.parallel._dask import DaskExecutor
+
+        return DaskExecutor(nworkers=nworkers, **kwargs)  # type: ignore[arg-type]
+
+    elif backend in ("executorlib",):
+        from graphatoms.enterpoint.parallel._executorlib import (
             ExecutorLibExecutor,
         )
 
         return ExecutorLibExecutor(  # type: ignore[arg-type]
-            max_workers=max_workers, **kwargs
+            max_workers=nworkers, **kwargs
         )
 
-    elif name in ("serial",):
+    elif backend in ("serial",):
         return SerialExecutor(**kwargs)  # type: ignore[call-arg]
 
-    elif name in ("multiprocessing",):
-        if max_workers is None or max_workers <= 0:
-            max_workers = None
-        return ProcessPoolExecutor(max_workers=max_workers, **kwargs)  # type: ignore[call-arg]
+    elif backend in ("multiprocessing",):
+        if nworkers is None or nworkers <= 0:
+            nworkers = None
+        return MultiprocessingExecutor(nworkers=nworkers, **kwargs)  # type: ignore[call-arg]
 
     else:
         raise ValueError(
-            f"Unknown backend: {name} Available: "
+            f"Unknown backend: {backend} Available: "
             f"{['serial', 'multiprocessing', 'ray', 'dask', 'executorlib']}"
         )
-
-
-if __name__ == "__main__":
-    from concurrent.futures import Executor
-
-    from graphatoms.enterpoint.parallel.dask import DaskExecutor
-    from graphatoms.enterpoint.parallel.ray import RayExecutor
-
-    for cls in [SerialExecutor, ProcessPoolExecutor, RayExecutor, DaskExecutor]:
-        assert issubclass(cls, Executor)
