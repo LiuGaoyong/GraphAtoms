@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 os.environ["LOGURU_FORMAT"] = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-    + "<level>{level: ^8}</level> | "
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+    + " | <level>{level: ^8}</level> | "
+    + "<level>{message}</level>"
 )
 # LOGURU_FORMAT = env(
 #     "LOGURU_FORMAT",

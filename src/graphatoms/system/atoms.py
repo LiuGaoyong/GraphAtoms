@@ -488,6 +488,38 @@ class Structure(Matter, Box, Energetics):
     def from_pymatgen(cls, obj: PmgStrct | PmgMol, **kw) -> Self:
         raise NotImplementedError
 
+    def update_geometry(
+        self,
+        new_positions: np.ndarray,
+        *,
+        deep: bool = True,
+        **kwargs,
+    ) -> Self:
+        return self.model_copy(
+            update={
+                "positions": new_positions,
+            },
+            deep=deep,
+        )
+
+    def update_energetics(
+        self,
+        energy: float,
+        fmax: float,
+        *,
+        frequencies: np.ndarray | None = None,
+        deep: bool = True,
+        **kwargs,
+    ) -> Self:
+        return self.model_copy(
+            update={
+                "energy": energy,
+                "fmax": fmax,
+                "frequencies": frequencies,
+            },
+            deep=deep,
+        )
+
 
 def test_class() -> None:
     for cls in (Box, Energetics, Matter, Structure):

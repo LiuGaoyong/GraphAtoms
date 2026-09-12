@@ -61,11 +61,41 @@ class RTGP(OurFrozenModel):
         assert self.R.check_minima(
             fmax=DEFAULT_CHECK_MINIMA_FMAX,
             fqmin=DEFAULT_CHECK_MINIMA_FQMIN,
-        ), "The reactant should be a minima."
+        ), (
+            "The reactant should be a minima. "
+            + f"Fmax={self.R.fmax:.3f}, "
+            + (
+                f"Fqmin={
+                    ', '.join(
+                        [
+                            f'{i:.3f}'  # cm^-1
+                            for i in self.R.frequencies[:3]
+                        ]
+                    )
+                }"
+                if self.R.frequencies is not None
+                else ""
+            )
+        )
         assert self.P.check_minima(
             fmax=DEFAULT_CHECK_MINIMA_FMAX,
             fqmin=DEFAULT_CHECK_MINIMA_FQMIN,
-        ), "The product should be a minima."
+        ), (
+            "The product should be a minima. "
+            + f"Fmax={self.P.fmax:.3f}, "
+            + (
+                f"Fqmin={
+                    ','.join(
+                        [
+                            f'{i:.3f}'  # cm^-1
+                            for i in self.P.frequencies[:3]
+                        ]
+                    )
+                }"
+                if self.P.frequencies is not None
+                else ""
+            )
+        )
         assert self.R.is_connected, "The `R` should be a connected graph."
         assert self.P.is_connected, "The `P` should be a connected graph."
         assert self.R.is_periodic == self.P.is_periodic, (
@@ -109,7 +139,22 @@ class RTGP(OurFrozenModel):
             assert self.T.check_ts(
                 fmax=DEFAULT_CHECK_TS_FMAX,
                 fqmin=DEFAULT_CHECK_TS_FQMIN,
-            ), "The `T` should be a transition state."
+            ), (
+                "The `T` should be a transition state. "
+                + f"Fmax={self.T.fmax:.3f}, "
+                + (
+                    f"Fqmin={
+                        ','.join(
+                            [
+                                f'{i:.3f}'  #
+                                for i in self.T.frequencies[:3]
+                            ]
+                        )
+                    }"
+                    if self.T.frequencies is not None
+                    else ""
+                )
+            )
             assert isinstance(self.T, self.R.__class__), (
                 "The `R` and `T` should be of the same class."
             )

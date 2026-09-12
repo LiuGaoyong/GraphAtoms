@@ -192,6 +192,44 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             )
             return Chem.MolToSmarts(largest_frag)  # type: ignore
 
+    @override
+    def update_geometry(
+        self,
+        new_positions: np.ndarray,
+        *,
+        parse_bonds: Mapping[str, Any] | None = None,
+        parse_bonds_distance: bool = False,
+        parse_bonds_order: bool = False,
+        deep: bool = True,
+        **kwargs,
+    ) -> Self:
+        """Update the geometry of this object."""
+        dct = self.to_dict(
+            exclude_bond_attibutes=True,
+            exclude_energetics=True,
+            exclude={
+                "positions",
+                "coordination",
+                "hashes",
+            },
+        )
+        dct["positions"] = new_positions
+        new = SysGraph.from_dict(
+            dct,
+            parse_bonds=parse_bonds,
+            parse_bonds_distance=parse_bonds_distance,
+            parse_bonds_order=parse_bonds_order,
+        ).model_copy(deep=deep)
+        assert new.coordination is None
+        new_dct = new.to_dict()
+        if self.coordination is not None:
+            assert self.move_fix_tag is not None, (
+                "The `move_fix_tag` is None. but `coordination` is"
+                " not None. Please provide `coordination`."
+            )
+            new_dct["coordination"] = np.where(self.isfix, self.CN, new.CN)
+        return self.from_dict(new_dct)
+
     ###################################################
     # from/to dict
 

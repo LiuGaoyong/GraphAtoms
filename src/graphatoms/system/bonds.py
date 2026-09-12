@@ -130,6 +130,23 @@ class BondGraph(Matter, OurFrozenModel):
         """Return the igraph object which only edges included."""
         return self.__IGRAPH
 
+    def bond_difference(
+        self, other: "BondGraph"
+    ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+        """Get the bond difference between two bond graphs.
+
+        Args:
+            other (BondGraph): the other bond graph.
+
+        Returns two lists:
+            first: the break bonds.
+            second: the make bonds.
+        """
+        g1, g2 = self.__IGRAPH, other.get_igraph()
+        break_bonds = [e.tuple for e in g1.difference(g2).es]
+        make_bonds = [e.tuple for e in g2.difference(g1).es]
+        return break_bonds, make_bonds
+
     @cached_property
     def nsymmetry(self) -> int:
         return self.__IGRAPH.count_automorphisms_vf2(self.numbers)

@@ -112,6 +112,7 @@ class SecondStepSurface(BaseABC):
     ) -> tuple[Reaction | Desorption | str, float]:
         """Helper function for exploring the dimer process."""
         cluster_key = f"Cluster({DatabaseABC.get_key_of(cluster)})"
+        assert cluster.move_fix_tag is not None
         assert cluster.check_minima(
             fmax=float(config.event.max_force),
             fqmin=float(config.event.min_frequency),
@@ -121,16 +122,20 @@ class SecondStepSurface(BaseABC):
             Calculator,
         )
         start: float = perf_counter()
+        idx_fixed = np.unique(np.where(cluster.isfix))
 
         # -----------------------------------------
         # call dimer for TS search
         # -----------------------------------------
         dimer_lst, coveraged = asetools.call_dimer(
-            atoms=cluster.to_ase().copy(),
+            atoms=cluster.to_ase(
+                exclude_bond_attibutes=True,
+                exclude_energetics=True,
+            ).copy(),
             calc=calc,
+            # logfile="-",
+            # trajectory="dimer.traj",
             displacement=displacement,
-            logfile=None,
-            trajectory=None,
             append_trajectory=False,
             parse_mask_from_atoms=True,
             mask=None,
@@ -139,7 +144,25 @@ class SecondStepSurface(BaseABC):
             **kwargs,
         )
         if not coveraged:
-            msg = f"Optimization dimer (failed): {cluster_key}."
+            msg = f"Dimer (failed): not coveraged for {cluster_key}."
+            if raise_on_failed:
+                raise BaseABC.OptimizationFailed(msg)
+            else:
+                return msg, perf_counter() - start
+
+        # -----------------------------------------
+        # check the bond difference for TS
+        # -----------------------------------------
+        ts = cluster.update_geometry(
+            dimer_lst[-1].positions,
+            parse_bonds=config.bonds,  # type: ignore
+            parse_bonds_distance=False,
+            parse_bonds_order=False,
+        )
+        break_bonds, make_bonds = cluster.bond_difference(ts)
+        diff_bonds = np.asarray(break_bonds + make_bonds)
+        if np.any(np.isin(diff_bonds, idx_fixed)):
+            msg = f"Dimer (failed): fixed bonds are changed for {cluster_key}."
             if raise_on_failed:
                 raise BaseABC.OptimizationFailed(msg)
             else:
@@ -151,15 +174,10 @@ class SecondStepSurface(BaseABC):
         freqs, vib_modes = asetools.call_vib(atoms=dimer_lst[-1], calc=calc)
         float(config.event.min_frequency_for_ts)
         f = dimer_lst[-1].get_forces()
-        ts = Cluster.from_ase(
-            dimer_lst[-1],
-            parse_bonds=config.bonds,  # type: ignore
-            parse_bonds_distance=False,
-            parse_bonds_order=False,
+        ts = ts.update_energetics(
             energy=dimer_lst[-1].get_potential_energy(),
             fmax=np.linalg.norm(f, axis=1).max(),
             frequencies=freqs,
-            nadsorbate=0,
         )
         if not ts.check_ts(
             fmax=float(config.event.max_force),
@@ -182,7 +200,8 @@ class SecondStepSurface(BaseABC):
         imin_ldiff = np.argmin(ldiff)
         lmin_mode = np.linalg.norm(vib_modes[0][imin_ldiff])
         mode = vib_modes[0] * vdiff[imin_ldiff] / lmin_mode
-        product_atoms: Atoms | None = None
+        opt_result: Cluster | None = None
+        opt_atoms: Atoms | None = None
         for sign in (1, -1):
             atoms = dimer_lst[-1].copy()
             atoms.info.pop("hashes", None)
@@ -193,22 +212,20 @@ class SecondStepSurface(BaseABC):
                 method=str(config.optimizer.method).upper(),
                 max_steps=int(config.optimizer.steps),
                 fmax=float(config.optimizer.fmax),
+                # trajectory=f"opt_{sign}.traj",
+                # logfile="-",
             )
             if coveraged:
-                opt_result = Cluster.from_ase(
-                    opt_lst[-1],
+                opt_result = cluster.update_geometry(
+                    opt_lst[-1].positions,
                     parse_bonds=config.bonds,  # type: ignore
                     parse_bonds_distance=False,
                     parse_bonds_order=False,
-                    energy=None,
-                    fmax=None,
-                    frequencies=None,
-                    nadsorbate=0,
                 )
                 if opt_result.hash != cluster.hash:  # type: ignore
-                    product_atoms = opt_lst[-1]
+                    opt_atoms = opt_lst[-1]
                     break
-        if product_atoms is None:
+        if opt_result is None or opt_atoms is None:
             msg = f"Optimization dimer for product (failed): {cluster_key}."
             if raise_on_failed:
                 raise BaseABC.OptimizationFailed(msg)
@@ -218,16 +235,11 @@ class SecondStepSurface(BaseABC):
         # -----------------------------------------
         # call vibration for product
         # -----------------------------------------
-        freqs, _ = asetools.call_vib(atoms=product_atoms, calc=calc)
-        product = Cluster.from_ase(
-            product_atoms,
-            parse_bonds=config.bonds,  # type: ignore
-            parse_bonds_distance=False,
-            parse_bonds_order=False,
-            energy=product_atoms.get_potential_energy(),
-            fmax=np.linalg.norm(product_atoms.get_forces(), axis=1).max(),
-            frequencies=freqs,
-            nadsorbate=0,
+        p_freqs, _ = asetools.call_vib(atoms=opt_atoms, calc=calc)
+        product = opt_result.update_energetics(
+            energy=opt_atoms.get_potential_energy(),
+            fmax=np.linalg.norm(opt_atoms.get_forces(), axis=1).max(),
+            frequencies=p_freqs,
         )
         if not product.check_minima(
             fmax=float(config.event.max_force),
