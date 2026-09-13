@@ -22,3 +22,7 @@ def test_match(p: Path, sys: System) -> None:
     print(sub.CN)
     print(sys.get_match_mode(sub))
     print("-" * 32)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

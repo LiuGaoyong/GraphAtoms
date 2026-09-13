@@ -22,12 +22,12 @@ from pymatgen.core.lattice import Lattice
 from pymatgen.core.structure import Molecule as PmgMol
 from pymatgen.core.structure import Structure as PmgStrct
 
-from graphatoms.dataclasses import NDArray, OurBaseModel, numpy_validator
+from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
 
 __all__ = ["Box", "Energetics", "Structure"]
 
 
-class Box(OurBaseModel):
+class Box(OurFrozenModel):
     cell: Annotated[NDArray, numpy_validator(float, (3, 3))] | None = None
     pbc: Annotated[NDArray, numpy_validator(bool, (3,))] | None = None
 
@@ -97,7 +97,7 @@ class Box(OurBaseModel):
         return cellutils.is_orthorhombic(self.cell)
 
 
-class Energetics(OurBaseModel):
+class Energetics(OurFrozenModel):
     """Mixin for energetics (energy, forces, frequencies) and thermochemistry.
 
     Attributes:
@@ -357,7 +357,7 @@ class Energetics(OurBaseModel):
         return thermo.get_helmholtz_energy(temperature=temp, verbose=False)
 
 
-class Matter(OurBaseModel):
+class Matter(OurFrozenModel):
     numbers: Annotated[NDArray, numpy_validator(int)]
 
     def __len__(self) -> int:
@@ -537,4 +537,11 @@ def test_Structure() -> None:
     struct = Structure.from_ase(atoms)
     new = Structure.from_dict(struct.to_dict())
     print(struct, new)
+    # print(struct.hash, new.hash)
     assert new == struct
+
+
+if __name__ == "__main__":
+    import pytest
+
+    pytest.main([__file__, "-s"])

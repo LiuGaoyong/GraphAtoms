@@ -184,7 +184,8 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
     @classmethod
     @pydantic.validate_call
     def from_dict(cls, data: Mapping[str, Any], **kw) -> Self:
-        return cls.model_validate({**data, **kw})
+        kw.update(data)  # Update kwargs with data.
+        return cls.model_validate(kw)
 
 
 class __Json(PydanticConvertFactoryMixin):

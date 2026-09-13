@@ -119,3 +119,7 @@ def test_parallel_call(
     print(executor.map(return_big_object, range(20)))
     print(f"Time: {time.perf_counter() - start_time:.5f}s")
     print("=" * 54)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

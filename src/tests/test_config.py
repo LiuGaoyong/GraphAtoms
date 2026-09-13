@@ -46,13 +46,12 @@ def run_1st_step(config: str | None = None) -> None:
             cfg.outputs = Path(tmp).as_posix()
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
-            # obj = FirstStep(config=cfg)  # type: ignore
-            # sys = obj.atoms2system(None)
-            # for k, cluster in obj.system2cluster(sys).items():
-            #     obj.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
-            # print(list(Path(tmp).rglob("*")))
 
 
 @pytest.fixture(scope="session")
 def config() -> str:
     return CONFIG_DIR.joinpath("example.yaml").read_text()
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

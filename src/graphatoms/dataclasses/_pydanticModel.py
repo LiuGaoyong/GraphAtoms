@@ -157,6 +157,6 @@ class OurFrozenModel(OurBaseModel):
         return hash(self.hash)
 
     @cached_property
-    @abstractmethod
     def hash(self) -> str:
         """Get the HASH string of this object."""
+        raise NotImplementedError("hash is not implemented for this class.")

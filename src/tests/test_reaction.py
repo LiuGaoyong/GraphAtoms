@@ -9,6 +9,15 @@ from graphatoms.system import SysGraph, System
 this_dir = Path(__file__).parent
 data_dir = this_dir.parent / "tests-data-for-match"
 
+# import numpy as np  # type: ignore  # noqa: E402, F402
+# for p in this_dir.parent.rglob("*.npz"):
+#     dct: dict[str, np.ndarray] = {k: v for k, v in np.load(p).items()}
+#     move_fix_tag = dct.pop("move_fix_tag", None)
+#     if move_fix_tag is not None:
+#         dct["is_fix"] = move_fix_tag < 0
+#         dct["is_core"] = move_fix_tag == 0
+#         np.savez_compressed(p, allow_pickle=True, **dct)
+
 
 @pytest.fixture(scope="module")
 def rxn() -> EventBase:
@@ -42,3 +51,7 @@ def test_apply(rxn: EventBase, n: int, simplify: bool) -> None:
     # from ase.io import write
     # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
     # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s"])

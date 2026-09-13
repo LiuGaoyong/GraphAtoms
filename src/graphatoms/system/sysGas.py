@@ -32,8 +32,10 @@ class Gas(System):
     def __some_keys_should_be_none(self) -> Self:
         assert self.is_gas, "The `is_gas` should be True for Gas."
         msg = "The `{:s}` should be None for " + f"{self.__class__.__name__}."
-        assert self.move_fix_tag is None, msg.format("move_fix_tag")
-        assert self.is_outer is None, msg.format("is_outer")
+        assert self.is_fix is None or self.nfix == 0, msg.format("move_fix_tag")
+        assert self.is_outer is None or len(self.idx_outer) == 0, msg.format(
+            "is_outer"
+        )
         if self.is_adsorbate is None:
             arr = np.ones_like(self.numbers, dtype=bool)
             object.__setattr__(self, "is_adsorbate", arr)
@@ -58,15 +60,13 @@ class Gas(System):
         sticking: float = 1.0,
         pressure: float = 101325.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
+        parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
         return super().from_ase(
             atoms=atoms,
             parse_bonds=parse_bonds,
-            parse_bonds_order=parse_bonds_order,
-            parse_bonds_distance=parse_bonds_distance,
+            parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
             **(
                 kwargs
                 | dict(
@@ -84,8 +84,7 @@ class Gas(System):
         sticking: float = 1.0,
         pressure: float = 101325.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
+        parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
         return cls.from_ase(
@@ -93,8 +92,7 @@ class Gas(System):
             sticking=sticking,
             pressure=pressure,
             parse_bonds=parse_bonds,
-            parse_bonds_distance=parse_bonds_distance,
-            parse_bonds_order=parse_bonds_order,
+            parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
             **kwargs,
         )
 
@@ -106,15 +104,13 @@ class Gas(System):
         sticking: float = 1.0,
         pressure: float = 101325.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
+        parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
         kwargs["sticking"] = sticking
         kwargs["pressure"] = pressure
         kwargs["parse_bonds"] = parse_bonds
-        kwargs["parse_bonds_distance"] = parse_bonds_distance
-        kwargs["parse_bonds_order"] = parse_bonds_order
+        kwargs["parse_atoms_is_outer_or_not"] = parse_atoms_is_outer_or_not
         try:
             return cls.from_molecule(name_or_smiles, **kwargs)
         except ValueError:
@@ -128,8 +124,7 @@ class Gas(System):
         sticking: float = 1.0,
         pressure: float = 101325.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
+        parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
         rdmol = rdtool.smiles2rdmol(smiles)
@@ -139,8 +134,7 @@ class Gas(System):
             sticking=sticking,
             pressure=pressure,
             parse_bonds=parse_bonds,
-            parse_bonds_distance=parse_bonds_distance,
-            parse_bonds_order=parse_bonds_order,
+            parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
             **kwargs,
         )
 

@@ -13,16 +13,15 @@ from pydantic import NonNegativeFloat, model_validator
 from rdkit import Chem
 from scipy import sparse as sp
 
-from graphatoms.dataclasses import NDArray, OurBaseModel, numpy_validator
+from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
 from graphatoms.geometry import bond_list
 from graphatoms.geometry._inner_outer import check_atom_is_inner
-from graphatoms.geometry.mic import find_mic
 from graphatoms.system.atoms import Box, Energetics, Matter, Structure
 from graphatoms.system.bonds import BondGraph, _subgraph_edges
 from graphatoms.utils import rdutils
 
 
-class GasMixin(OurBaseModel):
+class GasMixin(OurFrozenModel):
     sticking: NonNegativeFloat | None = None
     pressure: NonNegativeFloat | None = None
 
@@ -49,10 +48,11 @@ class GasMixin(OurBaseModel):
         return "GAS" if self.is_gas else ""
 
 
-class AtomTag(OurBaseModel):
-    move_fix_tag: Annotated[NDArray, numpy_validator("int8")] | None = None
+class AtomTag(OurFrozenModel):
     is_adsorbate: Annotated[NDArray, numpy_validator(bool)] | None = None
     is_outer: Annotated[NDArray, numpy_validator(bool)] | None = None
+    is_core: Annotated[NDArray, numpy_validator(bool)] | None = None
+    is_fix: Annotated[NDArray, numpy_validator(bool)] | None = None
 
     @model_validator(mode="after")
     def __check_atoms(self) -> Self:
@@ -63,30 +63,54 @@ class AtomTag(OurBaseModel):
                     f"Invalid shape for `{k}`: Len({k})="
                     f"{len(v)} but natoms={self.natoms}."
                 )
-        if self.move_fix_tag is not None:
-            assert self.isfix.sum() != 0, "`isfix` sum == 0"
-            assert self.iscore.sum() != 0, "`iscore` sum == 0"
-            assert self.isfix.sum != self.natoms, "`ismoved` sum == 0"
+        if self.is_core is not None and self.is_fix is not None:
+            assert not np.any(np.isin(self.idx_core, self.idx_fix)), (
+                "Core atoms cannot be fixed. We found that CORE="
+                f"({','.join(self.idx_core)}) and FIX={','.join(self.idx_fix)}"
+                " are overlapping. Please check `is_core` and `is_fix`."
+                ""
+            )
+        assert self.nfix != self.natoms, "All atoms are fixed."
         return self
+
+    @cached_property
+    def idx_core(self) -> np.ndarray:
+        if self.is_core is None:
+            return np.array([])
+        else:
+            return np.unique(np.where(self.is_core))
+
+    @cached_property
+    def idx_fix(self) -> np.ndarray:
+        if self.is_fix is None:
+            return np.array([])
+        else:
+            return np.unique(np.where(self.is_fix))
+
+    @cached_property
+    def idx_outer(self) -> np.ndarray:
+        if self.is_outer is None:
+            return np.array([])
+        else:
+            return np.unique(np.where(self.is_outer))
+
+    @cached_property
+    def idx_adsorbate(self) -> np.ndarray:
+        if self.is_adsorbate is None:
+            return np.array([])
+        else:
+            return np.unique(np.where(self.is_adsorbate))
 
     @override
     def _string(self) -> str:
-        lst: list[str] = []
-        if self.move_fix_tag is not None:
-            lst.extend(
-                [
-                    f"NCORE={self.ncore}",
-                    f"NMOVED={self.nmoved}",
-                    f"NFIX={self.nfix}",
-                ]
-            )
-        if self.is_outer is not None:
-            lst.append(f"NOUTER={np.sum(self.is_outer)}")
-        if self.is_adsorbate is not None:
-            lst.append(f"NADS={np.sum(self.is_adsorbate)}")
-        else:
-            lst.append("NADS=0")
-        return ",".join(lst)
+        return ",".join(
+            [
+                f"#C={self.ncore}",
+                f"#F={self.nfix}",
+                f"#A={len(self.idx_adsorbate)}",
+                f"#O={len(self.idx_outer)}",
+            ]
+        )
 
     @cached_property
     @abstractmethod
@@ -94,39 +118,15 @@ class AtomTag(OurBaseModel):
 
     @property
     def nfix(self) -> int:
-        return int(self.isfix.sum())
-
-    @property
-    def isfix(self) -> np.ndarray:
-        if self.move_fix_tag is None:
-            raise KeyError("The `move_fix_tag` is None.")
-        return self.move_fix_tag < 0  # type: ignore
+        return len(self.idx_fix)
 
     @property
     def ncore(self) -> int:
-        return int(self.iscore.sum())
-
-    @property
-    def iscore(self) -> np.ndarray:
-        if self.move_fix_tag is None:
-            raise KeyError("The `move_fix_tag` is None.")
-        return self.move_fix_tag == 0
+        return len(self.idx_core)
 
     @property
     def nmoved(self) -> int:
         return self.natoms - self.nfix
-
-    @property
-    def isfirstmoved(self) -> np.ndarray:
-        if self.move_fix_tag is None:
-            raise KeyError("The `move_fix_tag` is None.")
-        return self.move_fix_tag == 1
-
-    @property
-    def islastmoved(self) -> np.ndarray:
-        if self.move_fix_tag is None:
-            raise KeyError("The `move_fix_tag` is None.")
-        return self.move_fix_tag == np.max(self.move_fix_tag)
 
 
 class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
@@ -197,9 +197,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         self,
         new_positions: np.ndarray,
         *,
-        parse_bonds: Mapping[str, Any] | None = None,
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
+        parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
         deep: bool = True,
         **kwargs,
     ) -> Self:
@@ -217,17 +215,14 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         new = SysGraph.from_dict(
             dct,
             parse_bonds=parse_bonds,
-            parse_bonds_distance=parse_bonds_distance,
-            parse_bonds_order=parse_bonds_order,
         ).model_copy(deep=deep)
         assert new.coordination is None
         new_dct = new.to_dict()
         if self.coordination is not None:
-            assert self.move_fix_tag is not None, (
-                "The `move_fix_tag` is None. but `coordination` is"
-                " not None. Please provide `coordination`."
+            assert self.is_fix is not None and self.nfix != 0, (
+                "The number of fixed atoms is 0. Please provide `is_fix`."
             )
-            new_dct["coordination"] = np.where(self.isfix, self.CN, new.CN)
+            new_dct["coordination"] = np.where(self.is_fix, self.CN, new.CN)
         return self.from_dict(new_dct)
 
     ###################################################
@@ -240,23 +235,21 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         data: Mapping[str, Any],
         *,
         parse_bonds: Mapping[str, Any] | None = None,
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
-        parse_bonds_outer: bool = False,
+        parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
-        if parse_bonds_outer:
-            assert parse_bonds is not None, (
-                "parse_bonds must be provided "  #
-                "when parse_bonds_outer is True"
-            )
-
-        obj = super().from_dict(data, **kwargs)
-        dct: dict[str, np.ndarray | float] = obj.to_dict()
-
         if parse_bonds is not None and len(parse_bonds) == 0:
             parse_bonds = None
+        if parse_atoms_is_outer_or_not:
+            assert parse_bonds is not None, (
+                "parse_bonds must be provided "  #
+                "when parse_atoms_is_outer_or_not is True"
+            )
+        dct = {k: v for k, v in data.items()}
+        obj = cls.model_validate(dct | kwargs)
+        dct: dict[str, np.ndarray | float] = obj.to_dict()
         ndata: int = len(dct)
+        print(dct.keys())
 
         # parse bonds pair index
         if obj.pair is None and parse_bonds is not None:
@@ -266,13 +259,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 pbc=obj.is_periodic,
                 cell=obj.ase_cell,
             )
-            m = sp.coo_matrix(
-                bond_list(
-                    atoms=atoms,
-                    infer_order=parse_bonds_order,
-                    **parse_bonds,
-                )
-            )
+            m = sp.coo_matrix(bond_list(atoms=atoms, **parse_bonds))
             dct["pair"] = pair = np.column_stack(m.coords)
             if np.any(pair[:, 0] == pair[:, 1]):
                 raise RuntimeError(
@@ -289,16 +276,9 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         if pair.size == 0:
             pair = None
 
-        if pair is not None:
-            i, j = np.transpose(pair)
-            # parse bonds distance
-            if obj.distance is None and parse_bonds_distance:
-                v, c = obj.positions[i] - obj.positions[j], obj.ase_cell
-                _, dct["distance"] = find_mic(v, c, obj.is_periodic)  # type: ignore
-
         if len(dct) != ndata:
             obj = super().from_dict(dct, **kwargs)
-        if parse_bonds_outer:
+        if parse_atoms_is_outer_or_not:
             if obj.pair is None:
                 raise RuntimeError(
                     "pair must be provided "  #
@@ -317,6 +297,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 ]
             )
             obj = obj.model_copy(update={"is_outer": is_outer})
+
         return obj
 
     @override
@@ -344,12 +325,15 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 | (
                     set()
                     if not exclude_energetics
-                    else Energetics.__pydantic_fields__.keys()
+                    else set(Energetics.__pydantic_fields__.keys())
                 )
                 | (
                     set()
                     if not exclude_bond_attibutes
-                    else set(self._BOND_ATTRS)
+                    else (
+                        set(BondGraph.__pydantic_fields__.keys())
+                        - set(Matter.__pydantic_fields__.keys())
+                    )
                 )
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,
@@ -364,23 +348,20 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         atoms: Atoms,
         *,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
-        parse_bonds_distance: bool = False,
-        parse_bonds_order: bool = False,
-        parse_bonds_outer: bool = False,
-        attach_is_adsorbate: bool = False,
+        parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
-        if not attach_is_adsorbate:
-            is_adsorbate = None
-        else:
-            is_adsorbate = np.zeros_like(atoms.numbers, dtype=bool)
+        for constraint in atoms.constraints:
+            if isinstance(constraint, FixAtoms):
+                idx_fix = constraint.index
+                array = np.arange(len(atoms))
+                kwargs["is_fix"] = np.isin(array, idx_fix)
+                break
         return cls.from_dict(
             Structure._ase2dct(atoms=atoms, **kwargs),
-            parse_bonds_distance=parse_bonds_distance,
-            parse_bonds_order=parse_bonds_order,
-            parse_bonds_outer=parse_bonds_outer,
+            parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
             parse_bonds=parse_bonds,
-            **(kwargs | dict(is_adsorbate=is_adsorbate)),
+            **kwargs,
         )
 
     def to_ase(
@@ -401,7 +382,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 exclude_bond_attibutes=exclude_bond_attibutes,
                 exclude_energetics=exclude_energetics,
                 exclude=(
-                    {"positions"}
+                    {"positions", "is_fix"}
                     | Box.__pydantic_fields__.keys()
                     | Matter.__pydantic_fields__.keys()
                 ),
@@ -409,8 +390,8 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 numpy_convert_to_list=False,
             ),
         )
-        if self.move_fix_tag is not None:
-            atoms.set_constraint(FixAtoms(mask=self.isfix))
+        if self.is_fix is not None and self.nfix != 0:
+            atoms.set_constraint(FixAtoms(mask=self.is_fix))
         return atoms
 
     ###################################################
@@ -450,19 +431,13 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         df_atoms = DataFrame({"numbers": self.numbers})
         for i, k in enumerate("xyz"):
             df_atoms[f"positions_{k}"] = self.positions[:, i]
-        for k, v in [
-            ("is_outer", self.is_outer),
-            ("coordination", self.coordination),
-            ("move_fix_tag", self.move_fix_tag),
+        for k, v in [("coordination", self.coordination)] + [
+            (k, getattr(self, k)) for k in AtomTag.__pydantic_fields__.keys()
         ]:
             if v is not None:
                 df_atoms[k] = v
         df_bonds = DataFrame({"source": self.source})
         df_bonds["target"] = self.target
-        if self.order is not None:
-            df_bonds["order"] = self.order
-        if self.distance is not None:
-            df_bonds["distance"] = self.distance
         G = IGraph.DataFrame(
             edges=df_bonds,
             directed=True,  # use directed graph to avoid duplicate edges

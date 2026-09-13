@@ -17,9 +17,23 @@ from graphatoms.system import SysGraph as Graph
 
 @pytest.fixture(scope="module")
 def system() -> System:
-    result = System.from_ase(Octahedron("Cu", 3))
+    result = System.from_ase(
+        Octahedron("Cu", 8),
+        parse_atoms_is_outer_or_not=True,
+    )
     assert result.pair is not None
     return result
+
+
+@pytest.fixture(scope="module")
+def cluster(system: System) -> Cluster:
+    return Cluster.from_select(
+        system,
+        np.array([0]),
+        method="hop",
+        max_moved_threshold=1,
+        env_threshold=2,
+    )
 
 
 def _equal_test(obj1: Graph, obj2: Graph) -> None:
@@ -48,24 +62,23 @@ class Test_ContainerBasic:
     def test_cls_frozen(self, cls: type[Graph]) -> None:
         assert cls.model_config.get("frozen", False)
 
-    def test_graph_basic(self) -> None:
-        obj_order = Gas.from_molecule("CH4", pressure=101325)
-        return
-        print("*" * 32, "Test PyGData from obj_order")
-        pygdata = obj_order.to_pygdata()
-        print(pygdata, pygdata.num_edges, pygdata.num_nodes)
-        assert pygdata.num_nodes == obj_order.natoms
-        assert pygdata.num_edges == obj_order.nbonds
-        for k in pygdata.node_attrs():
-            v = pygdata[k]
-            print("NODE", k, type(v))
-        for k in pygdata.edge_attrs():
-            v = pygdata[k]
-            print("EDGE", k, type(v))
-        print("*" * 32, "Test PyGData equality from obj_order")
-        new_obj_order = Graph.from_pygdata(pygdata)
-        print(repr(new_obj_order), "\n", repr(obj_order))
-        _equal_test(new_obj_order, obj_order)
+    # def test_graph_basic(self) -> None:
+    #     obj_order = Gas.from_molecule("CH4", pressure=101325)
+    #     print("*" * 32, "Test PyGData from obj_order")
+    #     pygdata = obj_order.to_pygdata()
+    #     print(pygdata, pygdata.num_edges, pygdata.num_nodes)
+    #     assert pygdata.num_nodes == obj_order.natoms
+    #     assert pygdata.num_edges == obj_order.nbonds
+    #     for k in pygdata.node_attrs():
+    #         v = pygdata[k]
+    #         print("NODE", k, type(v))
+    #     for k in pygdata.edge_attrs():
+    #         v = pygdata[k]
+    #         print("EDGE", k, type(v))
+    #     print("*" * 32, "Test PyGData equality from obj_order")
+    #     new_obj_order = Graph.from_pygdata(pygdata)
+    #     print(repr(new_obj_order), "\n", repr(obj_order))
+    #     _equal_test(new_obj_order, obj_order)
 
     def test_bondgraph(self) -> None:
         atoms = molecule("C6H6")
@@ -86,43 +99,40 @@ class Test_Container:
         k[0] = True
         print(system.get_hop_distance(k))
 
-    def test_select_cluster(self, system: System) -> None:
-        return
-        print(system.P)
-        sub = Cluster.select_by_hop(
-            system,
-            system.get_hop_distance(0),  # type: ignore
-            max_moved_hop=0,
-            env_hop=1,
-        )
-        print(sub.is_outer)
-        print(
-            "-" * 32,
-            Cluster.model_json_schema(),
-            "-" * 32,
-            sub,
-            repr(sub),
-            "-" * 32,
-            sep="\n",
-        )
+    def test_select_cluster(self, system: System, cluster: Cluster) -> None:
+        sub = cluster
+        if system.is_outer is not None:
+            assert sub.is_outer is not None, (
+                f"sub.is_outer is None, but {sub.is_outer}"
+            )
+        # print(
+        #     "-" * 32,
+        #     Cluster.model_json_schema(),
+        #     "-" * 32,
+        #     sub,
+        #     repr(sub),
+        #     "-" * 32,
+        #     sep="\n",
+        # )
         print("=" * 32)
-        sub2 = Cluster.select_by_distance(
+        sub2 = Cluster.from_select(
             system,
             np.asarray([0]),
-            env_distance=3.2,
+            method="distance",
             max_moved_distance=0.0,
+            env_distance=3.2,
         )
         print(
             sub,
             sub2,
             "-" * 32,
-            sub.move_fix_tag,
-            sub2.move_fix_tag,
+            sub.is_fix,
+            sub2.is_fix,
             sep="\n",
         )
 
     def test_len(self, system: System) -> None:
-        assert len(system) == 19
+        assert len(system) == 344
 
     def test_repr(self, system: System) -> None:
         print(str(system), repr(system), sep="\n")
@@ -170,70 +180,48 @@ class Test_Container:
         return
         print(repr(system.get_induced_subgraph([0, 1, 2, 3, 4])))
 
-    # def test_update_geometry(self, system: System) -> None:
-    #     new_g = np.asarray(system.positions, copy=True) + 1
-    #     system.replace_geometry(new_geometry=new_g, isfix=[2, 3])
+    def test_update_geometry(self, system: System) -> None:
+        new_g = np.asarray(system.positions, copy=True) + 1
+        system.update_geometry(new_g, isfix=[2, 3])
 
     def test_get_weisfeiler_lehman_hash(self, system: System) -> None:
         print(system.get_weisfeiler_lehman_hashes())
 
-    # def test_print_property_is_cached_or_not(self, system: System) -> None:
-    #     for k in sorted(
-    #         k
-    #         for k in (
-    #             set(dir(System))
-    #             - set(System.__pydantic_fields__)
-    #             - {"iscore", "ncore", "isfix", "nfix"}
-    #             - {"islastmoved", "isfirstmoved", "nmoved"}
-    #         )
-    #         if (
-    #             not k.startswith("_")
-    #             and not k.startswith("model_")
-    #             and not callable(getattr(System, k))
-    #         )
-    #     ):
-    #         with warnings.catch_warnings():
-    #             warnings.simplefilter("ignore")
-    #             v1, v2 = getattr(system, k), getattr(system, k)
-    #         if callable(v1):
-    #             continue
-    #         print(f"{k:<35s}: {str(id(v1) == id(v2)):5s} {id(v1)}={id(v2)}.")
-
-    @pytest.mark.parametrize(
-        "k",
-        sorted(
+    def test_property_is_cached_or_not(self, system: System) -> None:
+        for k in sorted(
             k
             for k in (
-                set(dir(System))
+                set(dir(System))  # type: ignore
                 - set(System.__pydantic_fields__)
-                - {"iscore", "ncore", "isfix", "nfix"}
-                - {"islastmoved", "isfirstmoved", "nmoved"}
+                - {"nmoved"}
             )
             if (
                 not k.startswith("_")
                 and not k.startswith("model_")
                 and not callable(getattr(System, k))
             )
-        ),
-    )
-    def test_property_is_cached(self, system: System, k: str) -> None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            v1, v2 = getattr(system, k), getattr(system, k)
-            assert id(v1) == id(v2), f"Hash of property changed: {k}!!!"
+        ):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                v1, v2 = getattr(system, k), getattr(system, k)
+                if callable(v1):
+                    continue
+                msg = f"{k:<35s}: {str(id(v1) == id(v2)):5s} {id(v1)}={id(v2)}."
+                print(msg)
+                assert id(v1) == id(v2), (
+                    f"Hash of property changed: {k}!!! \n" + msg
+                )
 
     @pytest.mark.parametrize("algo", ["vf2", "lad"])
-    def test_match_cluster(self, system: System, algo: str) -> None:
-        return
+    def test_match_cluster(
+        self, system: System, algo: str, cluster: Cluster
+    ) -> None:
         if system.nbonds == 0:
             return
-        clst = Cluster.select_by_hop(
-            system,
-            system.get_hop_distance(0),  # type: ignore
-        )
-        matching = System.match(
+
+        clst = cluster
+        matching = system.get_match_mode(
             pattern=clst,  # type: ignore
-            pattern4match=system,
             algorithm=algo,  # type: ignore
             return_match_target=True,
         )
@@ -247,9 +235,8 @@ class Test_Container:
                 for matched_indxs in matching
             ]
         )
-        matching1 = System.match(
+        matching1 = system.get_match_mode(
             pattern=clst,  # type: ignore
-            pattern4match=system,
             algorithm=algo,  # type: ignore
             return_match_target=False,
         )
@@ -273,16 +260,15 @@ class Test_PyArrowCompability:
         print(cls.get_pyarrow_schema(), "-" * 32, sep="\n")
 
     @pytest.mark.parametrize("cls_name", ["Gas", "Graph", "System", "Cluster"])
-    def test_Xxx_as_PyArrow_Table(self, system: System, cls_name: str) -> None:
+    def test_Xxx_as_PyArrow_Table(
+        self,
+        system: System,
+        cls_name: str,
+        cluster: Cluster,
+    ) -> None:
         cls: type[Graph] = self.get_all_item_classes()[cls_name]
         if cls is Cluster:
-            return
-            obj = Cluster.select_by_hop(
-                system,
-                system.get_hop_distance(0),  # type: ignore
-                max_moved_hop=0,
-                env_hop=1,
-            )
+            obj = cluster
         elif cls is Graph:
             obj = Graph.from_ase(system.to_ase())
         elif cls is System:

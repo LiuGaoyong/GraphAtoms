@@ -5,7 +5,7 @@ from pydantic import model_validator
 
 from graphatoms.geometry import distance_pairs
 from graphatoms.system.atoms import Energetics
-from graphatoms.system.graph import AtomTag, GasMixin, SysGraph
+from graphatoms.system.graph import GasMixin, SysGraph
 from graphatoms.system.system import System
 from graphatoms.utils.subgraph import subgraph
 
@@ -16,10 +16,9 @@ class Cluster(SysGraph):
     @model_validator(mode="after")
     def __some_keys_should_xxx(self) -> Self:
         msg = "The key of `{:s}` should be not None for Cluster."
-        assert self.move_fix_tag is not None, msg.format("move_fix_tag")
-        assert self.coordination is not None, msg.format("coordination")
         assert not self.is_gas, "The `is_gas` should be False for System."
-        object.__setattr__(self, "is_outer", None)
+        assert self.coordination is not None, msg.format("coordination")
+        assert self.is_fix is not None, msg.format("is_fix")
         return self
 
     @override
@@ -31,9 +30,11 @@ class Cluster(SysGraph):
         cls,
         system: System,
         core: np.ndarray,
+        *args,
         method: str | Literal["hop", "distance"] = "distance",
         max_moved_threshold: float | int = 8.0,
         env_threshold: float | int = 15.0,
+        **kwargs,
     ) -> Self:
         """Get Cluster by select method.
 
@@ -160,7 +161,6 @@ class Cluster(SysGraph):
             exclude_none=True,
             exclude=(
                 set(GasMixin.__pydantic_fields__.keys())
-                | set(AtomTag.__pydantic_fields__.keys())
                 | {"coordination", "hashes"}
             ),
         ) | {"coordination": sys.CN}
@@ -187,7 +187,11 @@ class Cluster(SysGraph):
         if not exclude_energetics:
             dct = dct | dct_eng  # type: ignore
 
-        if movefixtag is None:
-            assert sys.move_fix_tag is not None
-            movefixtag = sys.move_fix_tag[idxs]
-        return super().from_dict(dct | {"move_fix_tag": movefixtag})
+        if movefixtag is not None:
+            is_core: np.ndarray = movefixtag == 0
+            is_fix: np.ndarray = movefixtag < 0
+            if "is_fix" in dct:
+                is_fix = np.logical_not(is_fix, dct["is_fix"])
+            dct.update({"is_core": is_core, "is_fix": is_fix})
+        print(dct.keys())
+        return cls.model_validate(dct)

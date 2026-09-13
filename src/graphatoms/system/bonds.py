@@ -23,14 +23,10 @@ __all__ = ["BondGraph"]
 class BondGraph(Matter, OurFrozenModel):
     coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None
     pair: Annotated[NDArray, numpy_validator("int32", (-1, 2))] | None = None
-    distance: Annotated[NDArray, numpy_validator("float32")] | None = None
-    order: Annotated[NDArray, numpy_validator("float16")] | None = None
     hashes: list[str] | None = None
-    # hash: str | None = None
 
     @pydantic.model_validator(mode="after")
     def __check_atoms_and_bonds(self) -> Self:
-        self._BOND_ATTRS = ("pair", "distance", "order")
         for k in ("coordination", "hashes"):
             v = getattr(self, k, None)
             if v is not None:
@@ -94,18 +90,12 @@ class BondGraph(Matter, OurFrozenModel):
             return np.array([[]], dtype="int32").reshape(-1, 2)
         return self.pair
 
-    @cached_property
-    def D(self) -> NDArray:
-        if self.distance is None:
-            return np.array([[]], dtype="float32").reshape(-1)
-        return self.distance
-
     @property
     def CN(self) -> np.ndarray:
         if self.coordination is not None:
             return self.coordination
         else:
-            return self.__CN_MATRIX
+            return self.CN_MATRIX
 
     ###################################################
     # Some functions by `igraph`
@@ -230,19 +220,18 @@ class BondGraph(Matter, OurFrozenModel):
     ###################################################
     # Some functions by `scipy.sparse`
     @cached_property
-    def __CN_MATRIX(self) -> np.ndarray:
+    def CN_MATRIX(self) -> np.ndarray:
         m = self.MATRIX.astype(bool)
         m = sp.csr_array((m + m.T).astype(int))
         return np.asarray(m.sum(axis=1)).astype(int)
 
     @cached_property
     def MATRIX(self) -> sp.csr_array:
-        if self.order is None:
-            order = np.ones(self.nbonds, bool)
-        else:
-            # scipy.sparse does not support dtype float16(self.order.dtype)
-            # so we use single float numbers(float32) in the return statement
-            order = np.asarray(self.order, dtype="f4")
+        order = np.ones(self.nbonds, bool)
+        # if ........:
+        #     # scipy.sparse does not support dtype float16(self.order.dtype)
+        #     # so we use single float numbers(float32) in the return statement
+        #     order = np.asarray(self.order, dtype="f4")
         return sp.csr_array(
             (order, (self.source, self.target)),
             shape=(self.natoms, self.natoms),
@@ -252,7 +241,7 @@ class BondGraph(Matter, OurFrozenModel):
         if self.coordination is None:
             return False
         else:
-            v0 = self.__CN_MATRIX
+            v0 = self.CN_MATRIX
             v1 = self.coordination
             return bool(np.any(v0 != v1))
 
@@ -396,7 +385,7 @@ class BondGraph(Matter, OurFrozenModel):
             numbers=self.numbers,
             source=self.source,
             target=self.target,
-            order=self.order if self.order is not None else None,
+            # order=self.order if self.order is not None else None,
             infer_order=False,
             charge=0,
             **kw,
@@ -412,10 +401,10 @@ class BondGraph(Matter, OurFrozenModel):
         df_atoms = DataFrame({"numbers": self.numbers})
         df_bonds = DataFrame({"source": self.source})
         df_bonds["target"] = self.target
-        if self.order is not None:
-            df_bonds["order"] = self.order
-        if self.distance is not None:
-            df_bonds["distance"] = self.distance
+        # if self.order is not None:
+        #     df_bonds["order"] = self.order
+        # if self.distance is not None:
+        #     df_bonds["distance"] = self.distance
         return IGraph.DataFrame(df_bonds, False, df_atoms, True)
 
     @classmethod
