@@ -31,7 +31,7 @@ system:
     symbol: Pd
     length: 8
   parse_bonds: ${bonds}
-  parse_bonds_outer: true
+  parse_atoms_is_outer_or_not: true
   attach_is_adsorbate: true
 gas:
   - null

@@ -1,4 +1,5 @@
 # ruff: noqa: D100 D102 E501
+import json
 from collections.abc import Mapping, Sequence
 from sys import version_info
 from typing import Any, Self
@@ -34,6 +35,7 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
         exclude_computed_fields: bool = True,
         numpy_ndarray_compatible: bool = True,
         numpy_convert_to_list: bool = False,
+        pyarrow_compatible: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
         """Convert model to dictionary."""
@@ -46,27 +48,37 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
                 exclude_computed_fields=exclude_computed_fields,
             )
         )
-        result = self.model_dump(**kwargs)
-        if numpy_ndarray_compatible:
-            for k, v0 in result.items():
-                v1 = getattr(self, k, None)
-                if type(v0) is not type(v1) and isinstance(v1, np.ndarray):
-                    result[k] = v1
-                if np.isscalar(v1):
-                    pass
-                elif isinstance(v1, list | tuple):
-                    assert isinstance(np.asarray(list(v1)).flat[0], np.str_), (
-                        "Only list[str] is supported."
-                    )
-                else:
-                    assert isinstance(v1, np.ndarray) or (
-                        "Only numpy array or scalar is supported. "
-                        f"But got `{type(v0)}` for {k}."
-                    )
-        if numpy_convert_to_list:
+        if not pyarrow_compatible:
+            result = self.model_dump(**kwargs)
+            if numpy_ndarray_compatible:
+                for k, v0 in result.items():
+                    v1 = getattr(self, k, None)
+                    if type(v0) is not type(v1) and isinstance(v1, np.ndarray):
+                        result[k] = v1
+                    if np.isscalar(v1):
+                        pass
+                    elif isinstance(v1, list | tuple):
+                        assert isinstance(
+                            np.asarray(list(v1)).flat[0], np.str_
+                        ), "Only list[str] is supported."
+                    else:
+                        assert isinstance(v1, np.ndarray) or (
+                            "Only numpy array or scalar is supported. "
+                            f"But got `{type(v0)}` for {k}."
+                        )
+            if numpy_convert_to_list:
+                for k, v in result.items():
+                    if isinstance(v, np.ndarray):
+                        result[k] = v.tolist()
+        else:
+            jsonstr: str = self.to_str(**kwargs)
+            result: dict[str, Any] = json.loads(jsonstr)
+            assert isinstance(result, dict), "Only dict is supported."
             for k, v in result.items():
-                if isinstance(v, np.ndarray):
-                    result[k] = v.tolist()
+                assert isinstance(v, str | float | int | bool), (
+                    f"Only str is supported. But got type `{type(v)}` for {k}."
+                )
+
         return result
 
     @pydantic.validate_call
@@ -94,6 +106,7 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
                 indent=indent,
             )
         )
+        kwargs.pop("mode", None)
         return self.model_dump_json(**kwargs)
 
     @pydantic.validate_call

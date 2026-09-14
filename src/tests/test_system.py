@@ -283,6 +283,7 @@ class Test_PyArrowCompability:
                 [
                     obj.to_dict(
                         numpy_ndarray_compatible=False,
+                        pyarrow_compatible=True,
                         exclude_none=True,
                     )
                 ]

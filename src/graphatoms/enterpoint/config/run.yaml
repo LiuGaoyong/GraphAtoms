@@ -9,8 +9,8 @@ defaults:
 
 system:
   _target_: graphatoms.system.System.from_ase
+  parse_atoms_is_outer_or_not: true
   attach_is_adsorbate: true
-  parse_bonds_outer: true
   parse_bonds: ${bonds}
   atoms: ${atoms}
 

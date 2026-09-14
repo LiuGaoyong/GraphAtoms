@@ -249,7 +249,6 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         obj = cls.model_validate(dct | kwargs)
         dct: dict[str, np.ndarray | float] = obj.to_dict()
         ndata: int = len(dct)
-        print(dct.keys())
 
         # parse bonds pair index
         if obj.pair is None and parse_bonds is not None:
@@ -284,7 +283,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                     "pair must be provided "  #
                     "when parse_bonds_outer is True"
                 )
-            is_outer = np.logical_not(
+            is_outer: np.ndarray = np.logical_not(
                 [
                     check_atom_is_inner(
                         index=i,
@@ -312,6 +311,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         numpy_convert_to_list: bool = False,
         exclude_bond_attibutes: bool = False,
         exclude_energetics: bool = False,
+        pyarrow_compatible: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
         exclude = kwargs.pop("exclude", set())
@@ -338,6 +338,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             ),
             numpy_ndarray_compatible=numpy_ndarray_compatible,
             numpy_convert_to_list=numpy_convert_to_list,
+            pyarrow_compatible=pyarrow_compatible,
             **kwargs,
         )
 

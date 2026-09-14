@@ -14,11 +14,20 @@ from pydantic import (
 __all__ = ["NDArray", "numpy_validator"]
 _ENCODING = "latin1"
 
+
+@validate_call
+def __convert2str(x: Any) -> str:
+    if isinstance(x, np.ndarray):
+        return x.tobytes().decode(_ENCODING)
+    else:
+        return str(x)
+
+
 NDArray = Annotated[
     _NDArray,
-    PlainSerializer(lambda x: x.tobytes().decode(_ENCODING), return_type=str),
-    # for pyarrow compatibility, we need to convert bytes to str
-    #                   for numpy.ndarray before serialization.
+    PlainSerializer(__convert2str, return_type=str, when_used="json"),
+    # # for pyarrow compatibility, we need to convert bytes to str
+    # #                   for numpy.ndarray before serialization.
     WithJsonSchema({"type": str}, mode="serialization"),
 ]
 if TYPE_CHECKING:

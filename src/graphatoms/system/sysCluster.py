@@ -193,5 +193,4 @@ class Cluster(SysGraph):
             if "is_fix" in dct:
                 is_fix = np.logical_not(is_fix, dct["is_fix"])
             dct.update({"is_core": is_core, "is_fix": is_fix})
-        print(dct.keys())
         return cls.model_validate(dct)

@@ -125,18 +125,27 @@ class FirstStep(BaseABC):
             try:
                 self.catalyst: System = hydra_parse(self.config.system, System)
             except Exception:
+                atoms = hydra_parse(self.config.system, Atoms)
                 self.catalyst: System = System.from_ase(
-                    atoms=hydra_parse(self.config.system, Atoms),
+                    atoms=atoms,
                     parse_bonds=self.config.bonds,  # type: ignore
-                    attach_is_adsorbate=True,
-                    parse_bonds_outer=True,
+                    parse_atoms_is_outer_or_not=True,
+                )
+            if self.config.system.get("attach_is_adsorbate", True):
+                self.catalyst = self.catalyst.model_copy(
+                    update=dict(
+                        is_adsorbate=np.zeros_like(
+                            self.catalyst.is_outer,
+                            dtype=bool,
+                        )
+                    ),
+                    deep=False,
                 )
         elif isinstance(inp, Atoms):
             self.catalyst: System = System.from_ase(
                 atoms=inp,
                 parse_bonds=self.config.bonds,  # type: ignore
-                attach_is_adsorbate=True,
-                parse_bonds_outer=True,
+                parse_atoms_is_outer_or_not=True,
             )
         else:
             raise ValueError(f"Unknown type of input: {type(inp)}")
@@ -193,12 +202,10 @@ class FirstStep(BaseABC):
             keys.append((True, len(idx_core), values[-1].hash))
         if bool(self.config.exploration.allow_explore_bulk):
             assert system.is_outer is not None  # type: ignore
-            if system.move_fix_tag is None:  # type: ignore
-                move_fix_tag = np.zeros_like(system.is_outer)  # type: ignore
+            if system.is_fix is None:
+                is_moved = np.ones_like(system.is_outer, dtype=bool)
             else:
-                move_fix_tag = np.asarray(system.move_fix_tag)
-                assert move_fix_tag.shape == system.is_outer.shape
-            is_moved = move_fix_tag >= 0
+                is_moved = np.logical_not(system.is_fix)
             is_inner = np.logical_not(system.is_outer)
             mask = np.logical_and(is_inner, is_moved)
             for idx in np.unique(np.where(mask)).astype(int):

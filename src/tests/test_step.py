@@ -23,8 +23,8 @@ class Mock(FirstStep, Surf):
     "parallel",
     [
         # "serial",
-        # "multiprocessing",
-        "ray",
+        "multiprocessing",
+        # "ray",
     ],
 )
 def test_run_step(parallel) -> None:
@@ -68,3 +68,7 @@ def test_run_step(parallel) -> None:
             obj2 = Mock(config=cfg)  # type: ignore
             obj2.run()
             pprint(list(Path(tmp).rglob("*")))
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "-s", "--lf"])

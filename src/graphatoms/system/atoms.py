@@ -495,12 +495,8 @@ class Structure(Matter, Box, Energetics):
         deep: bool = True,
         **kwargs,
     ) -> Self:
-        return self.model_copy(
-            update={
-                "positions": new_positions,
-            },
-            deep=deep,
-        )
+        pos = np.asarray(new_positions, dtype=float).reshape(self.natoms, 3)
+        return self.model_copy(update={"positions": pos}, deep=deep)
 
     def update_energetics(
         self,
@@ -511,14 +507,9 @@ class Structure(Matter, Box, Energetics):
         deep: bool = True,
         **kwargs,
     ) -> Self:
-        return self.model_copy(
-            update={
-                "energy": energy,
-                "fmax": fmax,
-                "frequencies": frequencies,
-            },
-            deep=deep,
-        )
+        update: dict[str, Any] = {"energy": float(energy), "fmax": float(fmax)}
+        update["frequencies"] = np.asarray(frequencies, dtype=float).flatten()
+        return self.model_copy(update=update, deep=deep)
 
 
 def test_class() -> None:
