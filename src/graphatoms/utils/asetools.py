@@ -28,7 +28,7 @@ def call_vib(
     atoms: Atoms,
     calc: Calculator,
     *,
-    ignore_min_freq: float = 1e-3,
+    ignore_fqmin: float = 10.0,
     **kwargs,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Vibration atoms (frequencies in cm^-1 & harmonic modes).
@@ -39,8 +39,10 @@ def call_vib(
         The atoms to analyze.
     calc : Calculator
         The calculator to use.
-    ignore_min_freq : float, optional
-        The minimum frequency to ignore. Defaults to 1e-3.
+    ignore_fqmin : float, optional
+        The minimum frequency to ignore. Defaults to 10.0.
+        Effect: the element frequency will be set to 1e-5 if the
+          absolute value of element frequency is smaller than this value.
 
     Returns
     -------
@@ -54,13 +56,13 @@ def call_vib(
 
     with TemporaryDirectory() as tmpdir:
         vib = Vibrations(atoms, name=tmpdir)
-        print(f"Vib(id): {vib.indices}")
+        # print(f"Vib(id): {vib.indices}")
         vib.run()
         vibdata: VibrationsData = vib.get_vibrations()
     eng, modes = vibdata.get_energies_and_modes(all_atoms=True)
     freq = np.asarray(eng / invcm, dtype=complex)
     freq = np.real(freq) - np.imag(freq)  # complex to real
-    freq[np.abs(freq) < abs(ignore_min_freq)] = 1e-5
+    freq[np.abs(freq) < abs(ignore_fqmin)] = 1e-5
     return freq, modes
 
 
@@ -195,6 +197,8 @@ def call_dimer(
                 fixed_indices.extend(constr.get_indices())
         fixed_indices = list(set(fixed_indices))
         mask = [i not in fixed_indices for i in range(len(atoms))]
+    else:
+        mask = np.asarray(mask, dtype=bool).tolist()
     if calc is not None:
         atoms.calc = calc
     assert atoms.calc is not None, "Please set calculator."

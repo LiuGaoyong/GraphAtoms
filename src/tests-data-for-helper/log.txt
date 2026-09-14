@@ -1,0 +1,307 @@
+﻿
+
+ liuga@YoungStation  D:    GraphAtoms  main  & d:/GitHub/GraphAtoms/.venv/Scripts/Activate.ps1
+ liuga@YoungStation  D:    GraphAtoms  main   graphatoms 3.12.12  & d:/GitHub/GraphAtoms/.venv/Scripts/python.exe d:/GitHub/GraphAtoms/src/tests-data-for-helper/test_helper.py
+========================================================================= test session starts =========================================================================
+platform win32 -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- D:\GitHub\GraphAtoms\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: d:\GitHub\GraphAtoms
+configfile: pyproject.toml
+plugins: anyio-4.14.2, hydra-core-1.3.5, xdist-3.8.0
+collected 17 items
+
+src/tests-data-for-helper/test_helper.py::test_opt[graph0] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph1] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph2] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph3] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph4] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph5] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph6] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph7] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_opt[graph8] SKIPPED (Skip for now)
+src/tests-data-for-helper/test_helper.py::test_dimer[graph0] Test in the temporary folder: 'd:\GitHub\GraphAtoms\src\tests-data-for-helper\tmp9udaylzn'
+##################################################
+0.017567786859087588
+dimer cost: 12.12 for Pd144-0f0c26
+ReactionLH(Pd144:0f0c26 --> Pd144:221a01 --> Pd144:015e50)
+##################################################
+0.021611492098224903
+CostTime=6.26. fixed bonds modified after dimer for (Pd144-0f0c26,TS=Pd144-d786ef)
+##################################################
+0.018842812519941094
+CostTime=9.46. check frequencies(0.00,0.00,22.59|FQMIN=20.00) failed for (Init=Pd144-0f0c26,TS=Pd144-a55b38)
+##################################################
+0.023094651695081316
+CostTime=8.93. check frequencies(-11.87,30.02,33.53|FQMIN=10.00) failed for (Init=Pd144-0f0c26,Minima=Pd144-6074ee)
+##################################################
+0.020332194930438936
+dimer cost: 8.86 for Pd144-0f0c26
+ReactionLH(Pd144:0f0c26 --> Pd144:dfbd1b --> Pd144:0c84c5)
+##################################################
+0.019319651597847775
+dimer cost: 8.23 for Pd144-0f0c26
+ReactionLH(Pd144:0f0c26 --> Pd144:8bcc9d --> Pd144:f6375e)
+##################################################
+0.020042360226984853
+CostTime=2.86. fixed bonds modified after dimer for (Pd144-0f0c26,TS=Pd144-03ebac)
+##################################################
+0.02468099835994215
+CostTime=10.29. check frequencies(-17.03,18.90,35.54|FQMIN=10.00) failed for (Init=Pd144-0f0c26,Minima=Pd144-495608)
+##################################################
+0.02274899510323636
+dimer cost: 7.42 for Pd144-0f0c26
+ReactionLH(Pd144:0f0c26 --> Pd144:9b9838 --> Pd144:73e8f1)
+##################################################
+0.015025288445531
+CostTime=8.09. check frequencies(-23.71,33.45,39.96|FQMIN=10.00) failed for (Init=Pd144-0f0c26,Minima=Pd144-420de6)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph1] ##################################################
+0.025638074158255527
+CostTime=7.51. check frequencies(0.00,31.26,32.35|FQMIN=20.00) failed for (Init=Pd188-b7bcc9,TS=Pd188-13006b)
+##################################################
+0.021518978769457707
+CostTime=15.12. fixed bonds modified after dimer for (Pd188-b7bcc9,TS=Pd188-a1083c)
+##################################################
+0.020834164531604797
+dimer cost: 20.49 for Pd188-b7bcc9
+ReactionLH(Pd188:b7bcc9 --> Pd188:1ade1e --> Pd188:881f54)
+##################################################
+CostTime=14.92. dimer optimization not coveraged for (Pd188-b7bcc9)
+##################################################
+0.021587023376836222
+dimer cost: 13.64 for Pd188-b7bcc9
+ReactionLH(Pd188:b7bcc9 --> Pd188:8cc3f0 --> Pd188:7695bb)
+##################################################
+0.013106464976441844
+CostTime=13.77. fixed bonds modified after dimer for (Pd188-b7bcc9,TS=Pd188-1628d3)
+##################################################
+0.021490761728050506
+CostTime=15.98. check frequencies(-22.67,29.24,30.92|FQMIN=10.00) failed for (Init=Pd188-b7bcc9,Minima=Pd188-45e772)
+##################################################
+0.018816575836210086
+CostTime=15.32. check frequencies(-26.28,-19.33,25.40|FQMIN=10.00) failed for (Init=Pd188-b7bcc9,Minima=Pd188-9b6d00)
+##################################################
+0.023305251718796327
+dimer cost: 16.25 for Pd188-b7bcc9
+ReactionLH(Pd188:b7bcc9 --> Pd188:6be1cf --> Pd188:15f5be)
+##################################################
+0.02810414953336681
+dimer cost: 14.84 for Pd188-b7bcc9
+ReactionLH(Pd188:b7bcc9 --> Pd188:47efaf --> Pd188:e34177)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph2] ##################################################
+0.027267108937567466
+CostTime=22.28. check frequencies(0.00,20.54,21.35|FQMIN=20.00) failed for (Init=Pd228-3d7a22,TS=Pd228-ee465a)
+##################################################
+0.013027520500396721
+dimer cost: 20.64 for Pd228-3d7a22
+ReactionLH(Pd228:3d7a22 --> Pd228:fe6368 --> Pd228:7da378)
+##################################################
+CostTime=19.13. dimer optimization not coveraged for (Pd228-3d7a22)
+##################################################
+0.02109756000446005
+dimer cost: 26.21 for Pd228-3d7a22
+ReactionLH(Pd228:3d7a22 --> Pd228:846b84 --> Pd228:05e76d)
+##################################################
+0.026002830704131
+dimer cost: 20.17 for Pd228-3d7a22
+ReactionLH(Pd228:3d7a22 --> Pd228:f85fd3 --> Pd228:692599)
+##################################################
+CostTime=20.08. dimer optimization not coveraged for (Pd228-3d7a22)
+##################################################
+CostTime=19.29. dimer optimization not coveraged for (Pd228-3d7a22)
+##################################################
+CostTime=19.52. dimer optimization not coveraged for (Pd228-3d7a22)
+##################################################
+0.024488269425993442
+dimer cost: 21.52 for Pd228-3d7a22
+ReactionLH(Pd228:3d7a22 --> Pd228:dafd13 --> Pd228:af8391)
+##################################################
+0.02351760205641481
+dimer cost: 21.59 for Pd228-3d7a22
+ReactionLH(Pd228:3d7a22 --> Pd228:610431 --> Pd228:8e5a2c)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph3] ##################################################
+0.020682844306620936
+dimer cost: 27.30 for Pd236-1824a8
+ReactionLH(Pd236:1824a8 --> Pd236:a8d4fc --> Pd236:939de1)
+##################################################
+CostTime=20.23. dimer optimization not coveraged for (Pd236-1824a8)
+##################################################
+0.021007672242389884
+dimer cost: 19.81 for Pd236-1824a8
+ReactionLH(Pd236:1824a8 --> Pd236:fa65d7 --> Pd236:630f61)
+##################################################
+0.01710546312009533
+dimer cost: 20.95 for Pd236-1824a8
+ReactionLH(Pd236:1824a8 --> Pd236:755759 --> Pd236:2747b2)
+##################################################
+0.018879022623018018
+CostTime=25.02. check frequencies(-42.95,26.24,28.09|FQMIN=10.00) failed for (Init=Pd236-1824a8,Minima=Pd236-0bc779)
+##################################################
+0.02376263316667308
+CostTime=23.62. check frequencies(0.00,0.00,0.00|FQMIN=20.00) failed for (Init=Pd236-1824a8,TS=Pd236-62adb6)
+##################################################
+0.02480421565652745
+CostTime=26.07. check frequencies(-35.45,13.75,27.69|FQMIN=10.00) failed for (Init=Pd236-1824a8,Minima=Pd236-9c7823)
+##################################################
+0.022374400540388115
+CostTime=12.03. check frequencies(0.00,28.96,30.85|FQMIN=20.00) failed for (Init=Pd236-1824a8,TS=Pd236-1b4726)
+##################################################
+0.017664433488664016
+dimer cost: 25.83 for Pd236-1824a8
+ReactionLH(Pd236:1824a8 --> Pd236:d7cfdd --> Pd236:72740a)
+##################################################
+0.021524886278568457
+dimer cost: 20.88 for Pd236-1824a8
+ReactionLH(Pd236:1824a8 --> Pd236:f9e31a --> Pd236:9db742)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph4] ##################################################
+0.016657471483888932
+CostTime=19.84. check frequencies(-10.50,32.78,34.55|FQMIN=10.00) failed for (Init=Pd244-9cd57e,Minima=Pd244-1c813f)
+##################################################
+0.021813848201318528
+dimer cost: 25.31 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:b3ee79 --> Pd244:7b5141)
+##################################################
+0.025034348990474856
+dimer cost: 25.01 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:59b3f5 --> Pd244:d7fdea)
+##################################################
+0.02409591694273726
+dimer cost: 22.94 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:bd97e7 --> Pd244:bd756b)
+##################################################
+0.015065489383396703
+CostTime=19.63. check frequencies(-21.38,34.70,36.38|FQMIN=10.00) failed for (Init=Pd244-9cd57e,Minima=Pd244-0edd25)
+##################################################
+0.020938465503173548
+dimer cost: 22.25 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:b0db99 --> Pd244:c9421e)
+##################################################
+0.021817835369535514
+dimer cost: 19.97 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:019fd0 --> Pd244:cfc8e4)
+##################################################
+0.017934460703928744
+dimer cost: 25.03 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:70f52f --> Pd244:1f9e10)
+##################################################
+0.025831310377643205
+dimer cost: 22.86 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:0a70f6 --> Pd244:9bf70b)
+##################################################
+0.023622747553677773
+dimer cost: 25.32 for Pd244-9cd57e
+ReactionLH(Pd244:9cd57e --> Pd244:374e1e --> Pd244:0af8b7)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph5] ##################################################
+0.022047174522938525
+dimer cost: 34.21 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:7aa598 --> Pd265:5423b9)
+##################################################
+CostTime=21.36. dimer optimization not coveraged for (Pd265-5d72c5)
+##################################################
+0.021294435564196086
+dimer cost: 34.55 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:ef4128 --> Pd265:94a33e)
+##################################################
+0.018099069600847378
+dimer cost: 30.72 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:bcf534 --> Pd265:94643b)
+##################################################
+0.026434135209390145
+dimer cost: 27.24 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:6d9a51 --> Pd265:b336a5)
+##################################################
+0.023902650033744165
+CostTime=25.08. product is not connected for (Pd265-5d72c5)
+##################################################
+0.022710016229654965
+dimer cost: 27.45 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:0abfaa --> Pd265:520773)
+##################################################
+0.019259193287965912
+dimer cost: 34.64 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:c6bdba --> Pd265:62d8e2)
+##################################################
+CostTime=22.81. dimer optimization not coveraged for (Pd265-5d72c5)
+##################################################
+0.024944645925517105
+dimer cost: 24.59 for Pd265-5d72c5
+ReactionLH(Pd265:5d72c5 --> Pd265:4ff889 --> Pd265:c1baa7)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph6] ##################################################
+0.013903201461644065
+dimer cost: 30.69 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:8b9183 --> Pd273:c487f1)
+##################################################
+0.021052946401714037
+dimer cost: 31.55 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:a7cbbe --> Pd273:808a55)
+##################################################
+0.026957330013394742
+dimer cost: 37.08 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:c2549f --> Pd273:4661a9)
+##################################################
+0.01721830663018791
+dimer cost: 27.04 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:4e05a8 --> Pd273:981f06)
+##################################################
+0.022951190071245263
+CostTime=30.52. check frequencies(-34.49,29.78,32.92|FQMIN=10.00) failed for (Init=Pd273-215ff2,Minima=Pd273-baa042)
+##################################################
+0.009046765861976046
+dimer cost: 27.33 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:b7071c --> Pd273:b3585f)
+##################################################
+0.011689259969971312
+CostTime=10.26. fixed bonds modified after dimer for (Pd273-215ff2,TS=Pd273-ed21f9)
+##################################################
+0.01245433298118221
+dimer cost: 29.23 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:72c720 --> Pd273:024031)
+##################################################
+0.01699038882232659
+dimer cost: 27.13 for Pd273-215ff2
+ReactionLH(Pd273:215ff2 --> Pd273:ea4d35 --> Pd273:900426)
+##################################################
+0.019244440740386535
+CostTime=34.87. check frequencies(-37.75,15.77,23.15|FQMIN=10.00) failed for (Init=Pd273-215ff2,Minima=Pd273-4dd0e5)
+PASSED
+src/tests-data-for-helper/test_helper.py::test_dimer[graph7] ##################################################
+0.016793687071707072
+CostTime=22.32. product optimization not coveraged for (Pd282-0c0e85)
+##################################################
+0.020433351126141492
+dimer cost: 41.35 for Pd282-0c0e85
+ReactionLH(Pd282:0c0e85 --> Pd282:563ec5 --> Pd282:65b3a2)
+##################################################
+0.02421408802662079
+dimer cost: 30.24 for Pd282-0c0e85
+ReactionLH(Pd282:0c0e85 --> Pd282:74cde3 --> Pd282:56649f)
+##################################################
+0.020277519004873987
+dimer cost: 33.14 for Pd282-0c0e85
+ReactionLH(Pd282:0c0e85 --> Pd282:baf8a4 --> Pd282:003e05)
+##################################################
+0.023551891025092593
+CostTime=34.58. check frequencies(-19.86,30.44,33.67|FQMIN=10.00) failed for (Init=Pd282-0c0e85,Minima=Pd282-aa953f)
+##################################################
+0.02283872061149679
+CostTime=28.58. check frequencies(-28.61,32.80,37.30|FQMIN=10.00) failed for (Init=Pd282-0c0e85,Minima=Pd282-099adb)
+##################################################
+0.016967181892940924
+CostTime=27.80. check frequencies(-28.17,32.19,35.88|FQMIN=10.00) failed for (Init=Pd282-0c0e85,Minima=Pd282-66caba)
+##################################################
+0.02387526346571437
+dimer cost: 35.47 for Pd282-0c0e85
+ReactionLH(Pd282:0c0e85 --> Pd282:119097 --> Pd282:377790)
+##################################################
+0.022050230460126934
+CostTime=36.07. check frequencies(-19.81,29.35,31.30|FQMIN=10.00) failed for (Init=Pd282-0c0e85,Minima=Pd282-20e2cf)
+##################################################
+0.0149417918373475
+dimer cost: 37.57 for Pd282-0c0e85
+ReactionLH(Pd282:0c0e85 --> Pd282:b97c52 --> Pd282:aba446)
+PASSED

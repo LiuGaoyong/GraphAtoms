@@ -18,10 +18,8 @@ from graphatoms.system import (
 )
 from graphatoms.utils.bytestool import hash_string
 
-DEFAULT_CHECK_MINIMA_FMAX = 0.1  #    eV/Å
-DEFAULT_CHECK_MINIMA_FQMIN = 1.0  #   cm^-1
-DEFAULT_CHECK_TS_FQMIN = 1.0  #       cm^-1
-DEFAULT_CHECK_TS_FMAX = 0.1  #         eV/Å
+DEFAULT_CHECK_FMAX = 0.1
+DEFAULT_CHECK_FQMIN = 5.0
 
 
 class MoveABC(ABC):
@@ -59,11 +57,11 @@ class RTGP(OurFrozenModel):
             "The `R` and `P` should be of the same class."
         )
         assert self.R.check_minima(
-            fmax=DEFAULT_CHECK_MINIMA_FMAX,
-            fqmin=DEFAULT_CHECK_MINIMA_FQMIN,
+            fmax=DEFAULT_CHECK_FMAX,
+            fqmin=DEFAULT_CHECK_FQMIN,
         ), (
             "The reactant should be a minima. "
-            + f"Fmax={self.R.fmax:.3f}, "
+            + f"Fmax={self.R.fmax:.3f}|Threshold={DEFAULT_CHECK_FMAX}, "
             + (
                 f"Fqmin={
                     ', '.join(
@@ -72,17 +70,14 @@ class RTGP(OurFrozenModel):
                             for i in self.R.frequencies[:3]
                         ]
                     )
-                }"
+                }|Threshold={DEFAULT_CHECK_FQMIN}"
                 if self.R.frequencies is not None
                 else ""
             )
         )
-        assert self.P.check_minima(
-            fmax=DEFAULT_CHECK_MINIMA_FMAX,
-            fqmin=DEFAULT_CHECK_MINIMA_FQMIN,
-        ), (
+        assert self.P.check_minima(fmax=0.1, fqmin=5.0), (
             "The product should be a minima. "
-            + f"Fmax={self.P.fmax:.3f}, "
+            + f"Fmax={self.P.fmax:.3f}|Threshold={DEFAULT_CHECK_FMAX}, "
             + (
                 f"Fqmin={
                     ','.join(
@@ -91,7 +86,7 @@ class RTGP(OurFrozenModel):
                             for i in self.P.frequencies[:3]
                         ]
                     )
-                }"
+                }|Threshold={DEFAULT_CHECK_FQMIN}"
                 if self.P.frequencies is not None
                 else ""
             )
@@ -117,10 +112,22 @@ class RTGP(OurFrozenModel):
 
     def __chech_gas(self) -> None:
         if self.G is not None:
-            assert self.G.check_minima(
-                fmax=DEFAULT_CHECK_MINIMA_FMAX,
-                fqmin=DEFAULT_CHECK_MINIMA_FQMIN,
-            ), "The gas should be a minima."
+            assert self.G.check_minima(fmax=0.1, fqmin=5.0), (
+                "The gas should be a minima."
+                + f"Fmax={self.G.fmax:.3f}|Threshold={DEFAULT_CHECK_FMAX}, "
+                + (
+                    f"Fqmin={
+                        ','.join(
+                            [
+                                f'{i:.3f}'  #
+                                for i in self.G.frequencies[:3]
+                            ]
+                        )
+                    }|Threshold={DEFAULT_CHECK_FQMIN}"
+                    if self.G.frequencies is not None
+                    else ""
+                )
+            )
             n = abs(len(self.P) - len(self.R))
             assert len(self.G) == int(n), (
                 "The number of gas atoms should match the difference in "
@@ -136,12 +143,9 @@ class RTGP(OurFrozenModel):
 
     def __check_ts(self) -> None:
         if self.T is not None:
-            assert self.T.check_ts(
-                fmax=DEFAULT_CHECK_TS_FMAX,
-                fqmin=DEFAULT_CHECK_TS_FQMIN,
-            ), (
+            assert self.T.check_ts(fmax=0.1, fqmin=5.0), (
                 "The `T` should be a transition state. "
-                + f"Fmax={self.T.fmax:.3f}, "
+                + f"Fmax={self.T.fmax:.3f}|Threshold={DEFAULT_CHECK_FMAX}, "
                 + (
                     f"Fqmin={
                         ','.join(
@@ -150,7 +154,7 @@ class RTGP(OurFrozenModel):
                                 for i in self.T.frequencies[:3]
                             ]
                         )
-                    }"
+                    }|Threshold={DEFAULT_CHECK_FQMIN}"
                     if self.T.frequencies is not None
                     else ""
                 )

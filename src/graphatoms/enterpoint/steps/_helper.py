@@ -23,7 +23,7 @@ class HelperException(Exception):
     ) -> None:
         cost = f"CostTime={cost_time:.2f}. " if cost_time is not None else ""
         label = f" for ({label})" if label is not None else ""
-        super().__init__(cost, msg, label)
+        super().__init__(cost + msg + label)
 
 
 class OptimizationFailed(HelperException):
@@ -45,6 +45,7 @@ class CheckVibrationFailed(HelperException):
     def __init__(
         self,
         *,
+        fqmin: float | None = None,
         frequencies: np.ndarray | None = None,
         cost_time: float | None = None,
         label: str | None = None,
@@ -52,8 +53,11 @@ class CheckVibrationFailed(HelperException):
         if frequencies is None:
             fstr = ""
         else:
-            fstr = ",".join(frequencies[:3])
-            fstr = f"({fstr})"
+            fstr = ",".join(f"{f:.2f}" for f in frequencies[:3])
+            if fqmin is None:
+                fstr = f"({fstr})"
+            else:
+                fstr = f"({fstr}|FQMIN={fqmin:.2f})"
         super().__init__(
             msg=f"check frequencies{fstr} failed",
             cost_time=cost_time,
@@ -87,9 +91,15 @@ def __helper_vibration(
         Calculator,
     )
 
-    freq, modes = asetools.call_vib(atoms=result_atoms, calc=calc)
-
-    print(f"Cost time: {perf_counter() - start}")
+    if check_ts and check_minima:
+        raise ValueError("check_ts and check_minima cannot be both True")
+    elif check_ts and (not check_minima):
+        fqmin = float(config.event.min_frequency_for_ts)
+    elif check_minima and (not check_ts):
+        fqmin = float(config.event.min_frequency)
+    else:
+        fqmin = 1.0
+    freq, modes = asetools.call_vib(result_atoms, calc, ignore_fqmin=fqmin)
     f: np.ndarray = result_atoms.get_forces(apply_constraint=True)
     result = result.update_energetics(
         energy=result_atoms.get_potential_energy(),
@@ -98,30 +108,26 @@ def __helper_vibration(
         deep=deep_copy,
     )
 
-    print(f"Cost time: {perf_counter() - start}")
     if check_ts and check_minima:
         raise ValueError("check_ts and check_minima cannot be both True")
     elif check_ts and (not check_minima):
-        if not result.check_ts(
-            fmax=float(config.event.max_force),
-            fqmin=float(config.event.min_frequency_for_ts),
-        ):
+        if not result.check_ts(fmax=float(config.event.max_force), fqmin=fqmin):
+            k = DatabaseABC.get_key_of(result)
             raise CheckVibrationFailed(
                 frequencies=freq,
                 cost_time=perf_counter() - start,
-                label=result_label,
+                label=f"Init={result_label},TS={k}",
+                fqmin=fqmin,
             )
     elif check_minima and (not check_ts):
-        if not result.check_minima(
-            fmax=config.event.max_force,
-            fqmin=config.event.min_frequency,
-        ):
+        if not result.check_minima(fmax=config.event.max_force, fqmin=fqmin):
+            k = DatabaseABC.get_key_of(result)
             raise CheckVibrationFailed(
                 frequencies=freq,
                 cost_time=perf_counter() - start,
-                label=result_label,
+                label=f"Init={result_label},Minima={k}",
+                fqmin=fqmin,
             )
-    print(f"Cost time: {perf_counter() - start}")
 
     return result, modes
 
@@ -179,7 +185,6 @@ def helper_optimization(
             label=graph_label,
             cost_time=perf_counter() - start,
         )
-    print(f"Cost time: {perf_counter() - start}")
 
     # ---------------------------------------------
     #       check graph hash changed or not
@@ -195,7 +200,6 @@ def helper_optimization(
             cost_time=perf_counter() - start,
             label=graph_label,
         )
-    print(f"Cost time: {perf_counter() - start}")
 
     result, _ = __helper_vibration(
         result_atoms=lst[-1].copy(),
@@ -264,8 +268,11 @@ def helper_dimer(
         # trajectory="dimer.traj",
         append_trajectory=False,
         parse_mask_from_atoms=True,
-        max_steps=int(config.optimizer.steps),
-        fmax=float(config.event.max_force),
+        max_steps=int(config.optimizer.steps * 1.5),
+        fmax=float(config.event.max_force) * 0.5,
+        # Eecause dimer use projected force as
+        # criterion, so we use smaller force
+        # threshold to ensure check TS good.
         displacement=displacement,
         mask=mask,
         **kwargs,
@@ -285,6 +292,7 @@ def helper_dimer(
         parse_bonds=config.bonds,  # type: ignore
         deep=deep_copy,
     )
+    k = DatabaseABC.get_key_of(ts)
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(ts)
         diff_bonds = np.asarray(break_bonds + make_bonds)
@@ -292,7 +300,7 @@ def helper_dimer(
             raise HelperException(
                 msg="fixed bonds modified after dimer",
                 cost_time=perf_counter() - start,
-                label=graph_label,
+                label=f"{graph_label},TS={k}",
             )
 
     # -----------------------------------------
@@ -362,10 +370,11 @@ def helper_dimer(
         break_bonds, make_bonds = graph.bond_difference(ts)
         diff_bonds = np.asarray(break_bonds + make_bonds)
         if np.any(np.isin(diff_bonds, graph.idx_fix)):
+            kp = DatabaseABC.get_key_of(product_result)
             raise HelperException(
                 msg="fixed bonds modified for product",
                 cost_time=perf_counter() - start,
-                label=graph_label,
+                label=f"{graph_label},TS={k},P={kp}",
             )
 
     # -----------------------------------------
@@ -381,6 +390,7 @@ def helper_dimer(
         config=config,
         start=start,
     )
+
     rxn = Reaction(R=graph, P=product_result, T=ts)
     return rxn, graph_label, perf_counter() - start
 

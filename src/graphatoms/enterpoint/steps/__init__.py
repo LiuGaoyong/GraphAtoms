@@ -7,12 +7,18 @@ from ._2nd import SecondStepAdsorption as Adspt
 from ._2nd import SecondStepBulk as Bulk
 from ._2nd import SecondStepSurface as Surf
 from ._3rd import ThirdStep
-from ._helper import helper_adsorption, helper_dimer, helper_optimization
+from ._helper import (
+    HelperException,
+    helper_adsorption,
+    helper_dimer,
+    helper_optimization,
+)
 
 __all__ = [
     "helper_adsorption",
     "helper_dimer",
     "helper_optimization",
+    "HelperException",
     "OTFKMC",
 ]
 

@@ -41,7 +41,7 @@ class EventConfig:
     db_format: str = "folder"
     check_frequency: bool = True  # whether to check the frequency
     max_force: float = 0.05  # eV / Angstrom
-    min_frequency: float = 30.0  # cm^-1
+    min_frequency: float = 10.0  # cm^-1
     min_frequency_for_ts: float = 20.0  # cm^-1
     simplified_threshold: float = 7.0  # the simplified threshold for event
     gas_sticking: dict[str, float] = field(default_factory=dict)

@@ -38,14 +38,14 @@ class ReactionLH(_Reaction):
     @override
     def get_Ea(self, temperature: float = 300.0) -> float:
         assert self.T is not None, "The transition state must be not None."
-        e_T = self.T.get_free_energy(30, temp=temperature)
-        e_R = self.R.get_free_energy(30, temp=temperature)
+        e_T = self.T.get_free_energy(fqmin=30.0, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
         return e_T - e_R
 
     @override
     def get_dE(self, temperature: float = 300.0) -> float:
-        e_P = self.P.get_free_energy(30, temp=temperature)
-        e_R = self.R.get_free_energy(30, temp=temperature)
+        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
         return e_P - e_R
 
     def get_rate(self, temperature: float = 300.0) -> float:

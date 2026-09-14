@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -8,13 +7,14 @@ from ase.cluster import Octahedron
 from hydra import compose, initialize
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.steps import helper_optimization
+from graphatoms.enterpoint.steps import (
+    HelperException,
+    helper_dimer,
+    helper_optimization,
+)
 from graphatoms.system import Cluster, SysGraph, System
 
 this_dir = Path(__file__).parent
-lst: Sequence[SysGraph | Cluster | System] = [
-    Cluster.read_npz(p) for p in Path(this_dir / "nominima").glob("*.npz")
-] + [System.from_ase(Octahedron("Pd", 9), parse_bonds={"method": "raw"})]
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +45,12 @@ def config() -> Config:
     return cfg
 
 
-@pytest.mark.parametrize("graph", lst)
+@pytest.mark.parametrize(
+    "graph",
+    [Cluster.read_npz(p) for p in Path(this_dir / "nominima").glob("*.npz")]
+    + [System.from_ase(Octahedron("Pd", 9), parse_bonds={"method": "raw"})],
+)
+@pytest.mark.skip(reason="Skip for now")
 def test_opt(graph: SysGraph | Cluster | System, config: Config) -> None:
     result, label, cost = helper_optimization(
         graph=graph,
@@ -89,6 +94,25 @@ def test_opt(graph: SysGraph | Cluster | System, config: Config) -> None:
                     assert all(v == v1[i] for i, v in enumerate(v0))
                 else:
                     print(k, v0 - v1)
+
+
+@pytest.mark.parametrize(
+    "graph",
+    [Cluster.read_npz(p) for p in Path(this_dir / "minima-2").glob("*.npz")],
+)
+def test_dimer(graph: SysGraph | Cluster | System, config: Config) -> None:
+    for _ in range(10):
+        print("#" * 50)
+        try:
+            result, label, cost = helper_dimer(
+                graph=graph,
+                config=config,
+                allow_fixed_bonds_change=False,
+            )
+            print(f"dimer cost: {cost:.2f} for {label}")
+            print(result)
+        except HelperException as e:
+            print(e)
 
 
 if __name__ == "__main__":

@@ -75,9 +75,15 @@ class PydanticConvertFactoryMixin(pydantic.BaseModel):
             result: dict[str, Any] = json.loads(jsonstr)
             assert isinstance(result, dict), "Only dict is supported."
             for k, v in result.items():
-                assert isinstance(v, str | float | int | bool), (
-                    f"Only str is supported. But got type `{type(v)}` for {k}."
-                )
+                if isinstance(v, str | float | int | bool):
+                    pass
+                elif isinstance(v, list | tuple):
+                    assert k == "hashes", "Only hashes is supported."
+                    result[k] = str(v)
+                else:
+                    raise ValueError(
+                        f"But got unsupported type: `{type(v)}` for {k}."
+                    )
 
         return result
 

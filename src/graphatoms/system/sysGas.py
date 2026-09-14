@@ -192,6 +192,7 @@ class Gas(System):
     @override
     def get_enthalpy(
         self,
+        *,
         fqmin: PositiveFloat = 10.0,
         temp: NonNegativeFloat = 300,
     ) -> float:
@@ -213,6 +214,7 @@ class Gas(System):
     @override
     def get_entropy(
         self,
+        *,
         fqmin: PositiveFloat = 10.0,
         temp: NonNegativeFloat = 300,
         pressure: NonNegativeFloat = 101325,
@@ -241,6 +243,7 @@ class Gas(System):
     @override
     def get_free_energy(
         self,
+        *,
         fqmin: PositiveFloat = 10.0,
         temp: NonNegativeFloat = 300,
         pressure: NonNegativeFloat = 101325,

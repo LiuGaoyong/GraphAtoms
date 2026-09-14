@@ -169,7 +169,9 @@ class Energetics(OurFrozenModel):
             d) If only_force is True, then the system is a minima if the
                 maximum force is less than the threshold.
         """
-        if self.energy is None:
+        if self.natoms <= 1:
+            return True  # A single atom must be a minima.
+        elif self.energy is None:
             return False
         elif self.fmax is None:
             return False
@@ -199,7 +201,9 @@ class Energetics(OurFrozenModel):
                 maximum imaginary frequencies are less than the threshold
                 and there is only one imaginary frequency.
         """
-        if self.energy is None:
+        if self.natoms <= 1:
+            return False  # A single atom cannot be a transition state.
+        elif self.energy is None:
             return False
         elif self.fmax is None:
             return False
@@ -212,15 +216,20 @@ class Energetics(OurFrozenModel):
 
     @staticmethod
     def _check_freqs(freqs: NDArray, fqmin: PositiveFloat = 20.0) -> bool:
+        min_freq_1, min_freq_2 = np.sort(freqs)[:2]
         min_abs_freq = abs(float(fqmin))
-        min_freq = freqs[0]
-        if min_freq > -min_abs_freq:
+        if min_freq_1 >= -min_abs_freq:
+            # print(
+            #     f"The minimum frequency {min_freq_1:.3f} is "
+            #     + f"greater than the threshold {min_abs_freq:.3f}."
+            # )
             return False
-        if freqs.size != 1:
-            min_freq_1, min_freq_2 = np.sort(freqs)[:2]
-            return min_freq_1 < -min_abs_freq and min_freq_2 > 0
         else:
-            return True
+            # print(
+            #     "The second minimum frequency is "
+            #     + f"less than 0. {min_freq_2:.3f}"
+            # )
+            return min_freq_2 > 0
 
     @validate_call
     def _get_thermo(self, fqmin: PositiveFloat = 50.0) -> BaseThermoChem:
@@ -241,6 +250,7 @@ class Energetics(OurFrozenModel):
     @validate_call
     def get_vibrational_energy_contribution(
         self,
+        *,
         fqmin: PositiveFloat = 50.0,
         temp: NonNegativeFloat = 300,
     ) -> float:
@@ -261,6 +271,7 @@ class Energetics(OurFrozenModel):
     @validate_call
     def get_vibrational_entropy_contribution(
         self,
+        *,
         fqmin: PositiveFloat = 50.0,
         temp: NonNegativeFloat = 300,
     ) -> float:
@@ -284,6 +295,7 @@ class Energetics(OurFrozenModel):
     @validate_call
     def get_enthalpy(
         self,
+        *,
         fqmin: PositiveFloat = 50.0,
         temp: NonNegativeFloat = 300,
     ) -> float:
@@ -307,6 +319,7 @@ class Energetics(OurFrozenModel):
     @validate_call
     def get_entropy(
         self,
+        *,
         fqmin: PositiveFloat = 50.0,
         temp: NonNegativeFloat = 300,
     ) -> float:
@@ -333,6 +346,7 @@ class Energetics(OurFrozenModel):
     @validate_call
     def get_free_energy(
         self,
+        *,
         fqmin: PositiveFloat = 50.0,
         temp: NonNegativeFloat = 300,
     ) -> float:

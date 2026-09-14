@@ -1,3 +1,24 @@
+"""The Recorder for the completeness of event table.
+
+
+C = 1 / (alpha * Nr)    # from reference paper 1
+    Where Nr is the number of continuous new events.
+Note: The `Nr` must be ensured by repeated exploration.
+
+factor = fmin / ftotal  # from reference paper 2
+    fmin: the minimum time found for all events.
+    ftotal: the total time exploration for all events.
+factor2 = 1 / (1 + factor)
+C = 1/ (1 + factor2**m)
+
+Ref:
+    1)  Xu, Lijun, and Graeme Henkelman. "Adaptive kinetic Monte Carlo for
+    first-principles accelerated dynamics." The Journal of Chemical Physics
+    129.11 (2008): 114104.
+    2) Williams, C. J. Off-lattice kinetic Monte Carlo methods and the
+    Fe-H system. PhD thesis, University of Cambridge, 2024.
+"""
+
 from collections import defaultdict
 from typing import override
 
@@ -11,7 +32,7 @@ class OldNewRecorder(OurBaseModel):
     new: pydantic.NonNegativeInt = 0
     fail: pydantic.NonNegativeInt = 0
     skip: pydantic.NonNegativeInt = 0
-    continuous_old: pydantic.NonNegativeInt = 0
+    continuous_old: pydantic.NonNegativeInt = 0  # Nr
 
     @pydantic.computed_field
     @property
@@ -26,6 +47,8 @@ class OldNewRecorder(OurBaseModel):
         if confidence <= 0:
             raise KeyError("The confidence must be positive.")
         elif confidence < 1:
+            raise NotImplementedError("The confidence must be 1 or greater.")
+            value = 1 / (alpha * self.continuous_old)  # noqa: F821
             value = 0 if self.new == 0 else 1 - self.new / self.total
         else:
             value = self.continuous_old

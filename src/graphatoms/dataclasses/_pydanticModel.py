@@ -6,9 +6,9 @@ from numbers import Real
 from typing import override
 
 import numpy as np
+import pyarrow as pa
 import pydantic
 from numpy.typing import ArrayLike
-from pyarrow import Schema
 
 from graphatoms.dataclasses._pydantic2pyarrow import get_pyarrow_schema
 from graphatoms.dataclasses._pydanticMixin import (
@@ -79,9 +79,15 @@ class OurBaseModel(PydanticFactoryMixin, _IndexMaskMixin):
     """
 
     @classmethod
-    def get_pyarrow_schema(cls) -> Schema:
+    def get_pyarrow_schema(cls) -> pa.Schema:
         """Get the pyarrow schema of this class."""
-        return get_pyarrow_schema(cls)
+        schema: pa.Schema = get_pyarrow_schema(cls)
+        if "hashes" not in cls.__pydantic_fields__:
+            return schema
+        else:
+            target_index: int = schema.get_field_index("hashes")
+            new_field = schema.field("hashes").with_type(pa.string())
+            return schema.set(target_index, new_field)
 
     def __repr__(self) -> str:
         return super().__repr__()
