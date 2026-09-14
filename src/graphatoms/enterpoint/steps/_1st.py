@@ -3,15 +3,14 @@ from typing import Any, override
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.system import Cluster, Gas, System  # type: ignore
 from graphatoms.system.graph import SysGraph
-from graphatoms.utils.asetools import call_optimization, call_vib
 from graphatoms.utils.parser import hydra_parse
 
 from ._0abc import BaseABC
+from ._helper import helper_optimization as helper_cluster_optimization
 
 
 class FirstStep(BaseABC):
@@ -76,10 +75,10 @@ class FirstStep(BaseABC):
                 else:
                     futures.append(
                         self.executor.submit(
-                            self.helper_cluster_optimization,
+                            helper_cluster_optimization,
                             config=self.config,
-                            cluster=sysgraph,  # type: ignore
-                            cluster_id=label,
+                            graph_label=label,
+                            graph=sysgraph,
                             allow_hash_change=False,
                             raise_on_failed=False,
                         )
@@ -238,89 +237,3 @@ class FirstStep(BaseABC):
         self.network.persistence()
 
         return result
-
-    @staticmethod
-    def helper_cluster_optimization(
-        config: Config,
-        cluster_id: Any,
-        cluster: Cluster | Gas,
-        *,
-        allow_hash_change: bool = False,
-        raise_on_failed: bool = False,
-        **kwargs,
-    ) -> tuple[Cluster | Gas | str, Any, float]:
-        """Optimize the cluster, analyze its vibrations and save it.
-
-        Returns the optimized cluster, cluster_id, and the time cost in seconds.
-        """
-        start = perf_counter()
-        calc: Calculator = hydra_parse(
-            config.calculator,  # type: ignore
-            Calculator,
-        )
-        if isinstance(cluster, Gas):
-            type = "gas"
-        else:
-            type = "minima"
-
-        # call optimization
-        lst, coveraged = call_optimization(
-            atoms=cluster.to_ase().copy(),
-            calc=calc,
-            method=str(config.optimizer.method).upper(),
-            max_steps=int(config.optimizer.steps),
-            fmax=float(config.optimizer.fmax),
-        )
-        if not coveraged:
-            msg = f"Optimization (failed): {cluster}."
-            if raise_on_failed:
-                raise BaseABC.OptimizationFailed(msg)
-            else:
-                return msg, cluster_id, perf_counter() - start
-
-        # analyze vibrations & convert to Cluster/Gas
-        new_atoms = lst[-1]
-        freq, _ = call_vib(atoms=new_atoms, calc=calc)
-        f = new_atoms.get_forces()
-        if type == "minima":
-            result = Cluster.from_ase(
-                atoms=new_atoms,
-                parse_bonds=config.bonds,  # type: ignore
-                parse_bonds_distance=False,
-                parse_bonds_order=False,
-                energy=new_atoms.get_potential_energy(),
-                fmax=np.linalg.norm(f, axis=1).max(),
-                frequencies=freq,
-                nadsorbate=0,
-            )
-        else:
-            result = Gas.from_ase(
-                atoms=new_atoms,
-                sticking=cluster.sticking,  # type: ignore
-                pressure=cluster.pressure,  # type: ignore
-                parse_bonds=config.bonds,  # type: ignore
-                energy=new_atoms.get_potential_energy(),
-                fmax=np.linalg.norm(f, axis=1).max(),
-                parse_bonds_distance=False,
-                parse_bonds_order=False,
-                frequencies=freq,
-            )
-        assert isinstance(result, (Cluster, Gas))
-        if not result.check_minima(
-            fmax=config.event.max_force,
-            fqmin=config.event.min_frequency,
-        ):
-            msg = f"Check minima failed for {cluster}."
-            if raise_on_failed:
-                raise BaseABC.CheckVibrationFailed(msg)
-            else:
-                return msg, cluster_id, perf_counter() - start
-
-        # check hash change or not
-        if not allow_hash_change and result.hash != cluster.hash:  # type: ignore
-            msg = "Cluster'hash changed after optimization."
-            if raise_on_failed:
-                raise ValueError(msg)
-            else:
-                return msg, cluster_id, perf_counter() - start
-        return result, cluster_id, perf_counter() - start

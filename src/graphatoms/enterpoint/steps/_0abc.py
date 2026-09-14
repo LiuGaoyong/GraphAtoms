@@ -122,9 +122,3 @@ class BaseABC:
     @abstractmethod
     def run(self, *args, **kwargs) -> Any:
         """Run the class."""
-
-    class OptimizationFailed(RuntimeError):
-        """Optimization failed."""
-
-    class CheckVibrationFailed(RuntimeError):
-        """Check vibrations failed."""

@@ -413,11 +413,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         assert all(k in df.columns for k in R_KEYS), df.columns  # type: ignore
         dct["numbers"] = df["numbers"].to_numpy()
         dct["positions"] = df[R_KEYS].to_numpy()
-        for k in set(df.columns[4:]) & {
-            "is_outer",
-            "coordination",
-            "move_fix_tag",
-        }:
+        for k in set(df.columns[4:]) & {"is_outer", "coordination"}:
             dct[k] = df[k].to_numpy()
         # for bond attribute
         df = graph.get_edge_dataframe()

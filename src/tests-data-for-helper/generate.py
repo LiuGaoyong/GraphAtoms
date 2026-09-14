@@ -3,7 +3,7 @@ from pathlib import Path
 from hydra import compose, initialize
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.steps import Surf
+from graphatoms.enterpoint.steps._helper import helper_dimer
 from graphatoms.reaction import Reaction
 from graphatoms.system import Cluster
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     ]
     lst[0]
 
-    rxn, cot = Surf.helper_dimer(cfg, cluster=lst[0])
+    rxn, _, cot = helper_dimer(cfg, lst[0])
     print(rxn)
     if isinstance(rxn, Reaction):
         for k in rxn.__pydantic_fields__:

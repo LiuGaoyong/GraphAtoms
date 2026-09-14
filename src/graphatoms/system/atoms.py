@@ -492,7 +492,7 @@ class Structure(Matter, Box, Energetics):
         self,
         new_positions: np.ndarray,
         *,
-        deep: bool = True,
+        deep: bool = False,
         **kwargs,
     ) -> Self:
         pos = np.asarray(new_positions, dtype=float).reshape(self.natoms, 3)
@@ -504,7 +504,7 @@ class Structure(Matter, Box, Energetics):
         fmax: float,
         *,
         frequencies: np.ndarray | None = None,
-        deep: bool = True,
+        deep: bool = False,
         **kwargs,
     ) -> Self:
         update: dict[str, Any] = {"energy": float(energy), "fmax": float(fmax)}

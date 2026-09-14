@@ -54,6 +54,7 @@ def call_vib(
 
     with TemporaryDirectory() as tmpdir:
         vib = Vibrations(atoms, name=tmpdir)
+        print(f"Vib(id): {vib.indices}")
         vib.run()
         vibdata: VibrationsData = vib.get_vibrations()
     eng, modes = vibdata.get_energies_and_modes(all_atoms=True)
@@ -170,7 +171,7 @@ def call_dimer(
     displacement : np.ndarray | None, optional
         The displacement vector. Defaults to None.
     mask : list[bool] | np.ndarray | None, optional
-        The mask to use. Defaults to None.
+        Which atoms will be moved during displacement. Defaults to None.
     parse_mask_from_atoms : bool, optional
         Whether to parse mask from atoms. Defaults to True.
     max_steps : int, optional
