@@ -66,16 +66,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff>=0.11",
+    "openbabel-wheel",
     "array-api-strict",
     "pytest>=8.3",
     "pytest-xdist",
-    "jupyter",
-    "sqlmodel",         # SQL + pydantic
-    "openbabel-wheel",
+    "jupyterlab",
+    "chemiscope",
+    "nglview",
     "ray",
-    "dask",
-    "distributed",
-    "mpi4py",
 ]
 
 # uv config

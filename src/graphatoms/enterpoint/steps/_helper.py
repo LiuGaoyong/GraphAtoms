@@ -12,57 +12,7 @@ from graphatoms.system.database import DatabaseABC
 from graphatoms.utils import asetools
 from graphatoms.utils.parser import hydra_parse
 
-
-class HelperException(Exception):
-    def __init__(
-        self,
-        *,
-        msg: str,
-        cost_time: float | None = None,
-        label: str | None = None,
-    ) -> None:
-        cost = f"CostTime={cost_time:.2f}. " if cost_time is not None else ""
-        label = f" for ({label})" if label is not None else ""
-        super().__init__(cost + msg + label)
-
-
-class OptimizationFailed(HelperException):
-    def __init__(
-        self,
-        *,
-        type: str,
-        cost_time: float | None = None,
-        label: str | None = None,
-    ) -> None:
-        super().__init__(
-            msg=f"{type} optimization not coveraged",
-            cost_time=cost_time,
-            label=label,
-        )
-
-
-class CheckVibrationFailed(HelperException):
-    def __init__(
-        self,
-        *,
-        fqmin: float | None = None,
-        frequencies: np.ndarray | None = None,
-        cost_time: float | None = None,
-        label: str | None = None,
-    ) -> None:
-        if frequencies is None:
-            fstr = ""
-        else:
-            fstr = ",".join(f"{f:.2f}" for f in frequencies[:3])
-            if fqmin is None:
-                fstr = f"({fstr})"
-            else:
-                fstr = f"({fstr}|FQMIN={fqmin:.2f})"
-        super().__init__(
-            msg=f"check frequencies{fstr} failed",
-            cost_time=cost_time,
-            label=label,
-        )
+from ._errors import CheckVibrationFailed, HelperException, OptimizationFailed
 
 
 def __helper_vibration(
@@ -138,9 +88,10 @@ def helper_optimization(
     *,
     graph_label: Any | None = None,
     allow_hash_change: bool = True,
+    raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Cluster | Gas | System | SysGraph, Any, float]:
+) -> tuple[Cluster | Gas | System | SysGraph | str, Any, float]:
     """Optimize the input graph, analyze its vibrations and check it.
 
     Parameters:
@@ -148,6 +99,7 @@ def helper_optimization(
         graph_label: The label of the graph.
         graph: The graph to optimization.
         allow_hash_change: Whether to allow the hash change after optimization.
+        raise_when_fail: Whether to raise exception after optimization failed.
         deep_copy: Whether to deep copy the optimized graph.
 
     Raises:
@@ -180,11 +132,16 @@ def helper_optimization(
         fmax=float(config.optimizer.fmax),
     )
     if not coveraged:
-        raise OptimizationFailed(
+        cost_time = perf_counter() - start
+        e = OptimizationFailed(
             type="dimer",
             label=graph_label,
-            cost_time=perf_counter() - start,
+            cost_time=cost_time,
         )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
 
     # ---------------------------------------------
     #       check graph hash changed or not
@@ -195,23 +152,37 @@ def helper_optimization(
         deep=deep_copy,
     )
     if not allow_hash_change and graph.hash != result.hash:
-        raise HelperException(
+        cost_time = perf_counter() - start
+        e = HelperException(
             msg="hash changed after optimization",
-            cost_time=perf_counter() - start,
+            cost_time=cost_time,
             label=graph_label,
         )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
 
-    result, _ = __helper_vibration(
-        result_atoms=lst[-1].copy(),
-        result_label=graph_label,
-        deep_copy=deep_copy,
-        check_minima=True,
-        check_ts=False,
-        config=config,
-        result=result,
-        start=start,
-    )
-    return result, graph_label, perf_counter() - start
+    # ---------------------------------------------
+    #       call vibration & return result
+    # ---------------------------------------------
+    try:
+        result, _ = __helper_vibration(
+            result_atoms=lst[-1].copy(),
+            result_label=graph_label,
+            deep_copy=deep_copy,
+            check_minima=True,
+            check_ts=False,
+            config=config,
+            result=result,
+            start=start,
+        )
+        return result, graph_label, perf_counter() - start
+    except CheckVibrationFailed as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start
 
 
 def helper_dimer(
@@ -221,9 +192,10 @@ def helper_dimer(
     graph_label: Any | None = None,
     allow_fixed_bonds_change: bool = False,
     displacement: np.ndarray | None = None,
+    raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Reaction | Desorption, Any, float]:
+) -> tuple[Reaction | Desorption | str, Any, float]:
     """Dimer search for transition state.
 
     Parameters:
@@ -232,6 +204,7 @@ def helper_dimer(
         allow_fixed_bonds_change: Whether to
             allow the fixed bonds change after dimer.
         displacement: The displacement vector for dimer.
+        raise_when_fail: Whether to raise exception when failed.
         deep_copy: Whether to deep copy the optimized graph.
 
     Raises:
@@ -242,7 +215,6 @@ def helper_dimer(
     Returns:
         the optimized graph, graph_id, and the time cost in seconds.
     """
-
     start = perf_counter()
     if graph_label is None:
         graph_label = DatabaseABC.get_key_of(graph)
@@ -278,11 +250,16 @@ def helper_dimer(
         **kwargs,
     )
     if not coveraged:
-        raise OptimizationFailed(
+        cost_time = perf_counter() - start
+        e = OptimizationFailed(
             type="dimer",
             label=graph_label,
-            cost_time=perf_counter() - start,
+            cost_time=cost_time,
         )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
 
     # -----------------------------------------
     #       check the fixed bond change or not
@@ -297,25 +274,37 @@ def helper_dimer(
         break_bonds, make_bonds = graph.bond_difference(ts)
         diff_bonds = np.asarray(break_bonds + make_bonds)
         if np.any(np.isin(diff_bonds, graph.idx_fix)):
-            raise HelperException(
+            cost_time = perf_counter() - start
+            e = HelperException(
                 msg="fixed bonds modified after dimer",
-                cost_time=perf_counter() - start,
                 label=f"{graph_label},TS={k}",
+                cost_time=cost_time,
             )
+            if raise_when_fail:
+                raise e
+            else:
+                return str(e), graph_label, cost_time
 
     # -----------------------------------------
     #       analyze frequencies & check
     # -----------------------------------------
-    ts, vib_modes = __helper_vibration(
-        result_atoms=dimer_lst[-1].copy(),
-        result_label=graph_label,
-        deep_copy=deep_copy,
-        check_minima=False,
-        check_ts=True,
-        config=config,
-        start=start,
-        result=ts,
-    )
+    try:
+        ts, vib_modes = __helper_vibration(
+            result_atoms=dimer_lst[-1].copy(),
+            result_label=graph_label,
+            deep_copy=deep_copy,
+            check_minima=False,
+            check_ts=True,
+            config=config,
+            start=start,
+            result=ts,
+        )
+    except CheckVibrationFailed as e:
+        cost_time = perf_counter() - start
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
 
     # -----------------------------------------
     #        descend the minimum mode
@@ -351,49 +340,80 @@ def helper_dimer(
                 product_atoms = opt_lst[-1]
                 break
     if product_result is None or product_atoms is None:
-        raise OptimizationFailed(
+        cost_time = perf_counter() - start
+        e = OptimizationFailed(
             type="product",
             label=graph_label,
-            cost_time=perf_counter() - start,
+            cost_time=cost_time,
         )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
 
     # ------------------------------------------------------------
     #       check the fixed bond change or not for product
     # ------------------------------------------------------------
     if not product_result.is_connected:
-        raise HelperException(
+        cost_time = perf_counter() - start
+        e = HelperException(
             msg="product is not connected",
-            cost_time=perf_counter() - start,
+            cost_time=cost_time,
             label=graph_label,
         )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(ts)
         diff_bonds = np.asarray(break_bonds + make_bonds)
         if np.any(np.isin(diff_bonds, graph.idx_fix)):
             kp = DatabaseABC.get_key_of(product_result)
-            raise HelperException(
+            cost_time = perf_counter() - start
+            e = HelperException(
                 msg="fixed bonds modified for product",
-                cost_time=perf_counter() - start,
+                cost_time=cost_time,
                 label=f"{graph_label},TS={k},P={kp}",
             )
+            if raise_when_fail:
+                raise e
+            else:
+                return str(e), graph_label, cost_time
 
     # -----------------------------------------
     # call vibration for product
     # -----------------------------------------
-    product_result, _ = __helper_vibration(
-        result_atoms=product_atoms,
-        result_label=graph_label,
-        result=product_result,
-        deep_copy=deep_copy,
-        check_minima=True,
-        check_ts=False,
-        config=config,
-        start=start,
-    )
+    try:
+        product_result, _ = __helper_vibration(
+            result_atoms=product_atoms,
+            result_label=graph_label,
+            result=product_result,
+            deep_copy=deep_copy,
+            check_minima=True,
+            check_ts=False,
+            config=config,
+            start=start,
+        )
+        rxn = Reaction(R=graph, P=product_result, T=ts)
+        return rxn, graph_label, perf_counter() - start
+    except CheckVibrationFailed as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start
 
-    rxn = Reaction(R=graph, P=product_result, T=ts)
-    return rxn, graph_label, perf_counter() - start
 
-
-def helper_adsorption() -> Adsorption:
+def helper_adsorption(
+    gas: Gas,
+    config: Config,
+    graph: Cluster | System | SysGraph,
+    *,
+    graph_label: Any | None = None,
+    allow_fixed_bonds_change: bool = False,
+    displacement: np.ndarray | None = None,
+    raise_when_fail: bool = True,
+    deep_copy: bool = True,
+    **kwargs,
+) -> tuple[Adsorption | str, Any, float]:
     raise NotImplementedError

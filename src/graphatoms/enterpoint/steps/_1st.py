@@ -80,7 +80,7 @@ class FirstStep(BaseABC):
                             graph_label=label,
                             graph=sysgraph,
                             allow_hash_change=False,
-                            raise_on_failed=False,
+                            raise_when_fail=False,
                         )
                     )
             self.logger.info(

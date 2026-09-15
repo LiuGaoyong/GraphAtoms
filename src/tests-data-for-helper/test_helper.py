@@ -108,10 +108,12 @@ def test_dimer(graph: SysGraph | Cluster | System, config: Config) -> None:
                 graph=graph,
                 config=config,
                 allow_fixed_bonds_change=False,
+                raise_when_fail=False,
             )
             print(f"dimer cost: {cost:.2f} for {label}")
             print(result)
         except HelperException as e:
+            raise e
             print(e)
 
 

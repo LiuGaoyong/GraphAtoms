@@ -39,6 +39,7 @@ class DirDB(DatabaseABC):
     @override
     def __getitem__(self, key: str) -> Atoms:
         p = self.__path.joinpath(f"{key}.npz")
+        print(p)
         return SysGraph.read_npz(p).to_ase()
 
     @property

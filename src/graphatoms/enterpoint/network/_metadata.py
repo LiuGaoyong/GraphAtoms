@@ -95,6 +95,10 @@ class MetaDataTable(BaseModel):
             self.Ea.append(event.get_Ea(temperature))
             self.dE.append(event.get_dE(temperature))
             self.rate.append(event.get_rate(temperature))
+            ls = [len(getattr(self, k)) for k in self.__pydantic_fields__]
+            assert len(set(ls)) == 1, (
+                "The length of each field must be the same."
+            )
             return True
 
 

@@ -16,15 +16,15 @@ class Mock(FirstStep, Surf):
     def run(self) -> None:  # type: ignore
         for k, cluster in FirstStep.run(self, None).items():
             self.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
-            # Surf.run(self, cluster)
+            Surf.run(self, cluster)
 
 
 @pytest.mark.parametrize(
     "parallel",
     [
         # "serial",
-        "multiprocessing",
-        # "ray",
+        # "multiprocessing",
+        "ray",
     ],
 )
 def test_run_step(parallel) -> None:
@@ -51,7 +51,7 @@ def test_run_step(parallel) -> None:
             cfg.restart = False
             cfg.parallel = parallel
             cfg.exploration.maxtry = 100
-            cfg.outputs = Path(tmp).as_posix()
+            # cfg.outputs = Path(tmp).as_posix()
             # cfg.event.min_frequency_for_ts = 10.0
             # cfg.event.min_frequency = 10.0
             # cfg.event.max_force = 0.05

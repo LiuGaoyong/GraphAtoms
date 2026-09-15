@@ -32,7 +32,7 @@ class ExplConfig:
     surface_only_explore_single_core: bool = True
     allow_multiple_adsorption: bool = False
     allow_explore_bulk: bool = False
-    thetacutoff: float = 30
+    thetacutoff: float = -1  # 0-180, -1 means no cutoff
     nfibonacci: int = 200
 
 

@@ -10,7 +10,7 @@ from pydantic import model_validator
 from graphatoms.dataclasses import OurFrozenModel
 from graphatoms.geometry.rotation import kabsch
 from graphatoms.system import (
-    DEFAULT_WH_HASH_DEPTH,
+    DEFAULT_WH_HASH_SIZE,
     Cluster,
     Gas,
     SysGraph,
@@ -196,7 +196,7 @@ class RTGP(OurFrozenModel):
         t = self.T.hash if self.T is not None else ""
         g = self.G.hash if self.G is not None else ""
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
-        return hash_string(v, digest_size=DEFAULT_WH_HASH_DEPTH)
+        return hash_string(v, digest_size=DEFAULT_WH_HASH_SIZE)
 
     def simplify(self, env_radius: float = 5.0) -> Self:
         """Simplify the event by removing the atoms that are not involved."""

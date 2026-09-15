@@ -49,8 +49,17 @@ class ReactionLH(_Reaction):
         return e_P - e_R
 
     def get_rate(self, temperature: float = 300.0) -> float:
-        exp = np.exp(-self.get_Ea(temperature) / kB * temperature)
-        return kB * temperature / h * exp
+        """Get the rate of the reaction by TST.
+
+        Eq:
+                    kB*T       -Ea
+            rate = ------*exp(------)
+                      h        kB*T
+        """
+        Ea = self.get_Ea(temperature)
+        kBT = kB * temperature
+        exp = np.exp(-Ea / kBT)
+        return kBT / h * exp
 
 
 class ReactionER(_Reaction):

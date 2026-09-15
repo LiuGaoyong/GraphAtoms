@@ -57,10 +57,19 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
                 old_value = self[key]
                 vdiff = value.positions - old_value.positions
                 if not np.all(np.abs(vdiff) < check_threshold):
+                    # Save some files for debug.
+                    old = SysGraph.from_ase(old_value)
+                    for v, append in [
+                        (old_value, False),
+                        (value.to_ase(), True),
+                    ]:
+                        v.write(f"{key}-debug.xyz", "extxyz", append=append)
+                    value.write_npz(f"{key}-new.npz")  # type: ignore
+                    old.write_npz(f"{key}-old.npz")  # type: ignore
                     raise ValueError(
                         "The positions are not the same as the old value. "
-                        f"Check threshold: {check_threshold} Angstrom."
-                        f"Positions difference: {vdiff}"
+                        f"Check threshold: {check_threshold} Angstrom. But "
+                        f"Positions difference Max: {np.max(np.abs(vdiff))}."
                     )
             return False
 
