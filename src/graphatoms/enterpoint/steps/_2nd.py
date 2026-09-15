@@ -85,6 +85,7 @@ class SecondStepSurface(BaseABC):
         # -----------------------------------------
         # wait for the dimer tasks to finish
         # -----------------------------------------
+        simplified_threshold = self.config.event.simplified_threshold
         newold = self.network.recorder.exploration[cluster_key]
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
@@ -93,6 +94,13 @@ class SecondStepSurface(BaseABC):
                 newold.fail += 1
                 msg: str = "DimerSearch(failed) "
             elif isinstance(event, Reaction | Desorption):
+                if simplified_threshold > 0:
+                    old_event_str = str(event)
+                    event = event.simplify(simplified_threshold)
+                    self.logger.info(
+                        f"Simplify {old_event_str} to {event} "
+                        + f"by threshold={simplified_threshold}"
+                    )
                 msg: str = "DimerSearch(success) "
                 if self.network.write(event):  # event is new
                     newold.continuous_old = 0

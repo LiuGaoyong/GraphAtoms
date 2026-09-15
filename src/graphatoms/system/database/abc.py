@@ -78,7 +78,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         raise RuntimeError("The discard method is not supported.")
 
     @staticmethod
-    def get_key_of(value: SysGraph, use_positions_uuid: bool = False) -> str:
+    def get_key_of(value: SysGraph, use_positions_uuid: bool = True) -> str:
         """Get the key of the value.
 
         Note: Donot use_positions_uuid if you want reuse the data.
