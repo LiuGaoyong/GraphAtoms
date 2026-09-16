@@ -7,17 +7,9 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.steps import FirstStep, Surf
+from graphatoms.enterpoint.runner.otfkmc import OTFKMC as Mock
 
 this_dir = Path(__file__).parent
-
-
-class Mock(FirstStep, Surf):
-    def run(self) -> None:  # type: ignore
-        for k, cluster in FirstStep.run(self, None).items():
-            self.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
-            Surf.run(self, cluster)
-        print("..........................")
 
 
 @pytest.mark.skip()

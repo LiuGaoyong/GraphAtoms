@@ -3,7 +3,7 @@ from pathlib import Path
 from hydra import compose, initialize
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.steps._helper import helper_dimer
+from graphatoms.enterpoint.runner._helper import helper_dimer
 from graphatoms.reaction import Reaction
 from graphatoms.system import Cluster
 

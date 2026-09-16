@@ -7,7 +7,7 @@ from ase.cluster import Octahedron
 from hydra import compose, initialize
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.steps import (
+from graphatoms.enterpoint.runner._helper import (
     HelperException,
     helper_dimer,
     helper_optimization,

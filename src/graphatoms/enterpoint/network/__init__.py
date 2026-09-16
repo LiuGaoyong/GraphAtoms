@@ -89,20 +89,6 @@ class RxNet:
         self.scheduler.write_npz(self.__path / "scheduler.npz")
         self.metadata.persistence(self.__path)
 
-    def _bkl_solver(
-        self,
-        forward_nmatched: list[int] | np.ndarray,
-        reversed_nmatched: list[int] | np.ndarray,
-        *args,
-        **kwargs,
-    ) -> tuple[EventInfo, float]:
-        return self.metadata._bkl_solver(
-            forward_nmatched=np.asarray(forward_nmatched),
-            reversed_nmatched=np.asarray(reversed_nmatched),
-            *args,
-            **kwargs,
-        )
-
     def read(self, key: str) -> tuple[EventInfo, EventBase]:
         if self.metadata.has(key):
             info = self.metadata.read(key)

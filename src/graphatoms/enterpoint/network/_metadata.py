@@ -160,13 +160,21 @@ class MetaData(BaseModel):
     def __len__(self) -> int:
         return self.table.__len__()
 
-    def _bkl_solver(
+    def bkl_solver(
         self,
         forward_nmatched: list[int] | np.ndarray,
         reversed_nmatched: list[int] | np.ndarray,
         *args,
         **kwargs,
-    ) -> tuple[EventInfo, float]:
+    ) -> tuple[str, bool, float]:
+        """Solve the BKL equation to select the reaction.
+
+        Returns:
+            1. The key of the selected reaction.
+            2. Whether the reaction is forward.
+            3. The time increment.
+        """
+
         n_events = len(self.table)
         forward_nmatched = np.asarray(forward_nmatched, dtype=int).flatten()
         reversed_nmatched = np.asarray(reversed_nmatched, dtype=int).flatten()
@@ -199,13 +207,12 @@ class MetaData(BaseModel):
         # time increment: -ln(rho2) / k_tot
         dt: float = -np.log(rho2) / k_tot
 
-        if index >= n_events:
+        if index >= n_events:  # reversed reaction
             key_rxn = self.table.key_rxn[index - n_events]
-            einfo = self.read(key_rxn).reversed
+            return key_rxn, False, dt
         else:
             key_rxn = self.table.key_rxn[index]
-            einfo = self.read(key_rxn)
-        return einfo, dt
+            return key_rxn, True, dt
 
     def rxn_count_add_one(self, value: EventBase | str) -> None:
         """Add the count of the reaction with the hash value.

@@ -6,6 +6,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
+from graphatoms.enterpoint.network import RxNet
 from graphatoms.reaction import Adsorption, Desorption, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
 from graphatoms.utils import asetools
@@ -414,3 +415,49 @@ def helper_adsorption(
     **kwargs,
 ) -> tuple[Adsorption | str, Any, float]:
     raise NotImplementedError
+
+
+def helper_match(
+    rxnet: RxNet,
+    rxn_key: str,
+    system: System,
+) -> tuple[str, np.ndarray | None, np.ndarray | None]:
+    """Helper function for matching process.
+
+    Returns:
+        1. the forward match result
+        2. the reversed match result
+
+    """
+    info = rxnet.metadata.read(rxn_key)
+    result_forward = system.get_match_mode(  # type: ignore
+        pattern=Cluster.from_ase(rxnet.db_minima[info.key_r]),
+        algorithm="lad",
+        return_match_target=True,
+        only_number_color=False,
+        only_count=False,
+    )
+    assert not isinstance(result_forward, int)
+    result_reversed = system.get_match_mode(  # type: ignore
+        pattern=Cluster.from_ase(rxnet.db_minima[info.key_p]),
+        algorithm="lad",
+        return_match_target=True,
+        only_number_color=False,
+        only_count=False,
+    )
+    assert not isinstance(result_reversed, int)
+    return rxn_key, result_forward, result_reversed
+
+
+def helper_apply(
+    rxnet: RxNet,
+    rxn_key: str,
+    system: System,
+    match_mode: np.ndarray,
+    forward: bool = True,
+) -> tuple[str, bool, Atoms, float]:
+    _, rxn = rxnet.read(rxn_key)
+    if not forward:
+        rxn = rxn.reversed
+    atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
+    return rxn_key, forward, atoms, rmsd
