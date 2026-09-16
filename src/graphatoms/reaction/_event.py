@@ -9,13 +9,7 @@ from pydantic import BaseModel, model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
 from graphatoms.geometry.rotation import kabsch
-from graphatoms.system import (
-    DEFAULT_WH_HASH_SIZE,
-    Cluster,
-    Gas,
-    SysGraph,
-    System,
-)
+from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils.bytestool import hash_string
 
 DEFAULT_CHECK_FMAX = 0.1
@@ -196,7 +190,7 @@ class RTGP(OurFrozenModel):
         t = self.T.hash if self.T is not None else ""
         g = self.G.hash if self.G is not None else ""
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
-        return hash_string(v, digest_size=DEFAULT_WH_HASH_SIZE)
+        return hash_string(v)
 
     def simplify(self, env_radius: float = 5.0) -> Self:
         """Simplify the event by removing the atoms that are not involved."""
@@ -453,6 +447,23 @@ class EventInfo(BaseModel):
 
     def to_dict(self) -> dict[str, float | str | None]:
         return {k: getattr(self, k) for k in self.__pydantic_fields__}
+
+    @property
+    def reversed(self) -> Self:
+        return self.__class__(
+            key_rxn=self.key_rxn,
+            key_r=self.key_p,
+            key_g=self.key_g,
+            key_t=self.key_t,
+            key_p=self.key_r,
+            Ea_forword=self.Ea_reversed,
+            rate_forword=self.rate_reversed,
+            rate_reversed=self.rate_forword,
+            Ea_reversed=self.Ea_forword,
+            for_cluster=self.for_cluster,
+            for_system=self.for_system,
+            dE=self.dE * -1.0,
+        )
 
     @classmethod
     def from_event(

@@ -2,7 +2,7 @@ import dataclasses as dc
 from pathlib import Path
 from typing import Literal
 
-import pydantic
+import numpy as np
 
 from graphatoms.enterpoint.config import EventConfig
 from graphatoms.reaction import EventBase, EventInfo, Reaction
@@ -88,6 +88,20 @@ class RxNet:
         self.recorder.write_json(self.__path / "recorder.json")
         self.scheduler.write_npz(self.__path / "scheduler.npz")
         self.metadata.persistence(self.__path)
+
+    def _bkl_solver(
+        self,
+        forward_nmatched: list[int] | np.ndarray,
+        reversed_nmatched: list[int] | np.ndarray,
+        *args,
+        **kwargs,
+    ) -> tuple[EventInfo, float]:
+        return self.metadata._bkl_solver(
+            forward_nmatched=np.asarray(forward_nmatched),
+            reversed_nmatched=np.asarray(reversed_nmatched),
+            *args,
+            **kwargs,
+        )
 
     def read(self, key: str) -> tuple[EventInfo, EventBase]:
         if self.metadata.has(key):

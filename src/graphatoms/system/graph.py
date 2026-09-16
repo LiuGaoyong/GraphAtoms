@@ -207,8 +207,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
             z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
             pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
-            uuid = hash_string(pos_str, digest_size=8)
-            return f"{fml}-{self.hash}-{uuid}"
+            return f"{fml}-{self.hash}-{hash_string(pos_str)}"
         else:
             return f"{fml}-{self.hash}"
 

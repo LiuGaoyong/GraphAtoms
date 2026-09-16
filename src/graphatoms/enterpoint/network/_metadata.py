@@ -2,6 +2,7 @@ import dataclasses as dc
 from pathlib import Path
 from typing import Any, Self, override
 
+import numpy as np
 import pandas as pd
 from pydantic import (
     BaseModel,
@@ -159,6 +160,53 @@ class MetaData(BaseModel):
     def __len__(self) -> int:
         return self.table.__len__()
 
+    def _bkl_solver(
+        self,
+        forward_nmatched: list[int] | np.ndarray,
+        reversed_nmatched: list[int] | np.ndarray,
+        *args,
+        **kwargs,
+    ) -> tuple[EventInfo, float]:
+        n_events = len(self.table)
+        forward_nmatched = np.asarray(forward_nmatched, dtype=int).flatten()
+        reversed_nmatched = np.asarray(reversed_nmatched, dtype=int).flatten()
+        assert len(forward_nmatched) == len(reversed_nmatched) == n_events, (
+            "The length of forward_nmatched "
+            + "and reversed_nmatched must be "
+            + "same as the number of events "
+            + "in the metadata table."
+        )
+        matched = np.append(forward_nmatched, reversed_nmatched)
+        forward_rates = np.asarray(self.table.rate_forword)
+        reversed_rates = np.asarray(self.table.rate_reversed)
+        rates = np.append(forward_rates, reversed_rates).flatten() * matched
+
+        k_tot = rates.sum()
+        if k_tot <= 0:
+            raise ValueError("The sum of rates must be positive.")
+
+        # two independent uniform random numbers in [0, 1)
+        rho1, rho2 = np.random.random(2)
+
+        # cumulative rate table, binary search the selected event
+        index: int = np.searchsorted(np.cumsum(rates), rho1 * k_tot)
+
+        # prevent floating-point error from causing index out of range
+        # if the index is out of range, set it to the last index
+        if index >= len(rates):
+            index = len(rates) - 1
+
+        # time increment: -ln(rho2) / k_tot
+        dt: float = -np.log(rho2) / k_tot
+
+        if index >= n_events:
+            key_rxn = self.table.key_rxn[index - n_events]
+            einfo = self.read(key_rxn).reversed
+        else:
+            key_rxn = self.table.key_rxn[index]
+            einfo = self.read(key_rxn)
+        return einfo, dt
+
     def rxn_count_add_one(self, value: EventBase | str) -> None:
         """Add the count of the reaction with the hash value.
 
@@ -171,13 +219,22 @@ class MetaData(BaseModel):
         index = self.table.key_rxn.index(value)
         self.table.count[index] += 1
 
-    def read(self, value: str) -> EventInfo:
+    def read(self, value: str | int) -> EventInfo:
         """Read the event metadata from the Table.
 
         Returns:
             EventBase: The event metadata.
         """
-        index = self.table.key_rxn.index(value)
+        if isinstance(value, int):
+            assert 0 <= value < len(self.table), (
+                "The index must be between 0 and the "
+                + "number of events in the metadata table."
+            )
+            index = int(value)
+        elif isinstance(value, str):
+            index = self.table.key_rxn.index(value)
+        else:
+            raise ValueError(f"Unknown event type: {type(value)}")
         return EventInfo(
             key_rxn=self.table.key_rxn[index],
             key_r=self.table.key_r[index],

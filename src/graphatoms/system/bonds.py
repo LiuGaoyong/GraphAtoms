@@ -14,9 +14,6 @@ from graphatoms.system.atoms import Matter
 from graphatoms.utils.bytestool import hash_string
 from graphatoms.utils.rdutils import get_rdmol
 
-DEFAULT_WH_HASH_DEPTH = 3
-DEFAULT_WH_HASH_SIZE = 6
-
 __all__ = ["BondGraph"]
 
 
@@ -312,7 +309,6 @@ class BondGraph(Matter, OurFrozenModel):
     # Some functions for `weisfeiler lehman algorithm`
     def _weisfeiler_lehman_step(
         self,
-        digest_size: int = DEFAULT_WH_HASH_SIZE,
         atomcolor: list[str | int] | np.ndarray | None = None,
     ) -> np.ndarray | list[str]:
         """Return hash string for each vertex by weisfeiler lehman algorithm.
@@ -340,7 +336,6 @@ class BondGraph(Matter, OurFrozenModel):
                 hash_string(
                     label
                     + "".join(np.sort(igcolor[self._get_neighbors_numpy(i)])),
-                    digest_size=digest_size,
                 )
                 for i, label in enumerate(igcolor)
             ]
@@ -349,15 +344,13 @@ class BondGraph(Matter, OurFrozenModel):
     @pydantic.validate_call
     def get_weisfeiler_lehman_hashes(
         self,
-        hash_depth: pydantic.PositiveInt = DEFAULT_WH_HASH_DEPTH,
-        digest_size: pydantic.PositiveInt = DEFAULT_WH_HASH_SIZE,
+        hash_depth: pydantic.PositiveInt = 3,
     ) -> list[str]:
         """Return hash value for each atom."""
         labels = self.__COLOR
         for _ in range(hash_depth):
             labels = self._weisfeiler_lehman_step(
                 atomcolor=np.asarray(labels),
-                digest_size=digest_size,
             )
         result = [str(i) for i in labels]
         object.__setattr__(self, "hashes", result)
@@ -374,8 +367,7 @@ class BondGraph(Matter, OurFrozenModel):
                     if self.hashes is not None
                     else self.get_weisfeiler_lehman_hashes()
                 )
-            ),
-            digest_size=DEFAULT_WH_HASH_SIZE,
+            )
         )
 
     ###################################################

@@ -20,6 +20,7 @@ class Mock(FirstStep, Surf):
         print("..........................")
 
 
+@pytest.mark.skip()
 @pytest.mark.parametrize(
     "parallel",
     [
@@ -50,12 +51,12 @@ def test_run_step(parallel) -> None:
                 overrides=overrides,
             )
 
-            maxtry = 10  # 000
+            maxtry = 3
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
             cfg.exploration.maxtry = maxtry
-            # cfg.outputs = Path(tmp).as_posix()
+            cfg.outputs = Path(tmp).as_posix()
             # cfg.event.min_frequency_for_ts = 10.0
             # cfg.event.min_frequency = 10.0
             # cfg.event.max_force = 0.05

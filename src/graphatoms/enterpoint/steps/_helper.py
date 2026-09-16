@@ -86,6 +86,7 @@ def helper_optimization(
     graph_label: Any | None = None,
     allow_hash_change: bool = True,
     raise_when_fail: bool = False,
+    run_vibration: bool = True,
     deep_copy: bool = True,
     **kwargs,
 ) -> tuple[Cluster | Gas | System | SysGraph | str, Any, float]:
@@ -97,6 +98,7 @@ def helper_optimization(
         graph: The graph to optimization.
         allow_hash_change: Whether to allow the hash change after optimization.
         raise_when_fail: Whether to raise exception after optimization failed.
+        run_vibration: Whether to run the vibration check after optimization.
         deep_copy: Whether to deep copy the optimized graph.
 
     Raises:
@@ -149,7 +151,6 @@ def helper_optimization(
         deep=deep_copy,
     )
     if not allow_hash_change and graph.hash != result.hash:
-        cost_time = perf_counter() - start
         e = HelperException(
             msg="hash changed after optimization",
             label=graph_label,
@@ -157,7 +158,9 @@ def helper_optimization(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time
+            return str(e), graph_label, perf_counter() - start
+    if not run_vibration:
+        return result, graph_label, perf_counter() - start
 
     # ---------------------------------------------
     #       call vibration & return result

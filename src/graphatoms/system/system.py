@@ -3,7 +3,6 @@ from typing import Self
 import numpy as np
 from pydantic import model_validator
 
-from graphatoms.system.bonds import DEFAULT_WH_HASH_SIZE
 from graphatoms.system.graph import SysGraph
 from graphatoms.utils.bytestool import hash_string
 
@@ -75,7 +74,6 @@ def analysis_site(
     hashes = [
         hash_string(
             "-".join([sys.hashes[i] for i in range(len(sys)) if site[i]]),
-            digest_size=DEFAULT_WH_HASH_SIZE,
         )
         for site in result
     ]

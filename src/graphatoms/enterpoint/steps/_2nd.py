@@ -117,9 +117,14 @@ class SecondStepSurface(BaseABC):
                     cluster_key=cluster_key,
                 ),
             ):
+                self.logger.info(
+                    f"Finish exploration for {cluster_key} with "
+                    + f"confidence {confidence:.2f}. {len(futures)}"
+                    + " dimer tasks left. They will be canceled."
+                )
+                for future in futures:
+                    self.executor.cancel(future)
                 break
-        for future in futures:
-            future.cancel()
 
         self.network.persistence()
 

@@ -2,13 +2,13 @@
 
 import gzip
 import hashlib
-import random
 import string
 import zlib
 from collections.abc import Callable
 from functools import partial
 from typing import Annotated
 
+from numpy.random import choice
 from pydantic import Field, validate_call
 
 try:
@@ -153,32 +153,30 @@ def hash(
 
 
 @validate_call
-def hash_string(
-    value: bytes | str,
-    algo: str = "blake2b",
-    digest_size: int = 6,
-) -> str:
+def hash_string(value: bytes | str, algo: str = "blake2b") -> str:
     """Return the hashing string of the given value.
 
     Args:
         value (bytes | str): The input value
         algo (str, optional): The hash algorithms. Defaults to "blake2b".
-        digest_size (int, optional): Defaults to 6.
 
     Returns:
-        str: The output value
+        str: The output value of 32 characters.
 
     """
-    digest_size = int(digest_size / 2)
-    b: bytes = hash(value, False, algo)  # type: ignore
-    assert isinstance(b, bytes), "The `b` must be bytes."
-    h = hashlib.blake2b(b, digest_size=digest_size)
-    return h.hexdigest()
+    if not isinstance(value, bytes):
+        value = value.encode("utf-8")  # type: ignore
+    assert isinstance(value, bytes), "The `value` must be bytes."
+    return hashlib.blake2b(
+        value,
+        digest_size=16,
+        person=b"GraphAtoms",
+    ).hexdigest()
 
 
 def random_string(n: int) -> str:
-    pool: str = string.ascii_letters + string.digits
-    return "".join(random.sample(pool, k=n))
+    pool: list[str] = list(string.ascii_letters + string.digits)
+    return "".join(choice(pool, size=int(n)))
 
 
 #######################################################################
@@ -192,3 +190,11 @@ def test_compress_decompress() -> None:
         compressed = compress(data, fmt, "utf-8")
         data0 = decompress(compressed, fmt)
         assert data == data0.decode("utf-8")
+        result = hash_string(data)
+        print(len(result), result)
+    lst = list(string.ascii_letters + string.digits)
+    print(len(lst))
+
+
+if __name__ == "__main__":
+    test_compress_decompress()
