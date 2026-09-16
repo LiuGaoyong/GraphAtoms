@@ -3,9 +3,7 @@ from typing import override
 
 from ase.calculators.calculator import Calculator
 
-from graphatoms.reaction import Desorption, Reaction
 from graphatoms.system import Cluster, Gas  # type: ignore
-from graphatoms.system.database import DatabaseABC
 from graphatoms.utils import asetools
 from graphatoms.utils.parser import hydra_parse
 
@@ -18,7 +16,7 @@ class SecondStepSurface(BaseABC):
 
     @override
     def run(self, cluster: Cluster) -> None:
-        cluster_key = f"Cluster({DatabaseABC.get_key_of(cluster)})"
+        cluster_key = cluster.get_key_for_metadata()
         assert cluster.check_minima(
             fmax=float(self.config.event.max_force),
             fqmin=float(self.config.event.min_frequency),
@@ -27,6 +25,7 @@ class SecondStepSurface(BaseABC):
             self.config.calculator,  # type: ignore
             Calculator,
         )
+        oldnew = self.network.recorder.cluster[cluster_key]
         start: float = perf_counter()
         futures: list = []
 
@@ -61,7 +60,7 @@ class SecondStepSurface(BaseABC):
                     thetacutoff=float(self.config.exploration.thetacutoff),
                 )
                 if can_be_skip:
-                    self.network.recorder.exploration[cluster_key].skip += 1
+                    oldnew.found_skip()
                     msg = "Skip to submit dimer task for "
                 else:
                     msg = "Submit dimer task for "
@@ -85,36 +84,39 @@ class SecondStepSurface(BaseABC):
         # -----------------------------------------
         # wait for the dimer tasks to finish
         # -----------------------------------------
-        simplified_threshold = self.config.event.simplified_threshold
-        newold = self.network.recorder.exploration[cluster_key]
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
             event, _, cost_time = future_result
-            if isinstance(event, str):
-                newold.fail += 1
-                msg: str = "DimerSearch(failed) "
-            elif isinstance(event, Reaction | Desorption):
-                if simplified_threshold > 0:
-                    old_event_str = str(event)
-                    event = event.simplify(simplified_threshold)
-                    self.logger.info(
-                        f"Simplify {old_event_str} to {event} "
-                        + f"by threshold={simplified_threshold}"
-                    )
-                msg: str = "DimerSearch(success) "
-                if self.network.write(event):  # event is new
-                    newold.continuous_old = 0
-                    newold.new += 1
-                else:
-                    newold.continuous_old += 1
-                    newold.old += 1
+            label = self.network.found(
+                event,
+                for_cluster=cluster_key,
+                for_system="",
+                persist=True,
+            )
+            if label.startswith("fail"):
+                self.logger.info(
+                    f"Dimer search {label} by {cost_time:.2f}"
+                    + f" seconds because of {event}"
+                )
+                oldnew.found_fail()
             else:
-                raise ValueError(f"Unknown event type: {type(event)}")
-            m = f"N={newold.new},O={newold.old},F={newold.fail}"
-            m = f"({m},S={newold.skip},C={newold.continuous_old})"
-            self.logger.info(f"{msg}{cost_time:.2f} for {event}. {m}")
+                msg = "Dimer search successfully, and got "
+                msg += f"{label} by {cost_time:.2f} seconds."
+                if str(event) not in label:
+                    msg += f" Simplify original {event} by threshold "
+                    msg += f"{self.config.event.simplified_threshold:.2f}"
+                self.logger.info(msg)
+                if "new" in label:
+                    oldnew.found_new()
+                else:
+                    oldnew.found_old()
             confidence = self.config.exploration.maxconfidence
-            if newold.exploration_can_be_finished(confidence):
+            if oldnew.exploration_can_be_finished(
+                confidence=confidence,
+                min_found=self.network.metadata.table.get_minconut_for(
+                    cluster_key=cluster_key,
+                ),
+            ):
                 break
         for future in futures:
             future.cancel()

@@ -8,7 +8,6 @@ from ase.calculators.calculator import Calculator
 from graphatoms.enterpoint.config import Config
 from graphatoms.reaction import Adsorption, Desorption, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
-from graphatoms.system.database import DatabaseABC
 from graphatoms.utils import asetools
 from graphatoms.utils.parser import hydra_parse
 
@@ -30,7 +29,7 @@ def __helper_vibration(
     if start is None:
         start = perf_counter()
     if result_label is None:
-        result_label = DatabaseABC.get_key_of(result)
+        result_label = result.get_key_for_metadata()
     if result_atoms is None:
         result_atoms = result.to_ase(exclude_bond_attibutes=True).copy()
     else:
@@ -62,19 +61,17 @@ def __helper_vibration(
         raise ValueError("check_ts and check_minima cannot be both True")
     elif check_ts and (not check_minima):
         if not result.check_ts(fmax=float(config.event.max_force), fqmin=fqmin):
-            k = DatabaseABC.get_key_of(result)
+            k = result.get_key_for_metadata()
             raise CheckVibrationFailed(
-                frequencies=freq,
-                cost_time=perf_counter() - start,
+                frequencies=freq[:2],
                 label=f"Init={result_label},TS={k}",
                 fqmin=fqmin,
             )
     elif check_minima and (not check_ts):
         if not result.check_minima(fmax=config.event.max_force, fqmin=fqmin):
-            k = DatabaseABC.get_key_of(result)
+            k = result.get_key_for_metadata()
             raise CheckVibrationFailed(
-                frequencies=freq,
-                cost_time=perf_counter() - start,
+                frequencies=freq[:1],
                 label=f"Init={result_label},Minima={k}",
                 fqmin=fqmin,
             )
@@ -112,7 +109,7 @@ def helper_optimization(
     """
     start = perf_counter()
     if graph_label is None:
-        graph_label = DatabaseABC.get_key_of(graph)
+        graph_label = graph.get_key_for_metadata()
     calc: Calculator = hydra_parse(
         config.calculator,  # type: ignore
         Calculator,
@@ -134,9 +131,9 @@ def helper_optimization(
     if not coveraged:
         cost_time = perf_counter() - start
         e = OptimizationFailed(
-            type="dimer",
+            type="minima",
+            max_steps=max(int(config.optimizer.steps), len(lst)),
             label=graph_label,
-            cost_time=cost_time,
         )
         if raise_when_fail:
             raise e
@@ -155,7 +152,6 @@ def helper_optimization(
         cost_time = perf_counter() - start
         e = HelperException(
             msg="hash changed after optimization",
-            cost_time=cost_time,
             label=graph_label,
         )
         if raise_when_fail:
@@ -217,7 +213,7 @@ def helper_dimer(
     """
     start = perf_counter()
     if graph_label is None:
-        graph_label = DatabaseABC.get_key_of(graph)
+        graph_label = graph.get_key_for_metadata()
     calc: Calculator = hydra_parse(
         config.calculator,  # type: ignore
         Calculator,
@@ -254,7 +250,7 @@ def helper_dimer(
         e = OptimizationFailed(
             type="dimer",
             label=graph_label,
-            cost_time=cost_time,
+            max_steps=max(int(config.optimizer.steps * 1.5), len(dimer_lst)),
         )
         if raise_when_fail:
             raise e
@@ -269,7 +265,7 @@ def helper_dimer(
         parse_bonds=config.bonds,  # type: ignore
         deep=deep_copy,
     )
-    k = DatabaseABC.get_key_of(ts)
+    k = ts.get_key_for_metadata()
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(ts)
         diff_bonds = np.asarray(break_bonds + make_bonds)
@@ -278,7 +274,6 @@ def helper_dimer(
             e = HelperException(
                 msg="fixed bonds modified after dimer",
                 label=f"{graph_label},TS={k}",
-                cost_time=cost_time,
             )
             if raise_when_fail:
                 raise e
@@ -317,6 +312,7 @@ def helper_dimer(
     mode = vib_modes[0] * vdiff[imin_ldiff] / lmin_mode
     product_result: SysGraph | None = None
     product_atoms: Atoms | None = None
+    opt_lst: list[Atoms] = []
     for sign in (1, -1):
         atoms = dimer_lst[-1].copy()
         atoms.info.pop("hashes", None)
@@ -344,7 +340,7 @@ def helper_dimer(
         e = OptimizationFailed(
             type="product",
             label=graph_label,
-            cost_time=cost_time,
+            max_steps=max(int(config.optimizer.steps), len(opt_lst)),
         )
         if raise_when_fail:
             raise e
@@ -358,7 +354,6 @@ def helper_dimer(
         cost_time = perf_counter() - start
         e = HelperException(
             msg="product is not connected",
-            cost_time=cost_time,
             label=graph_label,
         )
         if raise_when_fail:
@@ -369,11 +364,10 @@ def helper_dimer(
         break_bonds, make_bonds = graph.bond_difference(ts)
         diff_bonds = np.asarray(break_bonds + make_bonds)
         if np.any(np.isin(diff_bonds, graph.idx_fix)):
-            kp = DatabaseABC.get_key_of(product_result)
+            kp = product_result.get_key_for_metadata()
             cost_time = perf_counter() - start
             e = HelperException(
                 msg="fixed bonds modified for product",
-                cost_time=cost_time,
                 label=f"{graph_label},TS={k},P={kp}",
             )
             if raise_when_fail:

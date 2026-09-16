@@ -2,13 +2,17 @@
 
 from ase import Atoms
 
-from ._1st import FirstStep
-from ._2nd import SecondStepAdsorption as Adspt
-from ._2nd import SecondStepBulk as Bulk
-from ._2nd import SecondStepSurface as Surf
-from ._3rd import ThirdStep
-from ._errors import CheckVibrationFailed, HelperException, OptimizationFailed
-from ._helper import (
+from graphatoms.enterpoint.steps._1st import FirstStep
+from graphatoms.enterpoint.steps._2nd import SecondStepAdsorption as Adspt
+from graphatoms.enterpoint.steps._2nd import SecondStepBulk as Bulk
+from graphatoms.enterpoint.steps._2nd import SecondStepSurface as Surf
+from graphatoms.enterpoint.steps._3rd import ThirdStep
+from graphatoms.enterpoint.steps._errors import (
+    CheckVibrationFailed,
+    HelperException,
+    OptimizationFailed,
+)
+from graphatoms.enterpoint.steps._helper import (
     helper_adsorption,
     helper_dimer,
     helper_optimization,
@@ -60,3 +64,14 @@ class OTFKMC(FirstStep, Adspt, Bulk, Surf, ThirdStep):
             # 3 step: update the system
             df = ThirdStep.run(self)
             print(df)
+
+
+if __name__ == "__main__":
+    for cls in (FirstStep, Adspt, Bulk, Surf, ThirdStep, OTFKMC):
+        print(cls.__name__, ":")
+        for name in dir(cls):
+            if name.startswith("__"):
+                continue
+            print(name)
+        print("-----------------")
+    pass

@@ -5,7 +5,7 @@ from typing import Any, Self, override
 import igraph
 import numpy as np
 from ase import Atoms
-from pydantic import model_validator
+from pydantic import BaseModel, model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
 from graphatoms.geometry.rotation import kabsch
@@ -249,7 +249,8 @@ class RTGP(OurFrozenModel):
         assert t is None or isinstance(t, SysGraph)
         return self.__class__(R=r, T=t, G=g, P=p)
 
-    def __reversed__(self) -> Self:  # type: ignore
+    @property
+    def reversed(self) -> Self:
         return self.__class__(R=self.P, G=self.G, T=self.T, P=self.R)
 
     def __eq__(self, other) -> bool:
@@ -433,4 +434,56 @@ class EventBase(RTGP, MoveABC):
             self.T is None
             and self.G is not None
             and len(self.R) == len(self.P) + len(self.G)
+        )
+
+
+class EventInfo(BaseModel):
+    key_rxn: str
+    key_r: str
+    key_g: str | None
+    key_t: str | None
+    key_p: str
+    Ea_forword: float
+    rate_forword: float
+    rate_reversed: float
+    Ea_reversed: float
+    for_cluster: str
+    for_system: str
+    dE: float
+
+    def to_dict(self) -> dict[str, float | str | None]:
+        return {k: getattr(self, k) for k in self.__pydantic_fields__}
+
+    @classmethod
+    def from_event(
+        cls,
+        event: EventBase,
+        for_cluster: str,
+        for_system: str,
+        *,
+        temperature: float = 300,
+        **kwargs,
+    ) -> Self:
+        reversed_event = event.reversed
+        return cls(
+            key_rxn=event.hash,
+            key_r=event.R.get_key_for_metadata(),
+            key_g=(
+                event.G.get_key_for_metadata()  #
+                if event.G is not None
+                else None
+            ),
+            key_t=(
+                event.T.get_key_for_metadata()  #
+                if event.T is not None
+                else None
+            ),
+            key_p=event.P.get_key_for_metadata(),
+            Ea_forword=event.get_Ea(temperature),
+            rate_forword=event.get_rate(temperature),
+            rate_reversed=reversed_event.get_rate(temperature),
+            Ea_reversed=reversed_event.get_Ea(temperature),
+            dE=event.get_dE(temperature),
+            for_cluster=for_cluster,
+            for_system=for_system,
         )

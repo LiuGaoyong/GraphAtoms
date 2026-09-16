@@ -21,13 +21,13 @@ class OptimizationFailed(HelperException):
         self,
         type: str,
         cost_time: float | None = None,
+        max_steps: int | None = None,
         label: str | None = None,
     ) -> None:
-        super().__init__(
-            msg=f"{type} optimization not coveraged",
-            cost_time=cost_time,
-            label=label,
-        )
+        msg = f"{type} optimization not coveraged"
+        if max_steps is not None:
+            msg += f"in {int(max_steps)} steps"
+        super().__init__(msg=msg, cost_time=cost_time, label=label)
 
 
 class CheckVibrationFailed(HelperException):
@@ -41,11 +41,11 @@ class CheckVibrationFailed(HelperException):
         if frequencies is None:
             fstr = ""
         else:
-            fstr = ",".join(f"{f:.2f}" for f in frequencies[:3])
+            fstr = ",".join(f"{f:.2f}" for f in frequencies)
             if fqmin is None:
                 fstr = f"({fstr})"
             else:
-                fstr = f"({fstr}|FQMIN={fqmin:.2f})"
+                fstr = f"({fstr}|FQmin={fqmin:.2f})"
         super().__init__(
             msg=f"check frequencies{fstr} failed",
             cost_time=cost_time,

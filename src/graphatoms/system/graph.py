@@ -1,12 +1,13 @@
 import json
 from abc import abstractmethod
 from collections.abc import Mapping, Sequence
-from functools import cached_property
+from functools import cached_property, reduce
 from typing import Annotated, Any, Self, override
 
 import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
+from ase.symbols import Symbols
 from igraph import Graph as IGraph
 from pandas import DataFrame
 from pydantic import NonNegativeFloat, model_validator
@@ -19,6 +20,7 @@ from graphatoms.geometry._inner_outer import check_atom_is_inner
 from graphatoms.system.atoms import Box, Energetics, Matter, Structure
 from graphatoms.system.bonds import BondGraph, _subgraph_edges
 from graphatoms.utils import rdutils
+from graphatoms.utils.bytestool import hash_string
 
 
 class GasMixin(OurFrozenModel):
@@ -191,6 +193,24 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
                 key=lambda m: m.GetNumAtoms(),
             )
             return Chem.MolToSmarts(largest_frag)  # type: ignore
+
+    def get_key_for_metadata(self, use_positions_uuid: bool = True) -> str:
+        """Get the key of the value for metadata.
+
+        Note: Donot use_positions_uuid if you want reuse the data.
+        """
+        symbols: Symbols = Symbols(self.numbers)
+        fml: str = symbols.get_chemical_formula("metal")
+        if use_positions_uuid:
+            geometry: np.ndarray = self.positions
+            x = np.char.rjust(np.char.mod("%.1f", geometry[:, 0]), 20)
+            y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
+            z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
+            pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
+            uuid = hash_string(pos_str, digest_size=8)
+            return f"{fml}-{self.hash}-{uuid}"
+        else:
+            return f"{fml}-{self.hash}"
 
     @override
     def update_geometry(

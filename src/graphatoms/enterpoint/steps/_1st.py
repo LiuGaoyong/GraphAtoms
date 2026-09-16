@@ -63,7 +63,7 @@ class FirstStep(BaseABC):
             # Submit the sysgraph optimization to the executor
             # -------------------------------------------------
             for label, sysgraph in container.items():
-                key: str = self.network.db_minima.get_key_of(sysgraph)
+                key: str = sysgraph.get_key_for_metadata()
                 if is_minima and sysgraph in self.network.db_minima:
                     atoms: Atoms = self.network.db_minima[key]
                     result[label] = v = Cluster.from_ase(atoms)

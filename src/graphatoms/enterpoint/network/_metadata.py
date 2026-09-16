@@ -1,23 +1,29 @@
 import dataclasses as dc
 from pathlib import Path
-from typing import Self, override
+from typing import Any, Self, override
 
 import pandas as pd
-from pydantic import BaseModel, NonNegativeFloat, computed_field
+from pydantic import (
+    BaseModel,
+    NonNegativeFloat,
+    computed_field,
+    model_validator,
+)
 
 from graphatoms.dataclasses import OurBaseModel
 from graphatoms.enterpoint.config import EventConfig
-from graphatoms.reaction import EventBase
-from graphatoms.system.database import DatabaseABC
+from graphatoms.reaction import EventBase, EventInfo
+
+__all__ = ["MetaData"]
 
 
-class GasInfo(BaseModel):
+class _GasInfo(BaseModel):
     name: str
     sticking: float
     pressure: float
 
 
-class MetaDataBasic(OurBaseModel, EventConfig):
+class _MetaDataBasic(OurBaseModel, EventConfig):
     gas_sticking: dict[str, NonNegativeFloat] = {}
     gas_pressure: dict[str, NonNegativeFloat] = {}
     temperature: float = 300
@@ -28,11 +34,11 @@ class MetaDataBasic(OurBaseModel, EventConfig):
 
     @computed_field
     @property
-    def gas_info_lst(self) -> list[GasInfo]:
-        result: list[GasInfo] = []
+    def gas_info_lst(self) -> list[_GasInfo]:
+        result: list[_GasInfo] = []
         for name, sticking in self.gas_sticking.items():
             result.append(
-                GasInfo(
+                _GasInfo(
                     name=name,
                     sticking=sticking,
                     pressure=self.default_pressure,
@@ -40,7 +46,7 @@ class MetaDataBasic(OurBaseModel, EventConfig):
             )
         for name, pressure in self.gas_pressure.items():
             result.append(
-                GasInfo(
+                _GasInfo(
                     name=name,
                     sticking=self.default_sticking,
                     pressure=pressure,
@@ -49,20 +55,53 @@ class MetaDataBasic(OurBaseModel, EventConfig):
         return result
 
 
-class MetaDataTable(BaseModel):
+class _MetaDataTable(BaseModel):
     key_rxn: list[str] = []
     key_r: list[str] = []
     key_g: list[str | None] = []
     key_t: list[str | None] = []
     key_p: list[str] = []
-    Ea: list[float] = []
+    Ea_forword: list[float] = []
+    rate_forword: list[float] = []
+    rate_reversed: list[float] = []
+    Ea_reversed: list[float] = []
+    for_cluster: list[str] = []
+    for_system: list[str] = []
+    count: list[int] = []
     dE: list[float] = []
-    rate: list[float] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def __check(cls, data: Any) -> Any:
+        msg = "The fields of EventInfo must be in the metadata table."
+        a = set(EventInfo.__pydantic_fields__)
+        b = set(cls.__pydantic_fields__)
+        assert a <= b, msg
+        return data
 
     def __to_dict(self) -> dict[str, list[str | float | None]]:
         result: dict[str, list[str | float | None]] = self.model_dump()
         assert len(set(len(v) for v in result.values())) == 1
         return result
+
+    def __len__(self) -> int:
+        self._check_length_same()
+        return len(self.key_rxn)
+
+    def _check_length_same(self) -> None:
+        msg = "The length of each field must be the same."
+        assert len(self.key_r) == len(self.key_rxn), msg
+        assert len(self.key_g) == len(self.key_rxn), msg
+        assert len(self.key_t) == len(self.key_rxn), msg
+        assert len(self.key_p) == len(self.key_rxn), msg
+        assert len(self.Ea_forword) == len(self.key_rxn), msg
+        assert len(self.rate_forword) == len(self.key_rxn), msg
+        assert len(self.rate_reversed) == len(self.key_rxn), msg
+        assert len(self.Ea_reversed) == len(self.key_rxn), msg
+        assert len(self.for_cluster) == len(self.key_rxn), msg
+        assert len(self.for_system) == len(self.key_rxn), msg
+        assert len(self.count) == len(self.key_rxn), msg
+        assert len(self.dE) == len(self.key_rxn), msg
 
     @property
     def dataframe(self) -> pd.DataFrame:
@@ -72,39 +111,38 @@ class MetaDataTable(BaseModel):
     def from_dataframe(cls, df: pd.DataFrame) -> Self:
         return cls(**{k: df[k].to_list() for k in df.columns})
 
-    def write(self, event: EventBase, temperature: float = 300.0) -> bool:
-        """Write the event metadata to the Table.
-
-        Returns:
-            bool: True if the event is new, False otherwise.
-        """
-        if event.hash in self.key_rxn:
-            return False  # event is already in the database
-        else:
-            self.key_rxn.append(event.hash)
-            self.key_r.append(DatabaseABC.get_key_of(event.R))
-            if event.G is not None:
-                self.key_g.append(DatabaseABC.get_key_of(event.G))
-            else:
-                self.key_g.append(None)
-            if event.T is not None:
-                self.key_t.append(DatabaseABC.get_key_of(event.T))
-            else:
-                self.key_t.append(None)
-            self.key_p.append(DatabaseABC.get_key_of(event.P))
-            self.Ea.append(event.get_Ea(temperature))
-            self.dE.append(event.get_dE(temperature))
-            self.rate.append(event.get_rate(temperature))
-            ls = [len(getattr(self, k)) for k in self.__pydantic_fields__]
-            assert len(set(ls)) == 1, (
-                "The length of each field must be the same."
+    def get_minconut_for(
+        self,
+        *,
+        cluster_key: str | None = None,
+        system_key: str | None = None,
+        **kwargs,
+    ) -> int:
+        if cluster_key is not None:
+            return min(
+                [
+                    self.count[i]
+                    for i, ck in enumerate(self.for_cluster)
+                    if ck == cluster_key
+                ]
+                + [0]
             )
-            return True
+        elif system_key is not None:
+            return min(
+                [
+                    self.count[i]
+                    for i, sk in enumerate(self.for_system)
+                    if sk == system_key
+                ]
+                + [0]
+            )
+        else:
+            return min(self.count + [0])
 
 
 class MetaData(BaseModel):
-    basic: MetaDataBasic = MetaDataBasic()
-    table: MetaDataTable = MetaDataTable()
+    basic: _MetaDataBasic = _MetaDataBasic()
+    table: _MetaDataTable = _MetaDataTable()
 
     def persistence(self, path: Path | str) -> None:
         self.basic.write_json(Path(path) / "metadata-basic.json")
@@ -113,10 +151,91 @@ class MetaData(BaseModel):
     @classmethod
     def from_storage(cls, path: Path | str) -> Self:
         Path(path).mkdir(parents=True, exist_ok=True)
-        basic = MetaDataBasic.read_json(Path(path) / "metadata-basic.json")
+        basic = _MetaDataBasic.read_json(Path(path) / "metadata-basic.json")
         df = pd.read_feather(Path(path) / "metadata-table.feather")
-        table = MetaDataTable.from_dataframe(df)
+        table = _MetaDataTable.from_dataframe(df)
         return cls(basic=basic, table=table)
+
+    def __len__(self) -> int:
+        return self.table.__len__()
+
+    def rxn_count_add_one(self, value: EventBase | str) -> None:
+        """Add the count of the reaction with the hash value.
+
+        Note:
+            This typically means a previously discovered reaction
+            (i.e. old event) was encountered during exploration.
+        """
+        if isinstance(value, EventBase):
+            value = value.hash
+        index = self.table.key_rxn.index(value)
+        self.table.count[index] += 1
+
+    def read(self, value: str) -> EventInfo:
+        """Read the event metadata from the Table.
+
+        Returns:
+            EventBase: The event metadata.
+        """
+        index = self.table.key_rxn.index(value)
+        return EventInfo(
+            key_rxn=self.table.key_rxn[index],
+            key_r=self.table.key_r[index],
+            key_g=self.table.key_g[index],
+            key_t=self.table.key_t[index],
+            key_p=self.table.key_p[index],
+            Ea_forword=self.table.Ea_forword[index],
+            rate_forword=self.table.rate_forword[index],
+            rate_reversed=self.table.rate_reversed[index],
+            Ea_reversed=self.table.Ea_reversed[index],
+            for_cluster=self.table.for_cluster[index],
+            for_system=self.table.for_system[index],
+            dE=self.table.dE[index],
+        )
+
+    def has(self, event: EventBase | str) -> bool:
+        """Check if the event is in the Table.
+
+        Returns:
+            bool: True if the event is in the Table, False otherwise.
+        """
+        if isinstance(event, str):
+            return event in self.table.key_rxn
+        elif isinstance(event, EventBase):
+            return event.hash in self.table.key_rxn
+        else:
+            raise ValueError(f"Unknown event type: {type(event)}")
+
+    def write(
+        self,
+        event: EventBase,
+        for_cluster: str,
+        for_system: str,
+    ) -> None:
+        """Write the event metadata to the Table."""
+        if not self.has(event):
+            reversed_event = event.reversed
+            if reversed_event.hash != event.hash:
+                raise ValueError(
+                    "The hash of the reversed event must "
+                    + "be the same as the original event."
+                    + " Please contact the developer."
+                )
+            self.table.count.append(1)
+            temperature = float(self.basic.temperature)
+            info = EventInfo.from_event(
+                event=event,
+                for_system=for_system,
+                for_cluster=for_cluster,
+                temperature=temperature,
+            )
+            for k, v in info.to_dict().items():
+                lst: list = getattr(self.table, k)
+                lst.append(v)
+            try:
+                self.table._check_length_same()
+            except AssertionError as e:
+                raise ValueError(f"{e} Please contact the developer.")
 
 
 if __name__ == "__main__":
@@ -127,10 +246,11 @@ if __name__ == "__main__":
     print(df)
     print({k: df[k].values for k in df.columns})
 
-    meta = MetaData(basic=MetaDataBasic(**dc.asdict(EventConfig())))
+    meta = MetaData(basic=_MetaDataBasic(**dc.asdict(EventConfig())))
     pprint(meta)
     print(meta.basic)
     print("-----------------")
+    print(meta.table.rate_reversed)
 
     Path("./zzz").mkdir(parents=True, exist_ok=True)
     meta.persistence(Path("./zzz"))

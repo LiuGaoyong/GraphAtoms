@@ -1,14 +1,11 @@
 from abc import abstractmethod
 from collections.abc import Mapping, MutableSet
-from functools import reduce
 from typing import override
 
 import numpy as np
 from ase import Atoms
-from ase.symbols import Symbols
 
 from graphatoms.system import SysGraph
-from graphatoms.utils.bytestool import hash_string
 
 
 class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
@@ -21,7 +18,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
     def __contains__(self, key: object) -> bool:
         if not isinstance(key, str):
             if isinstance(key, SysGraph):
-                key = self.get_key_of(key)
+                key = self.__get_key_of(key)
             else:
                 raise TypeError(
                     "The key must be a string or a SysGraph object."
@@ -48,7 +45,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         If the value is already in the database, return False.
         Otherwise, return True.
         """
-        key = self.get_key_of(value)
+        key = self.__get_key_of(value)
         if not self.__contains__(key):
             self._save(key, value)
             return True
@@ -78,20 +75,5 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         raise RuntimeError("The discard method is not supported.")
 
     @staticmethod
-    def get_key_of(value: SysGraph, use_positions_uuid: bool = True) -> str:
-        """Get the key of the value.
-
-        Note: Donot use_positions_uuid if you want reuse the data.
-        """
-        symbols: Symbols = Symbols(value.numbers)
-        fml: str = symbols.get_chemical_formula("metal")
-        if use_positions_uuid:
-            geometry: np.ndarray = value.positions
-            x = np.char.rjust(np.char.mod("%.1f", geometry[:, 0]), 20)
-            y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
-            z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
-            pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
-            uuid = hash_string(pos_str, digest_size=8)
-            return f"{fml}-{value.hash}-{uuid}"
-        else:
-            return f"{fml}-{value.hash}"
+    def __get_key_of(value: SysGraph, use_positions_uuid: bool = True) -> str:
+        return value.get_key_for_metadata(use_positions_uuid)

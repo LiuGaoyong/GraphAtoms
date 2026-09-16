@@ -17,6 +17,7 @@ class Mock(FirstStep, Surf):
         for k, cluster in FirstStep.run(self, None).items():
             self.logger.info(f"{k} {cluster.hash} {cluster}")  # type: ignore
             Surf.run(self, cluster)
+        print("..........................")
 
 
 @pytest.mark.parametrize(
@@ -48,9 +49,12 @@ def test_run_step(parallel) -> None:
                 config_name="run",
                 overrides=overrides,
             )
+
+            maxtry = 10  # 000
             cfg.restart = False
+            cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
-            cfg.exploration.maxtry = 100
+            cfg.exploration.maxtry = maxtry
             # cfg.outputs = Path(tmp).as_posix()
             # cfg.event.min_frequency_for_ts = 10.0
             # cfg.event.min_frequency = 10.0

@@ -1,14 +1,16 @@
 import dataclasses as dc
 from pathlib import Path
-from re import M
 from typing import Literal
 
+import pydantic
+
 from graphatoms.enterpoint.config import EventConfig
-from graphatoms.reaction import EventBase, Reaction
+from graphatoms.reaction import EventBase, EventInfo, Reaction
 from graphatoms.system import Cluster, SysGraph
 from graphatoms.system.database import DatabaseABC, get_db
 
-from ._metadata import MetaData, MetaDataBasic
+from ._metadata import MetaData
+from ._metadata import _MetaDataBasic as MetaDataBasic
 from ._recorder import Recorder
 from ._scheduler import Scheduler
 
@@ -87,32 +89,61 @@ class RxNet:
         self.scheduler.write_npz(self.__path / "scheduler.npz")
         self.metadata.persistence(self.__path)
 
-    def read(self, key: str) -> EventBase:
-        if key in self.metadata.table.key_rxn:
-            idx = self.metadata.table.key_rxn.index(key)
-            kp = self.metadata.table.key_p[idx]
-            kr = self.metadata.table.key_r[idx]
-            kg = self.metadata.table.key_g[idx]
-            kt = self.metadata.table.key_t[idx]
-            if kg is not None:
+    def read(self, key: str) -> tuple[EventInfo, EventBase]:
+        if self.metadata.has(key):
+            info = self.metadata.read(key)
+            if info.key_g is not None:
                 raise NotImplementedError("Ads/Des is not supported.")
             else:
-                assert kt is not None
-                ts = Cluster.from_ase(self.db_ts[kt])
-                r = Cluster.from_ase(self.db_minima[kr])
-                p = Cluster.from_ase(self.db_minima[kp])
-                return Reaction(T=ts, R=r, P=p)
+                assert info.key_t is not None
+                ts = Cluster.from_ase(self.db_ts[info.key_t])
+                r = Cluster.from_ase(self.db_minima[info.key_r])
+                p = Cluster.from_ase(self.db_minima[info.key_p])
+                return info, Reaction(T=ts, R=r, P=p)
         else:
             raise ValueError(f"Event {key} is not in the database.")
 
-    def write(self, event: EventBase) -> bool:
-        """Write the event to the database.
+    def found(
+        self,
+        event: EventBase | str,
+        for_cluster: str,
+        for_system: str,
+        *,
+        persist: bool = True,
+        **kwargs,
+    ) -> Literal["new", "old", "fail"] | str:
+        if isinstance(event, str):
+            return "fail"
+        elif isinstance(event, EventBase):
+            simplified_threshold = self.metadata.basic.simplified_threshold
+            if simplified_threshold > 0:
+                event = event.simplify(simplified_threshold)
+            is_new = self._write(
+                event,
+                for_cluster,
+                for_system,
+                persist=persist,
+                **kwargs,
+            )
+            return f"{'new' if is_new else 'old'} {event}"
+        else:
+            raise ValueError(f"Unknown event type: {type(event)}")
 
-        Returns:
-            bool: True if the event is new, False otherwise.
-        """
-        if self.metadata.table.write(event):  # event is new
-            self.persistence()
+    def _write(
+        self,
+        event: EventBase,
+        for_cluster: str,
+        for_system: str,
+        *,
+        persist: bool = True,
+        **kwargs,
+    ) -> bool:
+        """Write the event to the database."""
+        if self.metadata.has(event):
+            self.metadata.rxn_count_add_one(event)
+            return False
+        else:
+            self.metadata.write(event, for_cluster, for_system)
             try:
                 self.__write(event.R, "minima")
                 self.__write(event.P, "minima")
@@ -120,7 +151,9 @@ class RxNet:
                     self.__write(event.G, "gas")
                 if event.T is not None:
                     self.__write(event.T, "ts")
-                return True  # event is new
+                if persist:
+                    self.persistence()
+                return True
             except Exception as e:
                 print(self.metadata.table.dataframe)
                 # pop metadata from the table
@@ -142,8 +175,6 @@ class RxNet:
                 print(self.metadata.table.dataframe)
                 self.persistence()
                 raise e
-        else:
-            return False  # event is already in the database
 
     def __write(
         self,

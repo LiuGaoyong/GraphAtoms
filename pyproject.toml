@@ -99,6 +99,7 @@ filterwarnings = [
     "ignore::RuntimeWarning",
     "ignore::DeprecationWarning",
     "ignore::pytest.PytestAssertRewriteWarning",
+    "ignore:unclosed file.*:ResourceWarning",
 
 ]
 addopts = "--maxfail=1 -rf" # exit after 1 failures, report fail info
