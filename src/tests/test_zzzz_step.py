@@ -43,13 +43,14 @@ def test_run_step(parallel) -> None:
                 overrides=overrides,
             )
 
-            maxtry = 3
+            maxtry = 300
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
             cfg.parallel_workers = 4
             cfg.exploration.maxtry = maxtry
             cfg.max_steps = 1000
+            cfg.max_times = float("inf")
             # cfg.outputs = Path(tmp).as_posix()
             # cfg.event.min_frequency_for_ts = 10.0
             # cfg.event.min_frequency = 10.0

@@ -40,7 +40,6 @@ class OTFKMC(ExplorationABC):
             self.__traj = TrajectoryWriter(self.__traj_path, mode="w")
             self.__df_data: list[OTFKMCInfo] = [OTFKMCInfo()]
             self.__atoms: Atoms | None = None
-            self.istep: int = 0
         else:
             self.__traj = TrajectoryWriter(self.__traj_path, mode="a")
             self.__atoms = read(self.__traj_path, index=-1)  # type:ignore
@@ -49,6 +48,7 @@ class OTFKMC(ExplorationABC):
                 OTFKMCInfo(**row.to_dict())  # type: ignore
                 for _, row in pd.read_csv(self.__info_path).iterrows()
             ]
+        # Note: the `istep=len(self.__df_data) - 1` is the current step number
 
     @override
     def run(self) -> None:
@@ -56,6 +56,8 @@ class OTFKMC(ExplorationABC):
 
         atoms: Atoms | None = self.__atoms
         df_data: list[OTFKMCInfo] = self.__df_data
+        self.istep: int = len(df_data) - 1
+
         if self.istep == 0:
             system = self.get_system_for(None)
             self.__traj.write(
@@ -80,14 +82,20 @@ class OTFKMC(ExplorationABC):
             pd.DataFrame(data).to_csv(self.__info_path)
             self.__traj.write(system.to_ase())
             if df_data[-1].time > float(self.config.max_times):
-                self.logger.info("Max time reached, stop the KMC simulation.")
+                self.logger.info(
+                    f"Max time {self.config.max_times:.2f}"
+                    + f"(now={df_data[-1].time:.2f}) is "
+                    + "reached, stop the KMC simulation."
+                )
                 self.__traj.close()
                 break
             elif self.istep >= int(self.config.max_steps):
-                self.logger.info("Max steps reached, stop the KMC simulation.")
+                self.logger.info(
+                    f"Max steps {self.config.max_steps} is "
+                    + "reached, stop the KMC simulation."
+                )
                 self.__traj.close()
                 break
-            self.istep += 1
 
             # -------------------------------------------
             # 1-2 step: analyze the system & exploration
@@ -190,6 +198,6 @@ class OTFKMC(ExplorationABC):
             )
             otfkmc_info.cost_other = perf_counter() - start
             otfkmc_info.energy = df_data[-1].energy + selected_info.dE
-            df_data.append(otfkmc_info)
+            df_data.append(otfkmc_info)  # `istep += 1`
             self.logger.info(f"Step {self.istep} End")
             self.logger.info("=" * 50)
