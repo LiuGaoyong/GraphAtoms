@@ -207,7 +207,6 @@ class RunnerABC:
         assert isinstance(result, System)
         assert result.pair is not None
         assert result.is_outer is not None
-        assert result.is_adsorbate is not None
         self.logger.info(f"Read the system: {result}")
         return result
 

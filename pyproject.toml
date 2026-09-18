@@ -8,6 +8,7 @@ Repository = "https://github.com/LiuGaoyong/GraphAtoms"
 Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
 [project.scripts]
 graphatoms-config = "graphatoms.enterpoint.config:print_config"
+graphatoms-network = "graphatoms.enterpoint.view:main"
 [project]
 name = "graphatoms"
 version = "2.0.0"
@@ -55,12 +56,16 @@ dependencies = [
     "python-snappy>=0.7.3",           # More Fase Data Compression
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
+    "typing-extensions",
 
     # Other
+    "plotext",
+    "plotext-plus",
+    "matplotlib",
     "executorlib",
     "hydra-core",
     "pipefunc",
-    "typing-extensions",
+    "typer",
     "loguru",
 ]
 [dependency-groups]
@@ -72,6 +77,7 @@ dev = [
     "pytest-xdist",
     "jupyterlab",
     "chemiscope",
+    # "playwright>=1.52", # chemiscope [headless]
     "nglview",
     "ray",
 ]
@@ -162,3 +168,4 @@ jupyterlab = ">=4.5.8,<5"
 ovld = ">=0.5.15,<0.6"
 pytest-xdist = ">=3.8.0,<4"
 executorlib = ">=1.8,<2"
+typer = ">=0.20,<1"

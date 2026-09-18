@@ -68,7 +68,7 @@ class Config:
 
     outputs: str = "./zzz"
     max_steps: int = 100000
-    max_times: float = 1000  # seconds
+    max_times: float = 1000.0  # seconds
     parallel_workers: int = 0  # 0 means use all cores
     parallel: str = "serial"  # serial, multiprocessing, ray, dask, executorlib
     loglevel: str = "info"  # Literal["debug", "info", "warning", "error"]

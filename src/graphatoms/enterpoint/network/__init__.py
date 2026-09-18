@@ -26,20 +26,23 @@ class RxNet:
     def __init__(
         self,
         path: Path | str,
-        config: EventConfig,
         *args,
         restart: bool = False,
+        config: EventConfig | None = None,
         format: str | Literal["dir", "h5", "sqlite"] = "ASE",
         **kwargs,
     ) -> None:
         self.__path = path = Path(path)
-        metadata_basic = MetaDataBasic(
-            **(
-                dc.asdict(config)  #
-                if dc.is_dataclass(config)
-                else config
+        if config is not None:
+            metadata_basic = MetaDataBasic(
+                **(
+                    dc.asdict(config)  #
+                    if dc.is_dataclass(config)
+                    else config
+                )
             )
-        )
+        else:
+            metadata_basic = None
 
         if restart:
             assert format in (
@@ -58,10 +61,14 @@ class RxNet:
             self.recorder = Recorder.read_json(path / "recorder.json")
             self.metadata = MetaData.from_storage(path)
             # check equality between the basic metadata and the config
-            assert self.metadata.basic == metadata_basic, (
-                f"Metadata basic({self.metadata.basic}) is not"
-                + f" equal to the config({metadata_basic})."
-            )
+            if metadata_basic is not None:
+                assert self.metadata.basic == metadata_basic, (
+                    f"Metadata basic({self.metadata.basic}) is not"
+                    + f" equal to the config({metadata_basic})."
+                )
+            else:
+                pass
+                # raise ValueError("The config is not provided.")
         else:
             assert not self.__path.exists(), (
                 f"The path `{self.__path}` does exist."
@@ -69,7 +76,10 @@ class RxNet:
             )
             self.recorder: Recorder = Recorder()
             self.scheduler: Scheduler = Scheduler()
-            self.metadata: MetaData = MetaData(basic=metadata_basic)
+            if metadata_basic is not None:
+                self.metadata: MetaData = MetaData(basic=metadata_basic)
+            else:
+                self.metadata: MetaData = MetaData()
 
         # initialize the databases
         lst: list[DatabaseABC] = [
@@ -82,6 +92,10 @@ class RxNet:
             for prefix in ["ts", "gas", "minima"]
         ]
         self.db_ts, self.db_gas, self.db_minima = lst
+
+    def summary(self) -> str:
+        """Return the summary of the network."""
+        return "fasdasdgase"
 
     def persistence(self) -> None:
         """Persist the data to the database."""

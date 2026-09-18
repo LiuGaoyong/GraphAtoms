@@ -4,6 +4,7 @@ from typing import Any, Self, override
 
 import igraph
 import numpy as np
+import pydantic
 from ase import Atoms
 from pydantic import BaseModel, model_validator
 
@@ -241,7 +242,20 @@ class RTGP(OurFrozenModel):
         assert isinstance(p, SysGraph)
         assert g is None or isinstance(g, Gas)
         assert t is None or isinstance(t, SysGraph)
-        return self.__class__(R=r, T=t, G=g, P=p)
+        try:
+            return self.__class__(R=r, T=t, G=g, P=p)
+        except pydantic.ValidationError as e:
+            # for debug
+            print(e)
+            import pickle
+
+            pickle.dump(self, open("event.pkl", "wb"))
+            pickle.dump(r, open("r.pkl", "wb"))
+            pickle.dump(t, open("t.pkl", "wb"))
+            pickle.dump(g, open("g.pkl", "wb"))
+            pickle.dump(p, open("p.pkl", "wb"))
+            raise e
+            return self.__class__(R=r, T=t, G=g, P=p)
 
     @property
     def reversed(self) -> Self:
@@ -294,12 +308,14 @@ class EventBase(RTGP, MoveABC):
                 + "when `matched_indxs` is None."
             )
             matched_indxs = atoms.get_match_mode(self.R)  # type: ignore
-        elif not isinstance(atoms, Atoms):
+        if not isinstance(atoms, Atoms):
             atoms = atoms.to_ase(
                 exclude_energetics=True,
                 exclude_bond_attibutes=True,
             )
-
+        assert isinstance(atoms, Atoms)
+        info: dict = atoms.info.copy()
+        info.pop("is_outer", None)
         matched_indxs = np.asarray(matched_indxs, dtype=int)
 
         if matched_indxs.ndim == 1:
@@ -337,6 +353,7 @@ class EventBase(RTGP, MoveABC):
                 positions=geom,
                 cell=atoms.cell,
                 pbc=atoms.pbc,
+                info=info,
             ), rmsd
 
         elif matched_indxs.ndim == 2:

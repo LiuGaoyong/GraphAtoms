@@ -22,6 +22,7 @@ class OTFKMCInfo(BaseModel):
     energy: float = 0
     energy_real: float = np.nan
     select_rxn_key: str = "Initial"
+    select_rxn_forward: bool = True
     cost_exploration: float = 0
     cost_matching: float = 0
     cost_other: float = 0
@@ -50,7 +51,7 @@ class OTFKMC(ExplorationABC):
             ]
 
     @override
-    def run(self, steps: int = 1000000) -> None:
+    def run(self) -> None:
         """Run the simulation for the given number of steps."""
 
         atoms: Atoms | None = self.__atoms
@@ -66,14 +67,32 @@ class OTFKMC(ExplorationABC):
                 )
             )
 
-        for self.istep in range(steps):
+        while True:
             otfkmc_info = OTFKMCInfo()
+            self.logger.info("=" * 50)
+            self.logger.info(f"Step {self.istep} Start")
+
+            # -------------------------------------------
+            # prepare: System, Persistence, Criteria
+            # -------------------------------------------
+            system = self.get_system_for(atoms)
+            data = [i.model_dump() for i in df_data]
+            pd.DataFrame(data).to_csv(self.__info_path)
+            self.__traj.write(system.to_ase())
+            if df_data[-1].time > float(self.config.max_times):
+                self.logger.info("Max time reached, stop the KMC simulation.")
+                self.__traj.close()
+                break
+            elif self.istep >= int(self.config.max_steps):
+                self.logger.info("Max steps reached, stop the KMC simulation.")
+                self.__traj.close()
+                break
+            self.istep += 1
 
             # -------------------------------------------
             # 1-2 step: analyze the system & exploration
             # -------------------------------------------
             start = perf_counter()
-            system = self.get_system_for(atoms)
             self.explore(system)
             end = perf_counter()
             otfkmc_info.cost_exploration = end - start
@@ -123,17 +142,37 @@ class OTFKMC(ExplorationABC):
                     reversed_nmatched=reversed_nmatched,
                 )
             )
+            otfkmc_info.select_rxn_key = selected_rxn_key
+            otfkmc_info.select_rxn_forward = rxn_is_forward
             otfkmc_info.time = df_data[-1].time + dt
 
             selected_info, selected_rxn = self.network.read(selected_rxn_key)
-            otfkmc_info.select_rxn_key = selected_rxn_key
             if not rxn_is_forward:
                 selected_rxn = selected_rxn.reversed
                 selected_info = selected_info.reversed
                 match_mode = match_rvs[selected_rxn_key]
             else:
                 match_mode = match_fwd[selected_rxn_key]
-            assert isinstance(match_mode, np.ndarray)
+            if not isinstance(match_mode, np.ndarray):
+                import pickle
+                from pathlib import Path
+
+                file = Path("debug_AAAA.pkl")
+                file.write_bytes(
+                    pickle.dumps(
+                        [
+                            match_mode,
+                            match_fwd,
+                            match_rvs,
+                            forward_nmatched,
+                            reversed_nmatched,
+                            selected_rxn_key,
+                            rxn_is_forward,
+                            dt,
+                        ]
+                    )
+                )
+                raise ValueError("match_mode is None")
 
             # -------------------------------------------
             # 5. update the system
@@ -145,9 +184,12 @@ class OTFKMC(ExplorationABC):
                 forward=rxn_is_forward,
                 rxnet=self.network,
             )
+            self.logger.info(
+                f"Apply Rxn {selected_rxn_key} "
+                + f"Successfully, RMSD: {rmsd:.4f}.\n {selected_info}"
+            )
             otfkmc_info.cost_other = perf_counter() - start
             otfkmc_info.energy = df_data[-1].energy + selected_info.dE
-
-            self.__traj.write(atoms)
-            data = [i.model_dump() for i in df_data]
-            pd.DataFrame(data).to_csv(self.__info_path)
+            df_data.append(otfkmc_info)
+            self.logger.info(f"Step {self.istep} End")
+            self.logger.info("=" * 50)

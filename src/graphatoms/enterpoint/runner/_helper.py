@@ -354,10 +354,19 @@ def helper_dimer(
     # ------------------------------------------------------------
     #       check the fixed bond change or not for product
     # ------------------------------------------------------------
+    cost_time = perf_counter() - start
     if not product_result.is_connected:
-        cost_time = perf_counter() - start
         e = HelperException(
             msg="product is not connected",
+            label=graph_label,
+        )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time
+    if product_result.hash == graph.hash:  # type: ignore
+        e = HelperException(
+            msg="product hash is same as reactant",
             label=graph_label,
         )
         if raise_when_fail:

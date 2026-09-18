@@ -12,7 +12,7 @@ from graphatoms.enterpoint.runner.otfkmc import OTFKMC as Mock
 this_dir = Path(__file__).parent
 
 
-@pytest.mark.skip()
+# @pytest.mark.skip()
 @pytest.mark.parametrize(
     "parallel",
     [
@@ -47,8 +47,10 @@ def test_run_step(parallel) -> None:
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
+            cfg.parallel_workers = 4
             cfg.exploration.maxtry = maxtry
-            cfg.outputs = Path(tmp).as_posix()
+            cfg.max_steps = 1000
+            # cfg.outputs = Path(tmp).as_posix()
             # cfg.event.min_frequency_for_ts = 10.0
             # cfg.event.min_frequency = 10.0
             # cfg.event.max_force = 0.05
