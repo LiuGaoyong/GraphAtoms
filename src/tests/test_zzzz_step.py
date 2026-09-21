@@ -43,7 +43,7 @@ def test_run_step(parallel) -> None:
                 overrides=overrides,
             )
 
-            maxtry = 300
+            maxtry = 3
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel

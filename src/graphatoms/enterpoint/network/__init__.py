@@ -1,8 +1,7 @@
 import dataclasses as dc
+import pickle
 from pathlib import Path
 from typing import Literal
-
-import numpy as np
 
 from graphatoms.enterpoint.config import EventConfig
 from graphatoms.reaction import EventBase, EventInfo, Reaction
@@ -131,7 +130,14 @@ class RxNet:
         elif isinstance(event, EventBase):
             simplified_threshold = self.metadata.basic.simplified_threshold
             if simplified_threshold > 0:
-                event = event.simplify(simplified_threshold)
+                try:
+                    event = event.simplify(simplified_threshold)
+                except Exception as e:
+                    msg = f"Event {event._string()} failed "
+                    msg += f"to simplify. because of {e}"
+                    fname = self.__path / "event-simplify-fail.pkl"
+                    fname.write_bytes(pickle.dumps(event))
+                    raise ValueError(msg)
             is_new = self._write(
                 event,
                 for_cluster,

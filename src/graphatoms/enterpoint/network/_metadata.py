@@ -178,15 +178,14 @@ class MetaData(BaseModel):
         """
         lst: list[tuple[str, bool, int, float]] = []
         names = ["rxn_key", "is_forward", "nmatched", "rate"]
-        for i, rxn_key in enumerate(self.table.key_rxn):
-            for rxn_is_forward in [True, False]:
-                single_match_res = matching_dct[(rxn_key, rxn_is_forward)]
-                nmatched = int(single_match_res.shape[0])
-                if rxn_is_forward:
-                    rate = self.table.rate_forword[i]
-                else:
-                    rate = self.table.rate_reversed[i]
-                lst.append((rxn_key, rxn_is_forward, nmatched, rate))
+        for (rxn_key, is_forward), single_match_res in matching_dct.items():
+            i: int = self.table.key_rxn.index(rxn_key)
+            nmatched = int(single_match_res.shape[0])
+            if is_forward:
+                rate = self.table.rate_forword[i]
+            else:
+                rate = self.table.rate_reversed[i]
+            lst.append((rxn_key, is_forward, nmatched, rate))
         df = pd.DataFrame(lst, columns=names)
 
         rates = df["rate"].to_numpy() * df["nmatched"].to_numpy()
@@ -201,10 +200,10 @@ class MetaData(BaseModel):
         index: int = np.searchsorted(np.cumsum(rates), rho1 * k_tot)
 
         # time increment: -ln(rho2) / k_tot
-        dt: float = -np.log(rho2) / k_tot
+        dt = float(-np.log(rho2) / k_tot)
 
-        rxn_key: str = df["rxn_key"].iloc[index]
-        is_forward: bool = df["is_forward"].iloc[index]
+        rxn_key = str(df["rxn_key"].iloc[index])
+        is_forward = bool(df["is_forward"].iloc[index])
         return df, rxn_key, is_forward, dt
 
     def rxn_count_add_one(self, value: EventBase | str) -> None:

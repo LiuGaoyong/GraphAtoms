@@ -55,12 +55,7 @@ class RunnerABC:
     @classmethod
     def _reformat_message(cls, msg: str) -> str:
         len_msg = cls.__LOGURU_TOTAL_LENGTH - cls.__LOGURU_FORMAT_LENGTH
-        lst: list[str] = [
-            msg[i : i + len_msg] for i in range(0, len(msg), len_msg)
-        ]
-        if len(lst[-1]) < len_msg / 2:
-            last = lst.pop(-1)
-            lst[-1] += last
+        lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
         return ("\n" + " " * cls.__LOGURU_FORMAT_LENGTH).join(lst)
 
     def __init__(self, *, config: Config) -> None:
@@ -564,3 +559,44 @@ class ExplorationABC(RunnerABC):
     def _second_step_bulk(self, cluster: Cluster) -> None:
         """The second step for the on-the-fly KMC simulation."""
         raise NotImplementedError
+
+
+def wrap_line(
+    text: str,
+    width_min: int = 80,
+    width_max: int = 100,
+) -> list[str]:
+    """Make a line of text fit in a given width.
+
+    Args:
+        text: The text to wrap.
+        width_min: The minimum width of the line.
+        width_max: The maximum width of the line.
+
+    Returns:
+        The wrapped lines.
+    """
+    words = text.split()
+    if not words:
+        return [""]
+
+    lines = []
+    cur = ""
+    for w in words:
+        if not cur:
+            cur = w
+        elif len(cur) + 1 + len(w) <= width_max:
+            cur += " " + w
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+
+    if len(lines) >= 2 and len(lines[-1]) < width_min:
+        merged = lines[-2] + " " + lines[-1]
+        if len(merged) <= width_max:
+            lines[-2] = merged
+            lines.pop()
+
+    return lines

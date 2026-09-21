@@ -1,3 +1,4 @@
+import pickle
 from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import Any, Self, override
@@ -245,17 +246,13 @@ class RTGP(OurFrozenModel):
         try:
             return self.__class__(R=r, T=t, G=g, P=p)
         except pydantic.ValidationError as e:
-            # for debug
-            print(e)
-            import pickle
-
             pickle.dump(self, open("event.pkl", "wb"))
             pickle.dump(r, open("r.pkl", "wb"))
             pickle.dump(t, open("t.pkl", "wb"))
             pickle.dump(g, open("g.pkl", "wb"))
             pickle.dump(p, open("p.pkl", "wb"))
+            print(e)  # for debug
             raise e
-            return self.__class__(R=r, T=t, G=g, P=p)
 
     @property
     def reversed(self) -> Self:

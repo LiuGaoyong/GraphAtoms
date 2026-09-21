@@ -117,10 +117,11 @@ class OTFKMC(ExplorationABC):
             # 3 step: graph matching
             # -------------------------------------------
             # TODO: deduplicate the matching submission
-            start = perf_counter()
             futures: list = []
+            start, nsubmit = perf_counter(), 0
             for rxn_key in self.network.metadata.table.key_rxn:
                 for rxn_is_forward in [True, False]:
+                    nsubmit += 1
                     futures.append(
                         self.executor.submit(
                             helper_match,
@@ -142,8 +143,14 @@ class OTFKMC(ExplorationABC):
                         raise AssertionError(msg)
                     matching_dct[(rxn_key, rxn_is_forward)] = single_match_res
             otfkmc_info.cost_matching = perf_counter() - start
-            msg = f"Matching finished by {perf_counter() - start:.2f} s"
+            msg = f"Matching finished for {nsubmit} reactions "
+            msg += f"by {perf_counter() - start:.2f} seconds, "
+            msg += f"got {len(matching_dct)} reactions can be applied."
             self.logger.info(self._reformat_message(msg))
+            if len(matching_dct) == 0:
+                msg = "No reaction can be applied."
+                self.logger.error(self._reformat_message(msg))
+                raise AssertionError(msg)
             self.logger.info(self._reformat_message("-" * self._log_length))
 
             # -------------------------------------------

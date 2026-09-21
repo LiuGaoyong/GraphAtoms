@@ -65,7 +65,7 @@ def __helper_vibration(
             k = result.get_key_for_metadata()
             raise CheckVibrationFailed(
                 frequencies=freq[:2],
-                label=f"Init={result_label},TS={k}",
+                label=f"Init={result_label}, TS={k}",
                 fqmin=fqmin,
             )
     elif check_minima and (not check_ts):
@@ -73,7 +73,7 @@ def __helper_vibration(
             k = result.get_key_for_metadata()
             raise CheckVibrationFailed(
                 frequencies=freq[:1],
-                label=f"Init={result_label},Minima={k}",
+                label=f"Init={result_label}, Minima={k}",
                 fqmin=fqmin,
             )
 
@@ -277,7 +277,7 @@ def helper_dimer(
             cost_time = perf_counter() - start
             e = HelperException(
                 msg="fixed bonds modified after dimer",
-                label=f"{graph_label},TS={k}",
+                label=f"{graph_label}, TS={k}",
             )
             if raise_when_fail:
                 raise e
@@ -381,7 +381,7 @@ def helper_dimer(
             cost_time = perf_counter() - start
             e = HelperException(
                 msg="fixed bonds modified for product",
-                label=f"{graph_label},TS={k},P={kp}",
+                label=f"{graph_label}, {k}, P={kp}",
             )
             if raise_when_fail:
                 raise e
