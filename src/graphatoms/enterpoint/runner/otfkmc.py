@@ -71,8 +71,9 @@ class OTFKMC(ExplorationABC):
 
         while True:
             otfkmc_info = OTFKMCInfo()
-            self.logger.info("=" * 50)
+            self.logger.info("=" * self._log_length)
             self.logger.info(f"Step {self.istep} Start")
+            self.logger.info("-" * self._log_length)
 
             # -------------------------------------------
             # prepare: System, Persistence, Criteria
@@ -83,16 +84,20 @@ class OTFKMC(ExplorationABC):
             self.__traj.write(system.to_ase())
             if df_data[-1].time > float(self.config.max_times):
                 self.logger.info(
-                    f"Max time {self.config.max_times:.2f}"
-                    + f"(now={df_data[-1].time:.2f}) is "
-                    + "reached, stop the KMC simulation."
+                    self._reformat_message(
+                        f"Max time {self.config.max_times:.2f}"
+                        + f"(now={df_data[-1].time:.2f}) is "
+                        + "reached, stop the KMC simulation."
+                    )
                 )
                 self.__traj.close()
                 break
             elif self.istep >= int(self.config.max_steps):
                 self.logger.info(
-                    f"Max steps {self.config.max_steps} is "
-                    + "reached, stop the KMC simulation."
+                    self._reformat_message(
+                        f"Max steps {self.config.max_steps} is "
+                        + "reached, stop the KMC simulation."
+                    )
                 )
                 self.__traj.close()
                 break
@@ -162,6 +167,7 @@ class OTFKMC(ExplorationABC):
             else:
                 match_mode = match_fwd[selected_rxn_key]
             if not isinstance(match_mode, np.ndarray):
+                self.logger.error("The match_mode is None because ...")
                 import pickle
                 from pathlib import Path
 

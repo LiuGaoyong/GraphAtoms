@@ -26,7 +26,7 @@ class OptimizationFailed(HelperException):
     ) -> None:
         msg = f"{type} optimization not coveraged"
         if max_steps is not None:
-            msg += f"in {int(max_steps)} steps"
+            msg += f" in {int(max_steps)} steps"
         super().__init__(msg=msg, cost_time=cost_time, label=label)
 
 

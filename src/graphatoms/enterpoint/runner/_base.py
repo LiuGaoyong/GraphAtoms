@@ -5,11 +5,11 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-os.environ["LOGURU_FORMAT"] = (
+os.environ["LOGURU_FORMAT"] = LOGURU_FORMAT = (
     "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
     + " | <level>{level: ^8}</level> | "
     + "<level>{message}</level>"
-)
+)  # the length of the line is 37 characters in loguru
 # LOGURU_FORMAT = env(
 #     "LOGURU_FORMAT",
 #     str,
@@ -49,6 +49,20 @@ class RunnerABC:
         2. output directory (pathlib.Path)
     """
 
+    __LOGURU_FORMAT_LENGTH: int = 37
+    __LOGURU_TOTAL_LENGTH: int = 120
+
+    @classmethod
+    def _reformat_message(cls, msg: str) -> str:
+        len_msg = cls.__LOGURU_TOTAL_LENGTH - cls.__LOGURU_FORMAT_LENGTH
+        lst: list[str] = [
+            msg[i : i + len_msg] for i in range(0, len(msg), len_msg)
+        ]
+        if len(lst[-1]) < len_msg / 2:
+            last = lst.pop(-1)
+            lst[-1] += last
+        return ("\n" + " " * cls.__LOGURU_FORMAT_LENGTH).join(lst)
+
     def __init__(self, *, config: Config) -> None:
         assert isinstance(config, DictConfig | Config)
         self.config: Config = config
@@ -79,12 +93,11 @@ class RunnerABC:
             patchers=[],
             extra={},
         )
-        self.logger
-        log.add(sys.stderr, level=loglevel)
+        log.add(sys.stderr, level=loglevel, format=LOGURU_FORMAT)
         logname = Path(outlogfile).name
         if logname != "-":
             logfile = self.path.joinpath(logname)
-            log.add(logfile, level=loglevel)
+            log.add(logfile, level=loglevel, format=LOGURU_FORMAT)
 
         # logging directory configuration
         if hydracfg is not None:
@@ -92,14 +105,18 @@ class RunnerABC:
         else:
             output_dir = config.outputs
         output_dir = Path(output_dir).absolute()
-        log.info("=" * 64)
+        self._log_length = int(  # the maximum length of the line in loguru
+            self.__LOGURU_TOTAL_LENGTH  # 80
+            - self.__LOGURU_FORMAT_LENGTH
+        )
+        log.info("=" * self._log_length)
         log.info("The Configuration:\n" + OmegaConf.to_yaml(config))
         log.info(f"Working floder   : {os.getcwd()}")
         log.info(f"self.path floder : {self.path}")
         log.info(f"Output floder    : {output_dir}")
         log.info(f"Output logfile   : {outlogfile}")
         log.info(f"Output loglevel  : {loglevel.upper()}")
-        log.info("=" * 64)
+        log.info("=" * self._log_length)
 
         # restart/initialize configuration
         self.network: RxNet = RxNet(
@@ -113,22 +130,27 @@ class RunnerABC:
         parallel = str(config.parallel).lower()
         if hydracfg is not None and hydracfg.mode == "MULTIRUN":
             if parallel != "serial":
-                raise ValueError(
+                msg = (
                     "Please delete '--multirun,-m' option "
                     "when running this script. The multirun "
                     "mode is not supported because this program "
                     f"will be parallelized by '{parallel}' innerly."
                 )
-        assert parallel in [
+                self.logger.error(self._reformat_message(msg))
+                raise ValueError(msg)
+        if parallel not in [
             "serial",
             "multiprocessing",
             "ray",
             "dask",
             "executorlib",
-        ], (
-            f"Invalid parallel mode: {parallel}. Please choose one from "
-            "'serial', 'multiprocessing', 'ray', 'dask', 'executorlib'."
-        )
+        ]:
+            msg = (
+                f"Invalid parallel mode: {parallel}. Please choose one from "
+                "'serial', 'multiprocessing', 'ray', 'dask', 'executorlib'."
+            )
+            self.logger.error(self._reformat_message(msg))
+            raise ValueError(msg)
         pworkers = int(self.config.parallel_workers)
         pworkers: int | None = None if pworkers <= 0 else pworkers
         self.executor = get_executor(parallel, pworkers)
@@ -150,13 +172,15 @@ class RunnerABC:
             )
             if isinstance(gas, Gas):
                 self.logger.info(
-                    f"Optimized gas({gas_info.name}) "
-                    f"in {cost_time:.2f} seconds."
+                    self._reformat_message(
+                        f"Optimized gas({gas_info.name}) "
+                        f"in {cost_time:.2f} seconds."
+                    )
                 )
                 self.__gas_lst.append(gas)
             else:
                 msg = f"Failed to optimize gas({gas_info.name})."
-                self.logger.error(msg)
+                self.logger.error(self._reformat_message(msg))
                 raise ValueError(msg)
         # persist the network for restart. [gas list]
         self.network.persistence()
@@ -164,7 +188,9 @@ class RunnerABC:
     @property
     def gas_lst(self) -> list[Gas]:
         if len(self.network.metadata.basic.gas_info_lst) != 0:
-            raise ValueError("First step does not support gas.")
+            msg = "First step does not support gas."
+            self.logger.error(self._reformat_message(msg))
+            raise ValueError(msg)
             return self.__gas_lst
         else:
             return []
@@ -202,12 +228,14 @@ class RunnerABC:
                 parse_atoms_is_outer_or_not=True,
             )
         else:
-            raise ValueError(f"Unknown type of input: {type(inp)}")
+            msg = f"Unknown type of input: {type(inp)}"
+            self.logger.error(self._reformat_message(msg))
+            raise ValueError(msg)
 
         assert isinstance(result, System)
         assert result.pair is not None
         assert result.is_outer is not None
-        self.logger.info(f"Read the system: {result}")
+        self.logger.info(self._reformat_message(f"Read the system: {result}"))
         return result
 
 
@@ -248,9 +276,10 @@ class ExplorationABC(RunnerABC):
         """
         if not isinstance(system, System):
             system = self.get_system_for(system)
-        assert isinstance(system, System), (
-            f"Unknown type of input: {type(system)}"
-        )
+        if not isinstance(system, System):
+            msg = f"Unknown type of input: {type(system)}"
+            self.logger.error(self._reformat_message(msg))
+            raise ValueError(msg)
 
         oesc = bool(self.config.exploration.surface_only_explore_single_core)
         if oesc and len(self.gas_lst) == 0:
@@ -273,7 +302,10 @@ class ExplorationABC(RunnerABC):
             )
             keys.append((True, len(idx_core), values[-1].hash))
         if bool(self.config.exploration.allow_explore_bulk):
-            assert system.is_outer is not None  # type: ignore
+            if system.is_outer is None:
+                msg = "System.is_outer is None."
+                self.logger.error(self._reformat_message(msg))
+                raise ValueError(msg)
             if system.is_fix is None:
                 is_moved = np.ones_like(system.is_outer, dtype=bool)
             else:
@@ -294,8 +326,12 @@ class ExplorationABC(RunnerABC):
 
         # remove duplicate cluster
         _, idxs = np.unique([i.hash for i in values], return_index=True)
-        self.logger.info(f"Find {len(values)} cluster for sys={system.hash}.")
-        self.logger.info(f"Find {len(idxs)} unique cluster.")
+        self.logger.info(
+            self._reformat_message(
+                f"Find {len(values)} cluster for system="
+                f"{system.hash}. And {len(idxs)} unique cluster."
+            )
+        )
 
         # optimize the cluster in parallel mode
         result: dict[tuple[bool, int, str], Cluster] = (  # type: ignore
@@ -326,12 +362,16 @@ class ExplorationABC(RunnerABC):
                 is_minima=is_minima,
                 raise_on_failed=raise_on_failed,
             )
-            assert isinstance(dct, dict), f"Unknown type of output: {type(dct)}"
+            if not isinstance(dct, dict):
+                msg = f"Unknown type of output: {type(dct)}"
+                self.logger.error(self._reformat_message(msg))
+                raise ValueError(msg)
             return [dct[i] for i in sorted(dct.keys())]
 
         elif isinstance(container, dict):
             start, msg = perf_counter(), "cluster" if is_minima else "gas"
-            self.logger.info(f"Start to optimize the {len(container)} {msg}.")
+            msg = f"Start to optimize the {len(container)} {msg}."
+            self.logger.info(self._reformat_message(msg))
             result: dict[Any, SysGraph] = {}
             futures: list = []
 
@@ -343,11 +383,13 @@ class ExplorationABC(RunnerABC):
                 if is_minima and sysgraph in self.network.db_minima:
                     atoms: Atoms = self.network.db_minima[key]
                     result[label] = v = Cluster.from_ase(atoms)
-                    self.logger.info(f"Read '{key}' from the DB for {v}.")
+                    msg = f"Read '{key}' from the DB for {v}."
+                    self.logger.info(self._reformat_message(msg))
                 elif not is_minima and sysgraph in self.network.db_gas:
                     atoms: Atoms = self.network.db_gas[key]
                     result[label] = v = Gas.from_ase(atoms)
-                    self.logger.info(f"Read '{key}' from the DB for {v}.")
+                    msg = f"Read '{key}' from the DB for {v}."
+                    self.logger.info(self._reformat_message(msg))
                 else:
                     futures.append(
                         self.executor.submit(
@@ -359,10 +401,9 @@ class ExplorationABC(RunnerABC):
                             raise_when_fail=False,
                         )
                     )
-            self.logger.info(
-                f"Submit the optimization {len(futures)} jobs"
-                f" by {perf_counter() - start:.2f} seconds."
-            )
+            msg = f"Submit the optimization {len(futures)} jobs"
+            msg += f" by {perf_counter() - start:.2f} seconds."
+            self.logger.info(self._reformat_message(msg))
             # -------------------------------------------------
             # Wait for the sysgraph optimization to finish
             # -------------------------------------------------
@@ -379,25 +420,35 @@ class ExplorationABC(RunnerABC):
                 elif isinstance(sysgraph_or_msg, str):
                     msg = str(sysgraph_or_msg)
                     if raise_on_failed:
+                        self.logger.error(self._reformat_message(msg))
                         raise RuntimeError(msg)
                 else:
                     msg = f"Unknown type: {type(sysgraph_or_msg)}"
+                    self.logger.error(self._reformat_message(msg))
                     raise ValueError(msg)
-                self.logger.info(f"CostTime={cost_time:.2f} for {msg}")
+                msg = f"CostTime={cost_time:.2f} for {msg}"
+                self.logger.info(self._reformat_message(msg))
             self.logger.info(
-                "All optimization jobs are done in "
-                f"{perf_counter() - start:.2f} seconds."
+                self._reformat_message(
+                    "All optimization jobs are done in "
+                    f"{perf_counter() - start:.2f} seconds."
+                )
             )
             return result
         else:
-            raise ValueError(f"Unknown type of container: {type(container)}")
+            msg = f"Unknown type of container: {type(container)}"
+            self.logger.error(self._reformat_message(msg))
+            raise ValueError(msg)
 
     def _second_step_surface(self, cluster: Cluster) -> None:
         cluster_key = cluster.get_key_for_metadata()
-        assert cluster.check_minima(
+        if not cluster.check_minima(
             fmax=float(self.config.event.max_force),
             fqmin=float(self.config.event.min_frequency),
-        ), f"Cluster {cluster_key} is not at a minimum."
+        ):
+            msg = f"Cluster {cluster_key} is not at a minimum."
+            self.logger.error(self._reformat_message(msg))
+            raise AssertionError(msg)
         calc: Calculator = hydra_parse(
             self.config.calculator,  # type: ignore
             Calculator,
@@ -452,10 +503,13 @@ class ExplorationABC(RunnerABC):
                             displacement=disp,
                         )
                     )
-                self.logger.info(f"{msg}{cluster_key}, cosine={cosine:.2f}")
+                msg = f"{msg}{cluster_key}, cosine={cosine:.2f}"
+                self.logger.info(self._reformat_message(msg))
         self.logger.info(
-            f"Submit {len(futures)} dimer tasks by "
-            f"{perf_counter() - start:.2f} seconds"
+            self._reformat_message(
+                f"Submit {len(futures)} dimer tasks by "
+                f"{perf_counter() - start:.2f} seconds"
+            )
         )
 
         # -----------------------------------------
@@ -471,10 +525,9 @@ class ExplorationABC(RunnerABC):
                 persist=True,
             )
             if label.startswith("fail"):
-                self.logger.info(
-                    f"Dimer search {label} by {cost_time:.2f}"
-                    + f" seconds because of {event}"
-                )
+                msg = f"Dimer search {label} by {cost_time:.2f}"
+                msg += f" seconds because of {event}"
+                self.logger.info(self._reformat_message(msg))
                 oldnew.found_fail()
             else:
                 msg = "Dimer search successfully, and got "
@@ -482,7 +535,7 @@ class ExplorationABC(RunnerABC):
                 if str(event) not in label:
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
-                self.logger.info(msg)
+                self.logger.info(self._reformat_message(msg))
                 if "new" in label:
                     oldnew.found_new()
                 else:
@@ -494,11 +547,10 @@ class ExplorationABC(RunnerABC):
                     cluster_key=cluster_key,
                 ),
             ):
-                self.logger.info(
-                    f"Finish exploration for {cluster_key} with "
-                    + f"confidence {confidence:.2f}. {len(futures)}"
-                    + " dimer tasks left. They will be canceled."
-                )
+                msg = f"Finish exploration for {cluster_key} with "
+                msg += f"confidence {confidence:.2f}. {len(futures)}"
+                msg += " dimer tasks left. They will be canceled."
+                self.logger.info(self._reformat_message(msg))
                 for future in futures:
                     self.executor.cancel(future)
                 break
