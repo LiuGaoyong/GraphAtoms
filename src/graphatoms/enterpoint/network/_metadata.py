@@ -162,33 +162,34 @@ class MetaData(BaseModel):
 
     def bkl_solver(
         self,
-        forward_nmatched: list[int] | np.ndarray,
-        reversed_nmatched: list[int] | np.ndarray,
-        *args,
-        **kwargs,
-    ) -> tuple[str, bool, float]:
+        matching_dct: dict[tuple[str, bool], np.ndarray],
+    ) -> tuple[pd.DataFrame, str, bool, float]:
         """Solve the BKL equation to select the reaction.
 
+        Args:
+            matching_dct: The dictionary of the matching results.
+                (rxn_key, is_forward) -> the matched np.ndarray
+
         Returns:
-            1. The key of the selected reaction.
-            2. Whether the reaction is forward.
-            3. The time increment.
+            1. The dataframe of the matching results.
+            2. The key of the selected reaction.
+            3. Whether the reaction is forward.
+            4. The time increment.
         """
+        lst: list[tuple[str, bool, int, float]] = []
+        names = ["rxn_key", "is_forward", "nmatched", "rate"]
+        for i, rxn_key in enumerate(self.table.key_rxn):
+            for rxn_is_forward in [True, False]:
+                single_match_res = matching_dct[(rxn_key, rxn_is_forward)]
+                nmatched = int(single_match_res.shape[0])
+                if rxn_is_forward:
+                    rate = self.table.rate_forword[i]
+                else:
+                    rate = self.table.rate_reversed[i]
+                lst.append((rxn_key, rxn_is_forward, nmatched, rate))
+        df = pd.DataFrame(lst, columns=names)
 
-        n_events = len(self.table)
-        forward_nmatched = np.asarray(forward_nmatched, dtype=int).flatten()
-        reversed_nmatched = np.asarray(reversed_nmatched, dtype=int).flatten()
-        assert len(forward_nmatched) == len(reversed_nmatched) == n_events, (
-            "The length of forward_nmatched "
-            + "and reversed_nmatched must be "
-            + "same as the number of events "
-            + "in the metadata table."
-        )
-        matched = np.append(forward_nmatched, reversed_nmatched)
-        forward_rates = np.asarray(self.table.rate_forword)
-        reversed_rates = np.asarray(self.table.rate_reversed)
-        rates = np.append(forward_rates, reversed_rates).flatten() * matched
-
+        rates = df["rate"].to_numpy() * df["nmatched"].to_numpy()
         k_tot = rates.sum()
         if k_tot <= 0:
             raise ValueError("The sum of rates must be positive.")
@@ -199,20 +200,12 @@ class MetaData(BaseModel):
         # cumulative rate table, binary search the selected event
         index: int = np.searchsorted(np.cumsum(rates), rho1 * k_tot)
 
-        # prevent floating-point error from causing index out of range
-        # if the index is out of range, set it to the last index
-        if index >= len(rates):
-            index = len(rates) - 1
-
         # time increment: -ln(rho2) / k_tot
         dt: float = -np.log(rho2) / k_tot
 
-        if index >= n_events:  # reversed reaction
-            key_rxn = self.table.key_rxn[index - n_events]
-            return key_rxn, False, dt
-        else:
-            key_rxn = self.table.key_rxn[index]
-            return key_rxn, True, dt
+        rxn_key: str = df["rxn_key"].iloc[index]
+        is_forward: bool = df["is_forward"].iloc[index]
+        return df, rxn_key, is_forward, dt
 
     def rxn_count_add_one(self, value: EventBase | str) -> None:
         """Add the count of the reaction with the hash value.

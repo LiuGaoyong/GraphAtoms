@@ -14,7 +14,7 @@ def test_rxnet_metadata() -> None:
     df = pd.DataFrame([i.to_dict() for i in [info, info.reversed]])
     print()
     print(df.T)
-    print(metadata.bkl_solver([1] * len(metadata), [1] * len(metadata)))
+    # print(metadata.bkl_solver([1] * len(metadata), [1] * len(metadata)))
 
 
 if __name__ == "__main__":

@@ -109,84 +109,65 @@ class OTFKMC(ExplorationABC):
             self.explore(system)
             end = perf_counter()
             otfkmc_info.cost_exploration = end - start
+            msg = f"Exploration finished by {end - start:.2f} s"
+            self.logger.info(self._reformat_message(msg))
+            self.logger.info(self._reformat_message("-" * self._log_length))
 
             # -------------------------------------------
             # 3 step: graph matching
             # -------------------------------------------
+            # TODO: deduplicate the matching submission
             start = perf_counter()
             futures: list = []
             for rxn_key in self.network.metadata.table.key_rxn:
-                futures.append(
-                    self.executor.submit(
-                        helper_match,
-                        rxn_key=rxn_key,
-                        system=system,
-                        rxnet=self.network,
+                for rxn_is_forward in [True, False]:
+                    futures.append(
+                        self.executor.submit(
+                            helper_match,
+                            rxn_key=rxn_key,
+                            system=system,
+                            rxnet=self.network,
+                            rxn_is_forward=rxn_is_forward,
+                        )
                     )
-                )
-            match_fwd: dict[str, np.ndarray | None] = {}
-            match_rvs: dict[str, np.ndarray | None] = {}
+            matching_dct: dict[tuple[str, bool], np.ndarray] = {}
             while len(futures) > 0:
-                (rxn_key, mfwd, mrvs), futures = self.executor.wait(futures)  # type: ignore
-                match_fwd[rxn_key], match_rvs[rxn_key] = mfwd, mrvs
+                _result, futures = self.executor.wait(futures)  # type: ignore
+                rxn_key, rxn_is_forward, single_match_res = _result
+                if single_match_res is not None:
+                    if not isinstance(single_match_res, np.ndarray):
+                        msg = "Matching result is not a numpy array."
+                        msg += f"Its type is {type(single_match_res)}."
+                        self.logger.error(self._reformat_message(msg))
+                        raise AssertionError(msg)
+                    matching_dct[(rxn_key, rxn_is_forward)] = single_match_res
             otfkmc_info.cost_matching = perf_counter() - start
+            msg = f"Matching finished by {perf_counter() - start:.2f} s"
+            self.logger.info(self._reformat_message(msg))
+            self.logger.info(self._reformat_message("-" * self._log_length))
 
             # -------------------------------------------
             # 4 step: select a reaction (BKL)
             # -------------------------------------------
             start = perf_counter()
-            rxn_key_lst = self.network.metadata.table.key_rxn
-            forward_nmatched, reversed_nmatched = [], []
-            for rxn_key in rxn_key_lst:
-                mfwd = match_fwd[rxn_key]
-                if mfwd is None:
-                    forward_nmatched.append(0)
-                else:
-                    forward_nmatched.append(mfwd.shape[0])
-                mrvs = match_rvs[rxn_key]
-                if mrvs is None:
-                    reversed_nmatched.append(0)
-                else:
-                    reversed_nmatched.append(mrvs.shape[0])
-
-            selected_rxn_key, rxn_is_forward, dt = (
-                self.network.metadata.bkl_solver(
-                    forward_nmatched=forward_nmatched,
-                    reversed_nmatched=reversed_nmatched,
-                )
-            )
+            bkl_result = self.network.metadata.bkl_solver(matching_dct)
+            df, selected_rxn_key, rxn_is_forward, dt = bkl_result
             otfkmc_info.select_rxn_key = selected_rxn_key
             otfkmc_info.select_rxn_forward = rxn_is_forward
             otfkmc_info.time = df_data[-1].time + dt
-
             selected_info, selected_rxn = self.network.read(selected_rxn_key)
+            match_mode = matching_dct[(selected_rxn_key, rxn_is_forward)]
             if not rxn_is_forward:
                 selected_rxn = selected_rxn.reversed
                 selected_info = selected_info.reversed
-                match_mode = match_rvs[selected_rxn_key]
-            else:
-                match_mode = match_fwd[selected_rxn_key]
             if not isinstance(match_mode, np.ndarray):
-                self.logger.error("The match_mode is None because ...")
-                import pickle
-                from pathlib import Path
-
-                file = Path("debug_AAAA.pkl")
-                file.write_bytes(
-                    pickle.dumps(
-                        [
-                            match_mode,
-                            match_fwd,
-                            match_rvs,
-                            forward_nmatched,
-                            reversed_nmatched,
-                            selected_rxn_key,
-                            rxn_is_forward,
-                            dt,
-                        ]
-                    )
-                )
-                raise ValueError("match_mode is None")
+                msg = "The match_mode is not a numpy array."
+                self.logger.error(self._reformat_message(msg))
+                raise AssertionError(msg)
+            self.logger.info(f"Matched dataframe: \n{df}")
+            self.logger.info(f"Selected reaction is forward: {rxn_is_forward}")
+            self.logger.info(f"Selected reaction: {selected_rxn_key}")
+            self.logger.info(f"Selected reaction info: {selected_info}")
 
             # -------------------------------------------
             # 5. update the system

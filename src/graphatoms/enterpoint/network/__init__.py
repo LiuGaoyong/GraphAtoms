@@ -29,14 +29,14 @@ class RxNet:
         *args,
         restart: bool = False,
         config: EventConfig | None = None,
-        format: str | Literal["dir", "h5", "sqlite"] = "ASE",
+        format: str | Literal["dir", "h5", "sqlite"] = "dir",
         **kwargs,
     ) -> None:
         self.__path = path = Path(path)
         if config is not None:
             metadata_basic = MetaDataBasic(
                 **(
-                    dc.asdict(config)  #
+                    dc.asdict(config)  # type: ignore
                     if dc.is_dataclass(config)
                     else config
                 )

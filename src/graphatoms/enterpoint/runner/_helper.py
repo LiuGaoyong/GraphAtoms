@@ -374,9 +374,9 @@ def helper_dimer(
         else:
             return str(e), graph_label, cost_time
     if not allow_fixed_bonds_change:
-        break_bonds, make_bonds = graph.bond_difference(ts)
+        break_bonds, make_bonds = graph.bond_difference(product_result)
         diff_bonds = np.asarray(break_bonds + make_bonds)
-        if np.any(np.isin(diff_bonds, graph.idx_fix)):
+        if np.any(np.isin(diff_bonds, product_result.idx_fix)):
             kp = product_result.get_key_for_metadata()
             cost_time = perf_counter() - start
             e = HelperException(
@@ -428,34 +428,37 @@ def helper_adsorption(
 
 def helper_match(
     rxnet: RxNet,
-    rxn_key: str,
     system: System,
-) -> tuple[str, np.ndarray | None, np.ndarray | None]:
+    rxn_is_forward: bool,
+    rxn_key: str,
+) -> tuple[str, bool, np.ndarray | None]:
     """Helper function for matching process.
 
     Returns:
-        1. the forward match result
-        2. the reversed match result
+        1. the reaction key
+        2. the forward or reversed
+        3. the match result
 
     """
     info = rxnet.metadata.read(rxn_key)
-    result_forward = system.get_match_mode(  # type: ignore
-        pattern=Cluster.from_ase(rxnet.db_minima[info.key_r]),
-        algorithm="lad",
-        return_match_target=True,
-        only_number_color=False,
-        only_count=False,
-    )
-    assert not isinstance(result_forward, int)
-    result_reversed = system.get_match_mode(  # type: ignore
-        pattern=Cluster.from_ase(rxnet.db_minima[info.key_p]),
-        algorithm="lad",
-        return_match_target=True,
-        only_number_color=False,
-        only_count=False,
-    )
-    assert not isinstance(result_reversed, int)
-    return rxn_key, result_forward, result_reversed
+    if rxn_is_forward:
+        result = system.get_match_mode(  # type: ignore
+            pattern=Cluster.from_ase(rxnet.db_minima[info.key_r]),
+            algorithm="lad",
+            return_match_target=True,
+            only_number_color=False,
+            only_count=False,
+        )
+    else:
+        result = system.get_match_mode(  # type: ignore
+            pattern=Cluster.from_ase(rxnet.db_minima[info.key_p]),
+            algorithm="lad",
+            return_match_target=True,
+            only_number_color=False,
+            only_count=False,
+        )
+    assert not isinstance(result, int)
+    return rxn_key, rxn_is_forward, result
 
 
 def helper_apply(
