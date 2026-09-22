@@ -101,4 +101,10 @@ def print_config(cfg: Config) -> None:
     from shutil import rmtree
 
     print(OmegaConf.to_yaml(cfg))
+    print("""
+hydra:
+  run:
+    dir: ${outputs}
+  verbose: ${debug}
+""")
     rmtree(Path(cfg.outputs))

@@ -55,6 +55,7 @@ class RunnerABC:
 
     @classmethod
     def _reformat_message(cls, msg: str) -> str:
+        return msg
         len_msg = cls.__LOGURU_TOTAL_LENGTH - cls.__LOGURU_FORMAT_LENGTH
         lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
         return ("\n" + " " * cls.__LOGURU_FORMAT_LENGTH).join(lst)
@@ -174,6 +175,7 @@ class RunnerABC:
                     )
                 )
                 self.__gas_lst.append(gas)
+                self.network.db_gas.add(gas)
             else:
                 msg = f"Failed to optimize gas({gas_info.name})."
                 self.logger.error(self._reformat_message(msg))
@@ -184,9 +186,6 @@ class RunnerABC:
     @property
     def gas_lst(self) -> list[Gas]:
         if len(self.network.metadata.basic.gas_info_lst) != 0:
-            msg = "First step does not support gas."
-            self.logger.error(self._reformat_message(msg))
-            raise ValueError(msg)
             return self.__gas_lst
         else:
             return []
@@ -262,7 +261,7 @@ class ExplorationABC(RunnerABC):
 
         values: list[Cluster] = []
         keys: list[tuple[bool, int, str]] = []
-        for core in system.get_site_core(max_ncore=max_ncore):
+        for core in system.get_site_core(max_ncore=max_ncore):  # type: ignore
             idx_core = np.unique(np.where(core)).astype(int)
             values.append(
                 Cluster.from_select(
@@ -633,7 +632,9 @@ class ExplorationABC(RunnerABC):
                 # submit adsorption tasks to executor
                 # ---------------------------------------------
                 self.network.recorder.adsorption.add(label)
-                for irun in range(adsorption_helper.nrun):
+                nrun: int = adsorption_helper.nrun
+                nrun: int = min(nrun, self.config.exploration.maxtry)
+                for irun in range(nrun):
                     futures.append(
                         self.executor.submit(
                             helper_adsorption,
@@ -647,6 +648,13 @@ class ExplorationABC(RunnerABC):
                             deep_copy=True,
                         )
                     )
+                self.logger.info(
+                    self._reformat_message(
+                        f"Submit {nrun} adsorption tasks for "
+                        f"{cluster_key} with {gas_key}"
+                    )
+                )
+
         self.logger.info(
             self._reformat_message(
                 f"Submit {len(futures)} adsorption tasks by "

@@ -1,5 +1,6 @@
-zzzz*/
-test.*
+**zzzz*/
+**test.*
+**outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

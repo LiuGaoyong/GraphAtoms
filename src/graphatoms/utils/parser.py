@@ -1,3 +1,4 @@
+import warnings
 from typing import Any
 
 from hydra.utils import instantiate
@@ -20,6 +21,8 @@ def hydra_parse(cfg: DictConfig, cls: type, debug: bool = False, **kw) -> Any:
         print("=" * 64, "\nCONFIG:")
         print(OmegaConf.to_yaml(cfg))
     syscfg = OmegaConf.to_container(cfg, resolve=True)
-    datamodule = instantiate(syscfg, **kw)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        datamodule = instantiate(syscfg, **kw)
     assert isinstance(datamodule, cls)
     return datamodule

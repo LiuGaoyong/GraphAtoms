@@ -38,18 +38,11 @@ class _MetaDataBasic(OurBaseModel, EventConfig):
     def gas_info_lst(self) -> list[_GasInfo]:
         result: list[_GasInfo] = []
         for name, sticking in self.gas_sticking.items():
+            pressure = self.gas_pressure.get(name, self.default_pressure)
             result.append(
                 _GasInfo(
                     name=name,
                     sticking=sticking,
-                    pressure=self.default_pressure,
-                )
-            )
-        for name, pressure in self.gas_pressure.items():
-            result.append(
-                _GasInfo(
-                    name=name,
-                    sticking=self.default_sticking,
                     pressure=pressure,
                 )
             )
