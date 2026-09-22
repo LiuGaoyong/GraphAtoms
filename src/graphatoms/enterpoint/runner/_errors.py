@@ -1,7 +1,6 @@
 import pickle
 
 import numpy as np
-import pytest
 
 
 class HelperException(Exception):
@@ -53,20 +52,18 @@ class CheckVibrationFailed(HelperException):
         )
 
 
-@pytest.mark.parametrize(
-    "exc",
-    [
+def test_helper_exception_picklable(exc):
+    for exc in [
         HelperException(msg="test"),
         HelperException(msg="test", cost_time=1.23, label="dimer"),
-    ],
-)
-def test_helper_exception_picklable(exc):
-    restored = pickle.loads(pickle.dumps(exc))
-    assert type(restored) is type(exc)
-    # assert restored.msg == exc.msg
-    # assert restored.cost_time == exc.cost_time
-    # assert restored.label == exc.label
+    ]:
+        restored = pickle.loads(pickle.dumps(exc))
+        assert type(restored) is type(exc)
+        # assert restored.msg == exc.msg
+        # assert restored.cost_time == exc.cost_time
+        # assert restored.label == exc.label
 
 
 if __name__ == "__main__":
+    import pytest
     pytest.main([__file__, "-v", "-s"])
