@@ -184,9 +184,6 @@ class RunnerABC:
     @property
     def gas_lst(self) -> list[Gas]:
         if len(self.network.metadata.basic.gas_info_lst) != 0:
-            msg = "First step does not support gas."
-            self.logger.error(self._reformat_message(msg))
-            raise ValueError(msg)
             return self.__gas_lst
         else:
             return []
@@ -262,7 +259,7 @@ class ExplorationABC(RunnerABC):
 
         values: list[Cluster] = []
         keys: list[tuple[bool, int, str]] = []
-        for core in system.get_site_core(max_ncore=max_ncore):
+        for core in system.get_site_core(max_ncore=max_ncore):  # type: ignore
             idx_core = np.unique(np.where(core)).astype(int)
             values.append(
                 Cluster.from_select(
