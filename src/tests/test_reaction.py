@@ -1,11 +1,10 @@
-import pickle
 from pathlib import Path
 
 import pytest
 from ase.cluster import Octahedron
 
-from graphatoms.reaction import EventBase, Reaction
-from graphatoms.system import SysGraph, System
+from graphatoms.reaction import Adsorption, Desorption, EventBase, Reaction
+from graphatoms.system import Cluster, Gas, SysGraph, System
 
 this_dir = Path(__file__).parent
 data_dir = this_dir.parent / "tests-data-for-match"
@@ -22,14 +21,34 @@ def _rxn() -> EventBase:
 
 @pytest.mark.parametrize(
     "event",
-    [_rxn()]
-    + [
-        pickle.loads(p.read_bytes())  #
-        for p in data_dir_4simplify.rglob("*.pkl")
-    ],
+    [_rxn()] + sorted(data_dir_4simplify.glob("event-*")),
 )
-def test_simplify(event: EventBase) -> None:
+def test_simplify(event: EventBase | Path) -> None:
+    if isinstance(event, Path):
+        dct: dict[str, SysGraph | None] = {}
+        for k in "RTGP":
+            fname = event / f"{k}.npz"
+            if not fname.exists():
+                dct[k] = None
+            elif k == "G":
+                dct[k] = Gas.read_npz(fname)
+            else:
+                dct[k] = Cluster.read_npz(fname)
+
+        if dct.get("G", None) is not None:
+            try:
+                event = Adsorption(**dct)  # type: ignore
+            except Exception:
+                event = Desorption(**dct)  # type: ignore
+        else:
+            event = Reaction(**dct)  # type: ignore
+
+    assert isinstance(event, EventBase)
     event.simplify()
+    print(event)
+    print(event.reversed)
+    event.reversed.simplify()
+    event.reversed.reversed.simplify()
 
 
 @pytest.mark.parametrize("n", [8, 9, 10])

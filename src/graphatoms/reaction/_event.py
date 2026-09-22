@@ -224,6 +224,10 @@ class RTGP(OurFrozenModel):
         # print(f"geom_moved: {geom_moved}")
 
         moved: np.ndarray = np.asarray(list(graph_node_moved), dtype=int)
+        nmax = max(len(self.R), len(self.P))
+        nmin = min(len(self.R), len(self.P))
+        gas_moved = list(range(nmin, nmax))
+        moved = np.setdiff1d(moved, gas_moved)
         pos = self.R.positions[moved, :].reshape(-1, len(moved), 3)
         v = self.R.positions[:, np.newaxis, :] - pos
         d = np.linalg.norm(v, axis=-1).min(-1)
@@ -234,6 +238,10 @@ class RTGP(OurFrozenModel):
             if i is None or isinstance(i, Gas):
                 rtgp.append(i)
             elif isinstance(i, SysGraph):
+                if len(i) == nmax:
+                    sub = np.append(sub, gas_moved)
+                else:
+                    sub = np.setdiff1d(sub, gas_moved)
                 rtgp.append(
                     Cluster.select(
                         i,
