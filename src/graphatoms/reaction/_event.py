@@ -1,11 +1,9 @@
-import pickle
 from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import Any, Self, override
 
 import igraph
 import numpy as np
-import pydantic
 from ase import Atoms
 from pydantic import BaseModel, model_validator
 
@@ -98,9 +96,14 @@ class RTGP(OurFrozenModel):
         assert np.allclose(self.R.ase_cell, self.P.ase_cell), (
             "The `R` and `P` should have the same cell."
         )
-        assert self.R.hash != self.P.hash, (
-            "The `R` and `P` should have different hash."
-        )
+
+        if self.R.hash == self.P.hash:
+            key_r = self.R.get_key_for_metadata(use_positions_uuid=True)
+            key_p = self.P.get_key_for_metadata(use_positions_uuid=True)
+            assert key_r != key_p, (
+                "The `R` and `P` should have different uuid. (Note: this "
+                + f"reaction's R & P have the same hash={self.R.hash}.)"
+            )
 
         assert any(i is not None for i in [self.T, self.G]), (
             "At least one of `T` and `G` should be not None."
@@ -243,16 +246,7 @@ class RTGP(OurFrozenModel):
         assert isinstance(p, SysGraph)
         assert g is None or isinstance(g, Gas)
         assert t is None or isinstance(t, SysGraph)
-        try:
-            return self.__class__(R=r, T=t, G=g, P=p)
-        except pydantic.ValidationError as e:
-            pickle.dump(self, open("event.pkl", "wb"))
-            pickle.dump(r, open("r.pkl", "wb"))
-            pickle.dump(t, open("t.pkl", "wb"))
-            pickle.dump(g, open("g.pkl", "wb"))
-            pickle.dump(p, open("p.pkl", "wb"))
-            print(e)  # for debug
-            raise e
+        return self.__class__(R=r, T=t, G=g, P=p)
 
     @property
     def reversed(self) -> Self:
@@ -261,10 +255,8 @@ class RTGP(OurFrozenModel):
     def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        elif self.hash == other.hash:
-            return False
         else:
-            return self.R.hash == other.R.hash
+            return self.hash == other.hash
 
 
 class EventBase(RTGP, MoveABC):

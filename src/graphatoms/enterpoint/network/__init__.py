@@ -137,6 +137,7 @@ class RxNet:
                     msg += f"to simplify. because of {e}"
                     fname = self.__path / "event-simplify-fail.pkl"
                     fname.write_bytes(pickle.dumps(event))
+                    fname.with_suffix(".err").write_text(msg)
                     raise ValueError(msg)
             is_new = self._write(
                 event,

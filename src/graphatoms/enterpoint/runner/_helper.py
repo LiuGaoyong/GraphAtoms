@@ -365,14 +365,17 @@ def helper_dimer(
         else:
             return str(e), graph_label, cost_time
     if product_result.hash == graph.hash:  # type: ignore
-        e = HelperException(
-            msg="product hash is same as reactant",
-            label=graph_label,
-        )
-        if raise_when_fail:
-            raise e
-        else:
-            return str(e), graph_label, cost_time
+        key_r = graph.get_key_for_metadata(use_positions_uuid=True)
+        key_p = product_result.get_key_for_metadata(use_positions_uuid=True)
+        if key_r == key_p:
+            e = HelperException(
+                msg="product uuid is same as reactant",
+                label=graph_label,
+            )
+            if raise_when_fail:
+                raise e
+            else:
+                return str(e), graph_label, cost_time
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(product_result)
         diff_bonds = np.asarray(break_bonds + make_bonds)

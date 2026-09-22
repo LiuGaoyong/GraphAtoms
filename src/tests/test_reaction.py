@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 
 import pytest
@@ -8,31 +9,33 @@ from graphatoms.system import SysGraph, System
 
 this_dir = Path(__file__).parent
 data_dir = this_dir.parent / "tests-data-for-match"
-
-# import numpy as np  # type: ignore  # noqa: E402, F402
-# for p in this_dir.parent.rglob("*.npz"):
-#     dct: dict[str, np.ndarray] = {k: v for k, v in np.load(p).items()}
-#     move_fix_tag = dct.pop("move_fix_tag", None)
-#     if move_fix_tag is not None:
-#         dct["is_fix"] = move_fix_tag < 0
-#         dct["is_core"] = move_fix_tag == 0
-#         np.savez_compressed(p, allow_pickle=True, **dct)
+data_dir_4simplify = data_dir / "4simplify"
+assert data_dir_4simplify.exists()
 
 
-@pytest.fixture(scope="module")
-def rxn() -> EventBase:
+def _rxn() -> EventBase:
     p = SysGraph.read_npz(data_dir / "minima" / "Pd236" / "515f12.npz")
     r = SysGraph.read_npz(data_dir / "minima" / "Pd236" / "1824a8.npz")
     ts = SysGraph.read_npz(data_dir / "ts" / "Pd236" / "1824a8.npz")
     return Reaction(R=r, T=ts, P=p)
 
-    # def test_simplify(rxn: Event) -> None:
-    #     rxn.simplify()
+
+@pytest.mark.parametrize(
+    "event",
+    [_rxn()]
+    + [
+        pickle.loads(p.read_bytes())  #
+        for p in data_dir_4simplify.rglob("*.pkl")
+    ],
+)
+def test_simplify(event: EventBase) -> None:
+    event.simplify()
 
 
 @pytest.mark.parametrize("n", [8, 9, 10])
 @pytest.mark.parametrize("simplify", [True, False])
-def test_apply(rxn: EventBase, n: int, simplify: bool) -> None:
+def test_apply(n: int, simplify: bool) -> None:
+    rxn = _rxn()
     sys = System.from_ase(Octahedron("Pd", n))
     if simplify:
         rxn = rxn.simplify()
