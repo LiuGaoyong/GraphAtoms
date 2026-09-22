@@ -17,9 +17,9 @@ system:
 
 
 outputs: ./zzzz
+debug: false
 hydra:
   run:
     dir: ${outputs}
-  verbose: false
-debug: true
+  verbose: ${debug}
 logfile: '-'
