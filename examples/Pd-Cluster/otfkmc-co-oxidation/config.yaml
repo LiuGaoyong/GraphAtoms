@@ -1,0 +1,65 @@
+atoms:
+  _target_: ase.io.read
+  filename: ../structure.xyz
+  index: -1
+bonds:
+  method: raw
+  cfg:
+    multiply_factor: 1.0
+    plus_factor: 0.5
+system:
+  _target_: graphatoms.system.System.from_ase
+  parse_atoms_is_outer_or_not: true
+  attach_is_adsorbate: true
+  parse_bonds: ${bonds}
+  atoms: ${atoms}
+calculator:
+  _target_: ase.calculators.emt.EMT
+outputs: ./outputs
+max_steps: 100000
+max_times: 1000.0
+run_type: otfkmc
+parallel_workers: 0
+parallel: serial
+loglevel: info
+logfile: ${outputs}/log.txt
+restart: false
+debug: true
+site:
+  method: distance
+  env_threshold: 15.0
+  max_moved_threshold: 8.0
+exploration:
+  maxtry: 1000
+  maxconfidence: 10.0
+  max_ncore_for_surface: 3
+  surface_only_explore_single_core: true
+  allow_multiple_adsorption: false
+  allow_explore_bulk: false
+  thetacutoff: -1.0
+  nfibonacci: 200
+event:
+  db_format: folder
+  check_frequency: true
+  max_force: 0.05
+  min_frequency: 10.0
+  min_frequency_for_ts: 20.0
+  simplified_threshold: 7.0
+  gas_sticking:
+    CO: 1.0
+    O2: 1.0
+  gas_pressure:
+    CO: 101325.0
+    O2: 101325.0
+  default_pressure: 101325.0
+  default_sticking: 1.0
+  temperature: 300.0
+optimizer:
+  method: lbfgs
+  fmax: 0.05
+  steps: 200
+
+hydra:
+  run:
+    dir: ${outputs}
+  verbose: ${debug}
