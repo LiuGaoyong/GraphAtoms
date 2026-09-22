@@ -36,9 +36,10 @@ from graphatoms.system import (  # type: ignore  # type: ignore
     System,
 )
 from graphatoms.utils import asetools
+from graphatoms.utils.adsorption import Helper
 from graphatoms.utils.parser import hydra_parse
 
-from ._helper import helper_dimer, helper_optimization
+from ._helper import helper_adsorption, helper_dimer, helper_optimization
 
 
 class RunnerABC:
@@ -235,34 +236,11 @@ class RunnerABC:
 
 
 class ExplorationABC(RunnerABC):
-    def explore(self, system: System | Atoms | None = None) -> None:
-        # 1 step: analyze the system
-        dct = self._first_step(system)
-
-        # 2 step: exploration
-        ncore_4_adspt = int(self.config.exploration.max_ncore_for_surface)
-        if bool(self.config.exploration.surface_only_explore_single_core):
-            ncore_4_surface = 1
-        else:
-            ncore_4_surface = ncore_4_adspt
-        for (is_surface, ncore, vhash), v in dct.items():  # type: ignore
-            if is_surface:
-                if ncore <= ncore_4_surface:
-                    # exploration for surface cluster
-                    self._second_step_surface(cluster=v)
-                elif ncore <= ncore_4_adspt:
-                    # exploration for adsorption process
-                    for gas in self.gas_lst:
-                        self._second_step_adsorption(cluster=v, gas=gas)
-            else:
-                # exploration for bulk cluster
-                self._second_step_bulk(cluster=v)
-
     def _first_step(
         self,
         system: System | Atoms | None,
-    ) -> dict[tuple[bool, int, str], Cluster]:
-        """Return the dictionary of clusters.
+    ) -> tuple[dict[tuple[bool, int, str], Cluster], str]:
+        """Return the dictionary of clusters & system key.
 
         Keys:
             (is_surface, ncore, hash)
@@ -339,7 +317,7 @@ class ExplorationABC(RunnerABC):
 
         # persist the network for restart. [minima list]
         self.network.persistence()
-        return result
+        return result, system.get_key_for_metadata()
 
     def __batch_optimization_parallel(
         self,
@@ -435,8 +413,72 @@ class ExplorationABC(RunnerABC):
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
 
-    def _second_step_surface(self, cluster: Cluster) -> None:
+    def explore(self, system: System | Atoms | None = None) -> None:
+        # 1 step: analyze the system
+        dct, system_key = self._first_step(system)
+
+        # 2 step: exploration
+        ncore_4_adspt = int(self.config.exploration.max_ncore_for_surface)
+        if bool(self.config.exploration.surface_only_explore_single_core):
+            ncore_4_surface = 1
+        else:
+            ncore_4_surface = ncore_4_adspt
+        # 2.1 group the clusters ... ...
+        lst_4bulk: list[Cluster] = []
+        lst_4surface: list[Cluster] = []
+        lst_4adsorption: list[Cluster] = []
+        for (is_surface, ncore, _), v in dct.items():  # type: ignore
+            if is_surface:
+                if ncore <= ncore_4_surface:
+                    lst_4surface.append(v)
+                elif ncore <= ncore_4_adspt:
+                    lst_4adsorption.append(v)
+            else:
+                lst_4bulk.append(v)
+        # 2.2 exploration for each cluster ... ...
+        if len(lst_4bulk) > 0:
+            self._second_step_bulk(
+                lst_4bulk,
+                system_key=system_key,
+            )
+        if len(lst_4adsorption) > 0:
+            self._second_step_adsorption(
+                lst_4adsorption,
+                system_key=system_key,
+            )
+        if len(lst_4surface) > 0:
+            for cluster in lst_4surface:
+                self._second_step_surface(
+                    cluster=cluster,
+                    system_key=system_key,
+                )
+        self.network.recorder.system.add(system_key)
+        self.network.persistence()
+
+    def _second_step_surface(
+        self,
+        cluster: Cluster,
+        system_key: str = "",
+    ) -> None:
+        # -----------------------------------------------------------
+        # check if the cluster has been explored
+        # -----------------------------------------------------------
         cluster_key = cluster.get_key_for_metadata()
+        confidence = self.config.exploration.maxconfidence
+        oldnew = self.network.recorder.cluster[cluster_key]
+        if oldnew.exploration_can_be_finished(
+            confidence=confidence,
+            min_found=self.network.metadata.table.get_minconut_for(
+                cluster_key=cluster_key,
+            ),
+        ):
+            msg = f"the cluster {cluster_key} has been explored."
+            self.logger.info(self._reformat_message(msg))
+            return
+
+        # -----------------------------------------------------------
+        # check if the cluster is at a minimum & prepare something
+        # -----------------------------------------------------------
         if not cluster.check_minima(
             fmax=float(self.config.event.max_force),
             fqmin=float(self.config.event.min_frequency),
@@ -448,13 +490,12 @@ class ExplorationABC(RunnerABC):
             self.config.calculator,  # type: ignore
             Calculator,
         )
-        oldnew = self.network.recorder.cluster[cluster_key]
         start: float = perf_counter()
         futures: list = []
 
-        # -----------------------------------------
+        # -----------------------------------------------------------
         # submit dimer tasks to executor
-        # -----------------------------------------
+        # -----------------------------------------------------------
         for _ in range(int(self.config.exploration.maxtry)):
             thetacutoff = float(self.config.exploration.thetacutoff)
             if thetacutoff < 0:
@@ -507,16 +548,16 @@ class ExplorationABC(RunnerABC):
             )
         )
 
-        # -----------------------------------------
+        # -----------------------------------------------------------
         # wait for the dimer tasks to finish
-        # -----------------------------------------
+        # -----------------------------------------------------------
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
-            event, _, cost_time = future_result
+            event, _, cost_time, _ = future_result
             label = self.network.found(
                 event,
-                for_cluster=cluster_key,
-                for_system="",
+                for_cluster=None,
+                for_system=system_key,
                 persist=True,
             )
             if label.startswith("fail"):
@@ -535,7 +576,6 @@ class ExplorationABC(RunnerABC):
                     oldnew.found_new()
                 else:
                     oldnew.found_old()
-            confidence = self.config.exploration.maxconfidence
             if oldnew.exploration_can_be_finished(
                 confidence=confidence,
                 min_found=self.network.metadata.table.get_minconut_for(
@@ -552,11 +592,98 @@ class ExplorationABC(RunnerABC):
 
         self.network.persistence()
 
-    def _second_step_adsorption(self, cluster: Cluster, gas: Gas) -> None:
+    def _second_step_adsorption(
+        self,
+        lst: list[Cluster],
+        system_key: str = "",
+    ) -> None:
         """The second step for the on-the-fly KMC simulation."""
-        raise NotImplementedError
+        start: float = perf_counter()
+        futures: list = []
+        for cluster in lst:
+            for gas in self.gas_lst:
+                cluster_key = cluster.get_key_for_metadata(True)
+                gas_key = gas.get_key_for_metadata(False)
 
-    def _second_step_bulk(self, cluster: Cluster) -> None:
+                # ---------------------------------------------
+                # check if the adsorption has been explored
+                # ---------------------------------------------
+                label = f"{cluster_key}_{gas_key}"
+                if label in self.network.recorder.adsorption:
+                    msg = f"The adsorption for {cluster_key} with "
+                    msg += f"{gas_key} has been explored."
+                    self.logger.info(self._reformat_message(msg))
+                    continue
+                # ---------------------------------------------
+                # build helper for adsorption
+                # ---------------------------------------------
+                assert cluster.ncore > 0, "graph must have core"
+                adsorption_helper = Helper(
+                    atoms=cluster.to_ase(
+                        exclude_bond_attibutes=True,
+                        exclude_energetics=True,
+                    ).copy(),
+                    adsorbate=gas,
+                    core=np.unique(cluster.idx_core),
+                    nfibonacci=int(self.config.exploration.nfibonacci),
+                    use_direct=True,
+                    use_raw=True,
+                )
+                # ---------------------------------------------
+                # submit adsorption tasks to executor
+                # ---------------------------------------------
+                self.network.recorder.adsorption.add(label)
+                for irun in range(adsorption_helper.nrun):
+                    futures.append(
+                        self.executor.submit(
+                            helper_adsorption,
+                            config=self.config,
+                            graph=cluster,
+                            gas=gas,
+                            irun=irun,
+                            graph_label=None,
+                            allow_hash_change=True,
+                            raise_when_fail=False,
+                            deep_copy=True,
+                        )
+                    )
+        self.logger.info(
+            self._reformat_message(
+                f"Submit {len(futures)} adsorption tasks by "
+                f"{perf_counter() - start:.2f} seconds"
+            )
+        )
+
+        # -----------------------------------------------------------
+        # wait for the adsorption tasks to finish
+        # -----------------------------------------------------------
+        while len(futures) > 0:
+            future_result, futures = self.executor.wait(futures)  # type: ignore
+            event, label, cost_time, _ = future_result
+            label = self.network.found(
+                event,
+                for_cluster=None,
+                for_system=system_key,
+                persist=True,
+            )
+            if label.startswith("fail"):
+                msg = f"Adsorption search {label} by {cost_time:.2f}"
+                msg += f" seconds because of {event}"
+                self.logger.info(self._reformat_message(msg))
+            else:
+                msg = "Adsorption search successfully, and got "
+                msg += f"{label} by {cost_time:.2f} seconds."
+                if str(event) not in label:
+                    msg += f" Simplify original {event} by threshold "
+                    msg += f"{self.config.event.simplified_threshold:.2f}"
+                self.logger.info(self._reformat_message(msg))
+        self.network.persistence()
+
+    def _second_step_bulk(
+        self,
+        lst: list[Cluster],
+        system_key: str = "",
+    ) -> None:
         """The second step for the on-the-fly KMC simulation."""
         raise NotImplementedError
 

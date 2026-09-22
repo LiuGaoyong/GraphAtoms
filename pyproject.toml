@@ -9,9 +9,10 @@ Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
 [project.scripts]
 graphatoms-config = "graphatoms.enterpoint.config:print_config"
 graphatoms-network = "graphatoms.enterpoint.view:main"
+graphatoms-run = "graphatoms.enterpoint.runner:run"
 [project]
 name = "graphatoms"
-version = "2.0.0"
+version = "2.0.0-beta"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -86,7 +87,8 @@ dev = [
 [tool.uv]
 package = true
 [[tool.uv.index]]
-url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
+# url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
+url = "https://mirrors.nju.edu.cn/pypi/web/simple" # NJU
 default = true
 # [[tool.uv.index]]
 # name = "pytorch-cpu"

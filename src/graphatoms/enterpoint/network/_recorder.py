@@ -104,8 +104,10 @@ class _OldNewRecorder(OurBaseModel):
 
 
 class Recorder(OurBaseModel):
+    system: set[str] = set()
     cluster: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
-    system: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
+    adsorption: set[str] = set()
+    bulk: set[str] = set()
 
     @override
     def _string(self) -> str:  # type: ignore
@@ -120,8 +122,8 @@ if __name__ == "__main__":
     from pathlib import Path
 
     obj = Recorder()
-    obj.system["fdsafs"].new += 1
-    obj.system["fdsafs"].new += 1
+    obj.system.add("fdsafs")
+    obj.cluster["fdsafs"].new += 1
     obj.cluster["fdsafs"].new += 1
     print(obj)
     print(repr(obj))

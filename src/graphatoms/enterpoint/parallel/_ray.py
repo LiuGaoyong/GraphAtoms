@@ -1,5 +1,5 @@
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any, override
 
 from graphatoms.enterpoint.parallel._base import ParallelExecutorABC
@@ -57,11 +57,11 @@ class RayExecutor(ParallelExecutorABC):
     @override
     def wait(
         self,
-        futures: Sequence[ray.ObjectRef],  # type: ignore
+        futures: list[ray.ObjectRef],  # type: ignore
         *,
         timeout: float | None = None,
         **kwargs,
-    ) -> tuple[Any, Sequence[ray.ObjectRef]]:  # type: ignore
+    ) -> tuple[Any, list[ray.ObjectRef]]:  # type: ignore
         done, unfinished = ray.wait(futures, timeout=timeout)  # type: ignore
         return ray.get(done)[0], unfinished  # type: ignore
 

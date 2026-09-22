@@ -1,6 +1,5 @@
 import concurrent.futures as cf
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from typing import Any, override
 
 
@@ -37,11 +36,11 @@ class ParallelExecutorABC(ABC):
     @abstractmethod
     def wait(
         self,
-        futures: Sequence[object],
+        futures: list[object],
         *,
         timeout: float | None = None,
         **kwargs,
-    ) -> tuple[Any, Sequence[object]]:
+    ) -> tuple[Any, list[object]]:
         """Wait for the completion of the remote tasks.
 
         Returns: A tuple of result and remaining futures.
@@ -102,11 +101,11 @@ class MultiprocessingExecutor(ParallelExecutorABC):
     @override
     def wait(  # type: ignore[override]
         self,
-        futures: Sequence[cf.Future],
+        futures: list[cf.Future],
         *,
         timeout: float | None = None,
         **kwargs,
-    ) -> tuple[Any, Sequence[cf.Future]]:
+    ) -> tuple[Any, list[cf.Future]]:
         done, undone = cf.wait(
             futures,
             return_when=cf.FIRST_COMPLETED,

@@ -163,7 +163,7 @@ class MetaData(BaseModel):
     def bkl_solver(
         self,
         matching_dct: dict[tuple[str, bool], np.ndarray],
-    ) -> tuple[pd.DataFrame, str, bool, float]:
+    ) -> tuple[pd.DataFrame, str, bool, float, float]:
         """Solve the BKL equation to select the reaction.
 
         Args:
@@ -175,6 +175,7 @@ class MetaData(BaseModel):
             2. The key of the selected reaction.
             3. Whether the reaction is forward.
             4. The time increment.
+            5. The total rate of the selected reaction.
         """
         lst: list[tuple[str, bool, int, float]] = []
         names = ["rxn_key", "is_forward", "nmatched", "rate"]
@@ -204,7 +205,7 @@ class MetaData(BaseModel):
 
         rxn_key = str(df["rxn_key"].iloc[index])
         is_forward = bool(df["is_forward"].iloc[index])
-        return df, rxn_key, is_forward, dt
+        return df, rxn_key, is_forward, dt, k_tot
 
     def rxn_count_add_one(self, value: EventBase | str) -> None:
         """Add the count of the reaction with the hash value.

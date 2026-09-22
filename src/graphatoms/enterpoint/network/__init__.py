@@ -119,9 +119,9 @@ class RxNet:
     def found(
         self,
         event: EventBase | str,
-        for_cluster: str,
-        for_system: str,
         *,
+        for_cluster: str | None = None,
+        for_system: str | None = None,
         persist: bool = True,
         **kwargs,
     ) -> Literal["new", "old", "fail"] | str:
@@ -129,6 +129,10 @@ class RxNet:
             return "fail"
         elif isinstance(event, EventBase):
             simplified_threshold = self.metadata.basic.simplified_threshold
+            if for_system is None:
+                for_system = ""
+            if for_cluster is None:
+                for_cluster = event.R.get_key_for_metadata()
             if simplified_threshold > 0:
                 try:
                     event = event.simplify(simplified_threshold)

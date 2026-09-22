@@ -158,7 +158,7 @@ class OTFKMC(ExplorationABC):
             # -------------------------------------------
             start = perf_counter()
             bkl_result = self.network.metadata.bkl_solver(matching_dct)
-            df, selected_rxn_key, rxn_is_forward, dt = bkl_result
+            df, selected_rxn_key, rxn_is_forward, dt, rate_tot = bkl_result
             otfkmc_info.select_rxn_key = selected_rxn_key
             otfkmc_info.select_rxn_forward = rxn_is_forward
             otfkmc_info.time = df_data[-1].time + dt
@@ -173,6 +173,7 @@ class OTFKMC(ExplorationABC):
                 raise AssertionError(msg)
             self.logger.info(f"Matched dataframe: \n{df}")
             self.logger.info(f"KMC delta time: {dt} second")
+            self.logger.info(f"KMC total rate: {rate_tot} /s")
             self.logger.info(f"Selected reaction is forward: {rxn_is_forward}")
             self.logger.info(f"Selected reaction: {selected_rxn_key}")
             self.logger.info(f"Selected reaction info: {selected_info}")
