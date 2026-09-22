@@ -1,13 +1,9 @@
 from typing import Self, override
 
-import numpy as np
-from ase.units import _e, _hplanck, kB
+from ase.units import kB
 from pydantic import model_validator
 
 from graphatoms.reaction._event import EventBase
-
-h = _hplanck / _e  # Planck constant in eV
-kB = kB  # Boltzmann constant in eV/K
 
 
 class _Reaction(EventBase):
@@ -36,30 +32,16 @@ class ReactionLH(_Reaction):
         return self
 
     @override
-    def get_Ea(self, temperature: float = 300.0) -> float:
-        assert self.T is not None, "The transition state must be not None."
-        e_T = self.T.get_free_energy(fqmin=30.0, temp=temperature)
-        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
-        return e_T - e_R
+    def get_Ea(self, temperature: float = 300.0) -> float:  # type: ignore
+        return super().get_Ea(temperature=temperature)
 
     @override
-    def get_dE(self, temperature: float = 300.0) -> float:
-        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
-        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
-        return e_P - e_R
+    def get_dE(self, temperature: float = 300.0) -> float:  # type: ignore
+        return super().get_dE(temperature=temperature)
 
-    def get_rate(self, temperature: float = 300.0) -> float:
-        """Get the rate of the reaction by TST.
-
-        Eq:
-                    kB*T       -Ea
-            rate = ------*exp(------)
-                      h        kB*T
-        """
-        Ea = self.get_Ea(temperature)
-        kBT = kB * temperature
-        exp = np.exp(-Ea / kBT)
-        return kBT / h * exp
+    @override
+    def get_rate(self, temperature: float = 300.0) -> float:  # type: ignore
+        return super().get_rate(temperature=temperature)
 
 
 class ReactionER(_Reaction):
@@ -74,15 +56,3 @@ class ReactionER(_Reaction):
             or len(self.R) == len(self.P) + len(self.G)
         )
         return self
-
-
-if __name__ == "__main__":
-    from scipy import constants
-
-    print(constants.Boltzmann)
-    print(constants.Planck)
-    print(constants.eV)
-
-    temperature = 300.0  # K
-    print(constants.Boltzmann * temperature / constants.Planck)
-    print(kB * temperature / h)

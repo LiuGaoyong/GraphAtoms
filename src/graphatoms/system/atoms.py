@@ -23,6 +23,7 @@ from pymatgen.core.structure import Molecule as PmgMol
 from pymatgen.core.structure import Structure as PmgStrct
 
 from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
+from graphatoms.utils import rdutils
 
 __all__ = ["Box", "Energetics", "Structure"]
 
@@ -427,6 +428,18 @@ class Structure(Matter, Box, Energetics):
     @property
     def R(self) -> NDArray:
         return self.positions
+
+    @cached_property
+    def area(self) -> float:
+        """Get the area of this structure."""
+        rdmol: rdutils.RDMol = rdutils.get_rdmol(
+            # numbers=np.where(self.is_adsorbate, self.numbers, 0),
+            numbers=self.numbers,
+            geometry=self.positions,
+            infer_order=False,
+            infer_bond=False,
+        )
+        return sum(rdutils.get_atomic_sasa(rdmol))
 
     @classmethod
     def SUPPORTED_CONVERT_FORMATS(cls) -> Sequence[str]:

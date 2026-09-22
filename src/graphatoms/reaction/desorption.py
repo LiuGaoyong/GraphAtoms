@@ -2,9 +2,10 @@ from typing import Self, override
 
 import numpy as np
 from ase import Atoms
+from ase.data import atomic_masses as MASS
 from pydantic import model_validator
 
-from graphatoms.reaction._event import EventBase
+from graphatoms.reaction._event import EventBase, h, kB
 from graphatoms.system.system import System
 
 
@@ -30,3 +31,68 @@ class Desorption(EventBase):
         atoms, rmsd = super().apply(atoms, *args, matched_indxs, **kwargs)
         del atoms[np.arange(len(self.R)) >= len(self.P)]
         return atoms, rmsd
+
+    @override
+    def get_Ea(self, *args, **kwargs) -> float:  # type: ignore
+        """The desorption reaction does not have an activation energy.
+
+        Returns:
+            np.inf
+        """
+        return np.inf
+
+    @override
+    def get_dE(
+        self,
+        temperature: float = 300.0,
+        *args,
+        pressure: float | None = None,
+        **kwargs,
+    ) -> float:
+        assert self.G is not None, "The gas must be not None."
+        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
+        if pressure is None:
+            pressure = self.G.pressure
+        assert pressure is not None, "The pressure must be not None."
+        e_G = self.G.get_free_energy(
+            fqmin=30.0,
+            temp=temperature,
+            pressure=pressure,
+        )
+        return e_R + e_G - e_P
+
+    @override
+    def get_rate(
+        self,
+        temperature: float = 300.0,
+        *args,
+        pressure: float | None = None,
+        sticking: float | None = None,
+        **kwargs,
+    ) -> float:
+        """Get the rate of the reaction by the collision theory.
+
+        Ref: Dominic R. Alfonso; Kinetic Monte Carlo Simul-
+            ation of CO Adsorption on Sulfur-Covered Pd(100).
+            J. Phys. Chem. A  2014, 118, 7306-7313.
+        Eq:
+                     S*A*2*pi*m*(kB*T)**2        -dE
+            rate = -----------------------*exp(-------)
+                            h**3                 kB*T
+        """
+        assert self.G is not None, "The gas must be not None."
+        kBT = kB * temperature
+        m = np.sum(MASS[self.G.numbers])
+        A = abs(self.G.area + self.R.area - self.P.area) / 2.0
+
+        if pressure is None:
+            pressure = self.G.pressure
+        assert pressure is not None, "The pressure must be not None."
+        dE = self.get_dE(temperature=temperature, pressure=pressure)
+        exp = np.exp(-dE / kBT)
+
+        if sticking is None:
+            sticking = self.G.sticking
+        assert sticking is not None, "The sticking must be not None."
+        return sticking * A * 2.0 * np.pi * m * kBT**2 / h**3 * exp

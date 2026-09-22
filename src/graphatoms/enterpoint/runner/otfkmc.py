@@ -172,6 +172,7 @@ class OTFKMC(ExplorationABC):
                 self.logger.error(self._reformat_message(msg))
                 raise AssertionError(msg)
             self.logger.info(f"Matched dataframe: \n{df}")
+            self.logger.info(f"KMC delta time: {dt} second")
             self.logger.info(f"Selected reaction is forward: {rxn_is_forward}")
             self.logger.info(f"Selected reaction: {selected_rxn_key}")
             self.logger.info(f"Selected reaction info: {selected_info}")

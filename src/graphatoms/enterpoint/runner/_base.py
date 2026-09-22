@@ -245,7 +245,7 @@ class ExplorationABC(RunnerABC):
             ncore_4_surface = 1
         else:
             ncore_4_surface = ncore_4_adspt
-        for (is_surface, ncore, _), v in dct.items():
+        for (is_surface, ncore, vhash), v in dct.items():  # type: ignore
             if is_surface:
                 if ncore <= ncore_4_surface:
                     # exploration for surface cluster

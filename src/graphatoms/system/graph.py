@@ -211,6 +211,45 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         else:
             return f"{fml}-{self.hash}"
 
+    def update_adsorption(
+        self,
+        gas: Atoms,
+        *,
+        parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
+        deep: bool = True,
+        **kwargs,
+    ) -> Self:
+        """Update the adsorptionate of this object."""
+        dct: dict[str, np.ndarray | None] = dict(
+            numbers=np.append(self.numbers, gas.numbers),
+            positions=np.vstack([self.positions, gas.positions]),
+            cell=self.cell,
+            pbc=self.pbc,
+        )
+        if self.coordination is not None:
+            cn = np.zeros(len(gas), dtype=int)
+            dct["coordination"] = np.append(self.coordination, cn)
+        if self.is_adsorbate is not None:
+            is_ads = np.ones(len(gas), dtype=bool)
+            dct["is_adsorbate"] = np.append(self.is_adsorbate, is_ads)
+        if self.is_outer is not None:
+            is_outer = np.ones(len(gas), dtype=bool)
+            dct["is_outer"] = np.append(self.is_outer, is_outer)
+        if self.is_core is not None:
+            is_core = np.ones(len(gas), dtype=bool)
+            dct["is_core"] = np.append(self.is_core, is_core)
+        if self.is_fix is not None:
+            is_fix = np.zeros(len(gas), dtype=bool)
+            dct["is_fix"] = np.append(self.is_fix, is_fix)
+
+        obj = self.from_dict(dct, parse_bonds=parse_bonds)
+        return obj.update_geometry(
+            obj.positions,
+            parse_bonds=parse_bonds,
+            deep=deep,
+            **kwargs,
+        )
+
     @override
     def update_geometry(
         self,

@@ -206,8 +206,11 @@ class Test_Container:
                 v1, v2 = getattr(system, k), getattr(system, k)
                 if callable(v1):
                     continue
-                msg = f"{k:<35s}: {str(id(v1) == id(v2)):5s} {id(v1)}={id(v2)}."
-                print(msg)
+                msg = f"{k:<35s}: {str(id(v1) == id(v2)):5s} {id(v1)}={id(v2)}"
+                if np.isscalar(v1):
+                    print(f"{msg} value={v1}")
+                else:
+                    print(msg)
                 assert id(v1) == id(v2), (
                     f"Hash of property changed: {k}!!! \n" + msg
                 )

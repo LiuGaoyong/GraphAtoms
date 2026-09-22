@@ -5,6 +5,7 @@ from typing import Any, Self, override
 import igraph
 import numpy as np
 from ase import Atoms
+from ase.units import _e, _hplanck, kB
 from pydantic import BaseModel, model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
@@ -12,6 +13,8 @@ from graphatoms.geometry.rotation import kabsch
 from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils.bytestool import hash_string
 
+h = _hplanck / _e  # Planck constant in eV
+kB = kB  # Boltzmann constant in eV/K
 DEFAULT_CHECK_FMAX = 0.1
 DEFAULT_CHECK_FQMIN = 5.0
 
@@ -363,34 +366,33 @@ class EventBase(RTGP, MoveABC):
             )
 
     @abstractmethod
-    def get_Ea(
-        self,
-        temperature: float = 300.0,
-        *args,
-        pressure: float = 101325,
-        **kwargs,
-    ) -> float:
+    def get_Ea(self, temperature: float = 300.0, *a, **kw) -> float:
         """Get the activation energy of the event."""
+        assert self.T is not None, "The transition state must be not None."
+        e_T = self.T.get_free_energy(fqmin=30.0, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
+        return e_T - e_R
 
     @abstractmethod
-    def get_dE(
-        self,
-        temperature: float = 300.0,
-        *args,
-        pressure: float = 101325,
-        **kwargs,
-    ) -> float:
+    def get_dE(self, temperature: float = 300.0, *a, **kw) -> float:
         """Get the change in energy of the event."""
+        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
+        return e_P - e_R
 
     @abstractmethod
-    def get_rate(
-        self,
-        temperature: float = 300.0,
-        *args,
-        pressure: float = 101325,
-        **kwargs,
-    ) -> float:
-        """Get the reaction rate of the event."""
+    def get_rate(self, temperature: float = 300.0, *a, **kw) -> float:
+        """Get the rate of the reaction by TST.
+
+        Eq:
+                    kB*T       -Ea
+            rate = ------*exp(------)
+                      h        kB*T
+        """
+        Ea = self.get_Ea(temperature)
+        kBT = kB * temperature
+        exp = np.exp(-Ea / kBT)
+        return kBT / h * exp
 
     ########################################################################
     #           Properties for checking the type of the event.
@@ -504,3 +506,14 @@ class EventInfo(BaseModel):
             for_cluster=for_cluster,
             for_system=for_system,
         )
+
+if __name__ == "__main__":
+    from scipy import constants
+
+    print(constants.Boltzmann)
+    print(constants.Planck)
+    print(constants.eV)
+
+    temperature = 300.0  # K
+    print(constants.Boltzmann * temperature / constants.Planck)
+    print(kB * temperature / h)

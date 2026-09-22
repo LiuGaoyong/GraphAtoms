@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
 from functools import reduce
 from pathlib import Path
-from typing import Any, Literal, Self, override
+from typing import Literal, Self, override
 
 import matplotlib
 import numpy as np
@@ -669,22 +668,16 @@ class Helper:
 
     def __init__(
         self,
-        calculator: Calculator,
         atoms: Atoms | System | Cluster,
         adsorbate: Atoms | Gas | Atom | str,
         core: ArrayLike | int = 0,
         use_direct: bool = True,
         use_raw: bool = True,
         *,
-        use_direct_ad: bool = False,
         nfibonacci: int = 1000,
-        max_steps_for_first_stage: int = 100,
-        max_steps_for_second_stage: int = 100,
         distance_lst: np.ndarray = np.arange(1.5, 5.0, 0.2),
         adsorbate_index: Literal["com"] | int | None = None,
         nbr1hop: ArrayLike | list[int] | None = None,
-        bonds_cfg: Mapping[str, Any] = {},
-        max_force: float = 0.05,
         debug: bool = False,
     ) -> None:
         """The helper function for adsorption call."""
@@ -692,24 +685,14 @@ class Helper:
             "At least one of `use_direct` and `use_raw` must be True."
         )
         # return the total number of runs
-        self.__bonds_cfg = bonds_cfg
-        self.__fmax = max_force
         self.__debug = debug
         self.nrun = 0
         if use_direct:
-            if use_direct_ad:
-                raise NotImplementedError(
-                    "DirectAdsorptionAD is not implemented."
-                )
-                # _CLS = DirectAdsorptionAD
-            else:
-                _CLS = DirectAdsorption
-            self.__obj_direct = obj = _CLS(
-                calculator=calculator,
-                max_steps_for_first_stage=max_steps_for_first_stage,
-                max_steps_for_second_stage=max_steps_for_second_stage,
+            self.__obj_direct = obj = DirectAdsorption(
+                calculator=None,
+                max_steps_for_first_stage=0,
+                max_steps_for_second_stage=0,
                 nfibonacci=nfibonacci,
-                max_force=max_force,
                 debug=debug,
             )
             self.__grid_core, self.__grid_ads, self.__anchor_core = (
@@ -727,10 +710,9 @@ class Helper:
             )
         if use_raw:
             self.__obj_raw = RawAdsorption(
-                calculator=calculator,
-                max_steps_for_first_stage=max_steps_for_first_stage,
-                max_steps_for_second_stage=max_steps_for_second_stage,
-                max_force=max_force,
+                calculator=None,
+                max_steps_for_first_stage=0,
+                max_steps_for_second_stage=0,
                 debug=debug,
             )
             self.__adsorbate_index = adsorbate_index
@@ -742,11 +724,7 @@ class Helper:
         self.__atoms = atoms
         self.__core = core
 
-    def __call__(  # noqa: D102
-        self,
-        irun: int = 0,
-        outdir: Path = Path("."),
-    ) -> dict[str, Any]:
+    def __call__(self, irun: int = 0) -> Atoms:
         if self.__use_raw:
             irun -= 1
 
@@ -774,35 +752,11 @@ class Helper:
                 grid_core=self.__grid_core,
                 anchor_core=self.__anchor_core,
             )
-        result_atoms, nstage = result
-        assert isinstance(result_atoms, Atoms)
-
-        try:
-            score = result_atoms.get_potential_energy(False, False)
-            force = result_atoms.get_forces(False, False)
-            fmax = np.linalg.norm(force, axis=1).max()
-        except Exception:
-            score = fmax = np.inf
-
-        result = {"fmax": fmax, "score": score, "nstage": nstage}
-        if not np.isinf(score) and fmax <= self.__fmax:
-            sys = System.from_ase(result_atoms, parse_bonds=self.__bonds_cfg)
-            if any(
-                len(sys.get_neighbors(i)) > 0
-                for i in range(len(self.__atoms), len(sys))
-            ):
-                if self.__debug:
-                    key = [sys.symbols.get_chemical_formula("metal"), sys.hash]
-                    # key.insert(0, f"E_{int(score * 1000):07d}meV")
-                    key.append(f"stage_{nstage:d}")
-                    s = "-".join(key)
-                    result_atoms.write(
-                        outdir.joinpath(f"{s}.xyz"), format="extxyz"
-                    )
-                    plot(result_atoms, pngfname=outdir.joinpath(f"{s}.png"))
-                result["system"] = sys
-        result["atoms"] = result_atoms
-        return result
+        result_atoms, _ = result
+        result_atoms.constraints = None
+        result_atoms.calc = None
+        result_atoms.info = {}
+        return result_atoms
 
 
 def plot(atoms: Atoms, pngfname: Path) -> None:

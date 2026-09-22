@@ -10,6 +10,7 @@ from graphatoms.enterpoint.network import RxNet
 from graphatoms.reaction import Adsorption, Desorption, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
 from graphatoms.utils import asetools
+from graphatoms.utils.adsorption import Helper
 from graphatoms.utils.parser import hydra_parse
 
 from ._errors import CheckVibrationFailed, HelperException, OptimizationFailed
@@ -195,7 +196,7 @@ def helper_dimer(
     raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Reaction | Desorption | str, Any, float]:
+) -> tuple[Reaction | Desorption | str, Any, float, str]:
     """Dimer search for transition state.
 
     Parameters:
@@ -213,8 +214,13 @@ def helper_dimer(
         HelperException: If the fixed bonds changed after dimer search.
 
     Returns:
-        the optimized graph, graph_id, and the time cost in seconds.
+        the optimized graph,
+        graph_id,
+        the time cost in seconds,
+        and the result type.
     """
+    result_type: str = "dimer"
+
     start = perf_counter()
     if graph_label is None:
         graph_label = graph.get_key_for_metadata()
@@ -259,7 +265,7 @@ def helper_dimer(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time
+            return str(e), graph_label, cost_time, result_type
 
     # -----------------------------------------
     #       check the fixed bond change or not
@@ -282,7 +288,7 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time
+                return str(e), graph_label, cost_time, result_type
 
     # -----------------------------------------
     #       analyze frequencies & check
@@ -303,7 +309,7 @@ def helper_dimer(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time
+            return str(e), graph_label, cost_time, result_type
 
     # -----------------------------------------
     #        descend the minimum mode
@@ -349,7 +355,7 @@ def helper_dimer(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time
+            return str(e), graph_label, cost_time, result_type
 
     # ------------------------------------------------------------
     #       check the fixed bond change or not for product
@@ -363,7 +369,7 @@ def helper_dimer(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time
+            return str(e), graph_label, cost_time, result_type
     if product_result.hash == graph.hash:  # type: ignore
         key_r = graph.get_key_for_metadata(use_positions_uuid=True)
         key_p = product_result.get_key_for_metadata(use_positions_uuid=True)
@@ -375,7 +381,7 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time
+                return str(e), graph_label, cost_time, result_type
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(product_result)
         diff_bonds = np.asarray(break_bonds + make_bonds)
@@ -389,7 +395,7 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time
+                return str(e), graph_label, cost_time, result_type
 
     # -----------------------------------------
     # call vibration for product
@@ -406,12 +412,12 @@ def helper_dimer(
             start=start,
         )
         rxn = Reaction(R=graph, P=product_result, T=ts)
-        return rxn, graph_label, perf_counter() - start
+        return rxn, graph_label, perf_counter() - start, result_type
     except CheckVibrationFailed as e:
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, perf_counter() - start
+            return str(e), graph_label, perf_counter() - start, result_type
 
 
 def helper_adsorption(
@@ -420,13 +426,72 @@ def helper_adsorption(
     graph: Cluster | System | SysGraph,
     *,
     graph_label: Any | None = None,
-    allow_fixed_bonds_change: bool = False,
-    displacement: np.ndarray | None = None,
+    allow_hash_change: bool = True,
     raise_when_fail: bool = True,
+    irun: int | None = None,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Adsorption | str, Any, float]:
-    raise NotImplementedError
+) -> tuple[Adsorption | str, Any, float, str]:
+    """Helper function for adsorption process.
+
+    Returns:
+        1. the adsorption object
+        2. the graph label
+        3. the cost time
+        4. the result type
+    """
+    if graph_label is None:
+        graph_label = graph.get_key_for_metadata()
+    graph_label += f"_{gas.get_key_for_metadata(False)}"
+
+    # -----------------------------------------
+    #       call adsorption initial positions
+    # -----------------------------------------
+    assert graph.ncore > 0, "graph must have core"
+    adsorption_helper = Helper(
+        atoms=graph.to_ase(
+            exclude_bond_attibutes=True,
+            exclude_energetics=True,
+        ).copy(),
+        adsorbate=gas,
+        core=np.unique(graph.idx_core),
+        nfibonacci=int(config.exploration.nfibonacci),
+        use_direct=True,
+        use_raw=True,
+    )
+    if irun is None:
+        irun = np.random.randint(0, adsorption_helper.nrun)
+    init_atoms: Atoms = adsorption_helper.__call__(irun=irun)
+    init_graph = graph.update_adsorption(
+        Atoms(
+            numbers=init_atoms.numbers[graph.natoms :],
+            positions=init_atoms.positions[graph.natoms :],
+        ),
+        parse_bonds=config.bonds,  # type: ignore
+        **kwargs,
+    )
+
+    # -----------------------------------------
+    #       call optimization for adsorption
+    # -----------------------------------------
+    product_result, _, cost_time = helper_optimization(
+        config=config,
+        graph=init_graph,
+        allow_hash_change=allow_hash_change,
+        raise_when_fail=False,
+        deep_copy=deep_copy,
+        run_vibration=True,
+        **kwargs,
+    )
+    if isinstance(product_result, str):
+        e = HelperException(msg=product_result, label=graph_label)
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, cost_time, "adsorption"
+
+    rxn = Adsorption(R=graph, P=product_result, G=gas)
+    return rxn, graph_label, cost_time, "adsorption"
 
 
 def helper_match(
