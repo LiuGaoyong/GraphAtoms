@@ -71,6 +71,7 @@ class OTFKMC(ExplorationABC):
 
         while True:
             otfkmc_info = OTFKMCInfo()
+            self.istep = len(df_data) - 1
             self.logger.info("=" * self._log_length)
             self.logger.info(f"Step {self.istep} Start")
             self.logger.info("-" * self._log_length)

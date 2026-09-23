@@ -87,6 +87,7 @@ def helper_optimization(
     *,
     graph_label: Any | None = None,
     allow_hash_change: bool = True,
+    allow_not_connected: bool = False,
     raise_when_fail: bool = False,
     run_vibration: bool = True,
     deep_copy: bool = True,
@@ -152,6 +153,15 @@ def helper_optimization(
         parse_bonds=config.bonds,  # type: ignore
         deep=deep_copy,
     )
+    if (not allow_not_connected) and (not result.is_connected):
+        e = HelperException(
+            msg="graph is not connected after optimization",
+            label=graph_label,
+        )
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start
     if not allow_hash_change and graph.hash != result.hash:
         e = HelperException(
             msg="hash changed after optimization",
@@ -362,6 +372,7 @@ def helper_dimer(
     # ------------------------------------------------------------
     cost_time = perf_counter() - start
     if not product_result.is_connected:
+        # TODO: parse Desorption
         e = HelperException(
             msg="product is not connected",
             label=graph_label,
@@ -442,7 +453,7 @@ def helper_adsorption(
     """
     if graph_label is None:
         graph_label = graph.get_key_for_metadata()
-    graph_label += f"_{gas.get_key_for_metadata(False)}"
+        graph_label += f"_{gas.get_key_for_metadata(False)}"
 
     # -----------------------------------------
     #       call adsorption initial positions

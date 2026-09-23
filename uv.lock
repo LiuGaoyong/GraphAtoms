@@ -846,7 +846,7 @@ wheels = [
 
 [[package]]
 name = "graphatoms"
-version = "2.0.1"
+version = "2.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "array-api-compat" },
@@ -861,7 +861,6 @@ dependencies = [
     { name = "numpydantic" },
     { name = "ovld" },
     { name = "pandas" },
-    { name = "pipefunc" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pymatgen" },
@@ -901,7 +900,6 @@ requires-dist = [
     { name = "numpydantic" },
     { name = "ovld" },
     { name = "pandas", specifier = ">=2,<4" },
-    { name = "pipefunc" },
     { name = "pyarrow" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pymatgen", specifier = ">2023.6" },
@@ -2365,20 +2363,6 @@ wheels = [
     { url = "https://mirrors.nju.edu.cn/pypi/web/packages/18/f0/a5595c1e8c3ae44b9828cb2f0fa8155e5095ef04d6327b8f61cf44a3df85/pillow-12.3.0-cp315-cp315t-win32.whl", hash = "sha256:1657923d2d45afb66526e5b933e5b3052e6bdea196c90d3abb2424e18c77dae8" },
     { url = "https://mirrors.nju.edu.cn/pypi/web/packages/e4/04/62bcd9f844984c5938d3b05264a61d797a29d3e0812341a8204af70bbdee/pillow-12.3.0-cp315-cp315t-win_amd64.whl", hash = "sha256:8cd2f7bdda092d99c9fc2fb7391354f306d01443d22785d0cbfafa2e2c8bb418" },
     { url = "https://mirrors.nju.edu.cn/pypi/web/packages/3d/68/1f3066acedf37673694a7141381d8f811ae97f30d34413d236abe7d489f1/pillow-12.3.0-cp315-cp315t-win_arm64.whl", hash = "sha256:06ff022112bc9cbf83b60f8e028d94ad87b60621706487e65f673de61610ab59" },
-]
-
-[[package]]
-name = "pipefunc"
-version = "0.93.1"
-source = { registry = "https://mirrors.nju.edu.cn/pypi/web/simple" }
-dependencies = [
-    { name = "cloudpickle" },
-    { name = "networkx" },
-    { name = "numpy" },
-]
-sdist = { url = "https://mirrors.nju.edu.cn/pypi/web/packages/d1/82/b1d6326cd088528eca8c50c98c8dc38feadc223b57bcd8f2d197cff2b774/pipefunc-0.93.1.tar.gz", hash = "sha256:5ab6cecc4f9b2af29d647d77802c24e7f91b5bb8f53283994ee746270b10c4c2" }
-wheels = [
-    { url = "https://mirrors.nju.edu.cn/pypi/web/packages/2f/b3/922912e9505658a3a9ae86c6db1b66cc316aaf6d77958ad6b90adc24cc67/pipefunc-0.93.1-py3-none-any.whl", hash = "sha256:f53aa0ba85dfe8fe784cfe3d558f1e55d0e758bcbeaaf4b68ab6288a62499594" },
 ]
 
 [[package]]

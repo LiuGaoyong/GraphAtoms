@@ -12,7 +12,7 @@ graphatoms-network = "graphatoms.enterpoint.view:main"
 graphatoms-run = "graphatoms.enterpoint.runner:run"
 [project]
 name = "graphatoms"
-version = "2.0.1"
+version = "2.1.0"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -62,7 +62,6 @@ dependencies = [
     # Other
     "executorlib",
     "hydra-core",
-    "pipefunc",
     "typer",
     "loguru",
 ]

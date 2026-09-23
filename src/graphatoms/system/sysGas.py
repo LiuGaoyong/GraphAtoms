@@ -179,6 +179,7 @@ class Gas(System):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return IdealGasThermo(
+                atoms=Atoms(self.numbers, self.positions),
                 vib_energies=evib,  # type: ignore
                 geometry=self.__geometry_type,
                 symmetrynumber=self.nsymmetry,

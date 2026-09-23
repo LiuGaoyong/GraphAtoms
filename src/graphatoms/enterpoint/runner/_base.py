@@ -164,6 +164,7 @@ class RunnerABC:
                 ),
                 raise_when_fail=True,
                 allow_hash_change=False,
+                allow_not_connected=False,
                 run_vibration=True,
                 deep_copy=True,
             )
@@ -370,6 +371,7 @@ class ExplorationABC(RunnerABC):
                             graph_label=label,
                             graph=sysgraph,
                             allow_hash_change=False,
+                            allow_not_connected=False,
                             raise_when_fail=False,
                         )
                     )
@@ -441,10 +443,13 @@ class ExplorationABC(RunnerABC):
                 system_key=system_key,
             )
         if len(lst_4adsorption) > 0:
-            self._second_step_adsorption(
-                lst_4adsorption,
-                system_key=system_key,
-            )
+            for cluster in lst_4adsorption:
+                for gas in self.gas_lst:
+                    self._second_step_adsorption(
+                        gas=gas,
+                        cluster=cluster,
+                        system_key=system_key,
+                    )
         if len(lst_4surface) > 0:
             for cluster in lst_4surface:
                 self._second_step_surface(
@@ -579,6 +584,7 @@ class ExplorationABC(RunnerABC):
                 confidence=confidence,
                 min_found=self.network.metadata.table.get_minconut_for(
                     cluster_key=cluster_key,
+                    exclude_gas=True,
                 ),
             ):
                 msg = f"Finish exploration for {cluster_key} with "
@@ -588,103 +594,122 @@ class ExplorationABC(RunnerABC):
                 for future in futures:
                     self.executor.cancel(future)
                 break
-
         self.network.persistence()
 
     def _second_step_adsorption(
         self,
-        lst: list[Cluster],
+        gas: Gas,
+        cluster: Cluster,
         system_key: str = "",
     ) -> None:
         """The second step for the on-the-fly KMC simulation."""
-        start: float = perf_counter()
+        cluster_key = cluster.get_key_for_metadata(True)
+        gas_key = gas.get_key_for_metadata(False)
+
+        # ---------------------------------------------
+        # check if the adsorption has been explored
+        # ---------------------------------------------
+        graph_label = f"{cluster_key}_{gas_key}"
+        if graph_label in self.network.recorder.adsorption:
+            msg = f"The adsorption for {cluster_key} with "
+            msg += f"{gas_key} has been explored."
+            self.logger.info(self._reformat_message(msg))
+            return
+
+        # ---------------------------------------------
+        # build helper for adsorption
+        # ---------------------------------------------
+        assert cluster.ncore > 0, "graph must have core"
+        adsorption_helper = Helper(
+            atoms=cluster.to_ase(
+                exclude_bond_attibutes=True,
+                exclude_energetics=True,
+            ).copy(),
+            adsorbate=gas,
+            core=np.unique(cluster.idx_core),
+            nfibonacci=int(self.config.exploration.nfibonacci),
+            use_direct=True,
+            use_raw=True,
+        )
+
+        # ---------------------------------------------
+        # submit adsorption tasks to executor
+        # ---------------------------------------------
         futures: list = []
-        for cluster in lst:
-            for gas in self.gas_lst:
-                cluster_key = cluster.get_key_for_metadata(True)
-                gas_key = gas.get_key_for_metadata(False)
-
-                # ---------------------------------------------
-                # check if the adsorption has been explored
-                # ---------------------------------------------
-                label = f"{cluster_key}_{gas_key}"
-                if label in self.network.recorder.adsorption:
-                    msg = f"The adsorption for {cluster_key} with "
-                    msg += f"{gas_key} has been explored."
-                    self.logger.info(self._reformat_message(msg))
-                    continue
-                # ---------------------------------------------
-                # build helper for adsorption
-                # ---------------------------------------------
-                assert cluster.ncore > 0, "graph must have core"
-                adsorption_helper = Helper(
-                    atoms=cluster.to_ase(
-                        exclude_bond_attibutes=True,
-                        exclude_energetics=True,
-                    ).copy(),
-                    adsorbate=gas,
-                    core=np.unique(cluster.idx_core),
-                    nfibonacci=int(self.config.exploration.nfibonacci),
-                    use_direct=True,
-                    use_raw=True,
+        start: float = perf_counter()
+        nrun: int = adsorption_helper.nrun
+        maxtry: int = self.config.exploration.maxtry
+        if nrun <= maxtry:
+            lst = np.asarray(range(nrun))
+        else:
+            lst = np.random.randint(nrun, size=maxtry)
+        np.random.shuffle(lst)
+        for irun in lst:
+            futures.append(
+                self.executor.submit(
+                    helper_adsorption,
+                    config=self.config,
+                    graph=cluster,
+                    gas=gas,
+                    irun=irun,
+                    graph_label=graph_label,
+                    allow_hash_change=True,
+                    raise_when_fail=False,
+                    deep_copy=True,
                 )
-                # ---------------------------------------------
-                # submit adsorption tasks to executor
-                # ---------------------------------------------
-                self.network.recorder.adsorption.add(label)
-                nrun: int = adsorption_helper.nrun
-                nrun: int = min(nrun, self.config.exploration.maxtry)
-                for irun in range(nrun):
-                    futures.append(
-                        self.executor.submit(
-                            helper_adsorption,
-                            config=self.config,
-                            graph=cluster,
-                            gas=gas,
-                            irun=irun,
-                            graph_label=None,
-                            allow_hash_change=True,
-                            raise_when_fail=False,
-                            deep_copy=True,
-                        )
-                    )
-                self.logger.info(
-                    self._reformat_message(
-                        f"Submit {nrun} adsorption tasks for "
-                        f"{cluster_key} with {gas_key}"
-                    )
-                )
-
+            )
         self.logger.info(
             self._reformat_message(
-                f"Submit {len(futures)} adsorption tasks by "
+                f"Submit {nrun} adsorption tasks by "
                 f"{perf_counter() - start:.2f} seconds"
+                f" for {cluster_key} with {gas_key}"
             )
         )
 
         # -----------------------------------------------------------
         # wait for the adsorption tasks to finish
         # -----------------------------------------------------------
+        old_new = self.network.recorder.adsorption[graph_label]
+        confidence = self.config.exploration.maxconfidence
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
-            event, label, cost_time, _ = future_result
-            label = self.network.found(
+            event, _, cost_time, _ = future_result
+            event_label = self.network.found(
                 event,
                 for_cluster=None,
                 for_system=system_key,
                 persist=True,
             )
-            if label.startswith("fail"):
-                msg = f"Adsorption search {label} by {cost_time:.2f}"
+            if event_label.startswith("fail"):
+                msg = f"Adsorption search {event_label} by {cost_time:.2f}"
                 msg += f" seconds because of {event}"
                 self.logger.info(self._reformat_message(msg))
+                old_new.found_fail()
             else:
                 msg = "Adsorption search successfully, and got "
-                msg += f"{label} by {cost_time:.2f} seconds."
-                if str(event) not in label:
+                msg += f"{event_label} by {cost_time:.2f} seconds."
+                if str(event) not in event_label:
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
+                if "new" in event_label:
+                    old_new.found_new()
+                else:
+                    old_new.found_old()
+            if old_new.exploration_can_be_finished(
+                confidence=confidence,
+                min_found=self.network.metadata.table.get_minconut_for(
+                    cluster_key=cluster_key,
+                    exclude_gas=False,
+                ),
+            ):
+                msg = f"Finish exploration for {cluster_key} and {gas_key}"
+                msg += f"with confidence {confidence:.2f}. {len(futures)}"
+                msg += " adsorption tasks left. They will be canceled."
+                self.logger.info(self._reformat_message(msg))
+                for future in futures:
+                    self.executor.cancel(future)
+                break
         self.network.persistence()
 
     def _second_step_bulk(

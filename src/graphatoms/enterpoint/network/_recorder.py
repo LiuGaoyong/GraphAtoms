@@ -106,7 +106,7 @@ class _OldNewRecorder(OurBaseModel):
 class Recorder(OurBaseModel):
     system: set[str] = set()
     cluster: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
-    adsorption: set[str] = set()
+    adsorption: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
     bulk: set[str] = set()
 
     @override

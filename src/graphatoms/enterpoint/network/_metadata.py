@@ -110,6 +110,7 @@ class _MetaDataTable(BaseModel):
         *,
         cluster_key: str | None = None,
         system_key: str | None = None,
+        exclude_gas: bool = False,
         **kwargs,
     ) -> int:
         if cluster_key is not None:
@@ -117,7 +118,10 @@ class _MetaDataTable(BaseModel):
                 [
                     self.count[i]
                     for i, ck in enumerate(self.for_cluster)
-                    if ck == cluster_key
+                    if (
+                        ck == cluster_key
+                        and ((not exclude_gas) or self.key_g[i] is None)
+                    )
                 ]
                 + [0]
             )
@@ -126,7 +130,10 @@ class _MetaDataTable(BaseModel):
                 [
                     self.count[i]
                     for i, sk in enumerate(self.for_system)
-                    if sk == system_key
+                    if (
+                        sk == system_key
+                        and ((not exclude_gas) or self.key_g[i] is None)
+                    )
                 ]
                 + [0]
             )
