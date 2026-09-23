@@ -660,7 +660,7 @@ class ExplorationABC(RunnerABC):
             )
         self.logger.info(
             self._reformat_message(
-                f"Submit {nrun} adsorption tasks by "
+                f"Submit {len(lst)} adsorption tasks by "
                 f"{perf_counter() - start:.2f} seconds"
                 f" for {cluster_key} with {gas_key}"
             )
