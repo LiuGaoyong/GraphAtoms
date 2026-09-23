@@ -17,6 +17,14 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
 - **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
 - **Subgraph Operations**: Backend-agnostic subgraph extraction with relabeling support using array-api-compat and array-api-extra
+- **CLI Entry Points**: Three console scripts for configuration, execution, and inspection:
+  - `graphatoms-config`: Resolve and print the Hydra/OmegaConf run configuration
+  - `graphatoms-run`: Launch a run
+    - `run_type=otfkmc` for on-the-fly kinetic Monte Carlo simulation
+    - `run_type=rxngen` for reaction network generation
+  - `graphatoms-network`: Inspect and visualize a stored reaction network
+- **Hydra-driven Configuration**: Composable, override-friendly config via Hydra/OmegaConf with grouped groups (`atoms`, `bonds`, `calculator`)
+- **Pluggable Parallel Backends**: Switch executors at the config level — `serial`, `multiprocessing`, `ray`, `dask`, `executorlib` — for distributed/on-the-fly KMC workflows
 
 ## Module Structure
 
@@ -24,18 +32,33 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 src/graphatoms/
 ├── arrayapi/        # Array API compatibility layer
 ├── dataclasses/     # Pydantic-based data models
+├── enterpoint/      # Entry points: CLI, config, runners, network, parallel
+│   ├── config/      # Hydra/OmegaConf configuration (atoms, bonds, calculator)
+│   ├── network/     # Reaction network: scheduler, recorder, metadata
+│   ├── parallel/    # Pluggable executors (serial, multiprocessing, ray, dask, executorlib)
+│   ├── runner/      # Runners (otfkmc, rxngen) and helpers
+│   ├── steps/       # Step primitives for runners
+│   └── view.py      # CLI viewer for reactions
 ├── geometry/        # Geometric operations
 ├── reaction/        # Reaction classes and KMC events
-│   ├── base/        # Abstract base classes
-│   ├── event/       # KMC events (adsorption, desorption, reaction)
-│   ├── mcmove/      # Monte Carlo moves
-│   ├── mdwarpper/   # MD wrapper
-│   └── network/     # Reaction network
+│   ├── _event.py    # Event base and event info
+│   ├── reaction.py  # Reaction class
+│   └── xxsorption.py # Adsorption/Desorption events
 ├── system/          # Core system classes
-│   ├── atoms/       # Atomic structure handling
-│   ├── database/    # Database storage backends
-│   └── graph/       # Graph-based system representation
+│   ├── atoms.py     # Atomic structure handling
+│   ├── bonds.py     # Bond list operations
+│   ├── graph.py     # Graph-based system representation
+│   ├── system.py    # System abstract base
+│   ├── sysCluster.py # Cluster system
+│   ├── sysGas.py    # Gas molecule system
+│   └── database/    # Database storage backends (HDF5, SQLite, folder)
 └── utils/           # Utility functions
+    ├── adsorption.py # Adsorption site helper
+    ├── asetools.py  # ASE-related tools
+    ├── bytestool.py # Byte-level helpers
+    ├── logger.py    # Logging setup
+    ├── parser.py    # Hydra argument parsing
+    ├── rdutils.py   # RDKit utilities
     └── subgraph.py  # Array API compatible subgraph operations
 ```
 
@@ -58,6 +81,10 @@ src/graphatoms/
 - pydantic >= 2.10
 - python-snappy >= 0.7.3
 - loguru
+- pandas >= 2
+- scipy >= 1.10
+- typer
+- executorlib
 
 ## Installation
 
