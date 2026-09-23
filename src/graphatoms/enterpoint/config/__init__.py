@@ -66,7 +66,7 @@ class Config:
 
     calculator: CalcConfig = MISSING
 
-    outputs: str = "./zzz"
+    outputs: str = "."
     max_steps: int = 100000
     max_times: float = 1000.0  # seconds
     run_type: str = "otfkmc"  # otfkmc, rxngen
@@ -98,8 +98,6 @@ cs.store(group="calculator", name="calc_nequip", node=NequipConfig)
     version_base=None,
 )
 def print_config(cfg: Config) -> None:
-    from shutil import rmtree
-
     print(OmegaConf.to_yaml(cfg))
     print("""
 hydra:
@@ -107,4 +105,3 @@ hydra:
     dir: ${outputs}
   verbose: ${debug}
 """)
-    rmtree(Path(cfg.outputs))
