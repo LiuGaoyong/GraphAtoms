@@ -6,7 +6,7 @@ from ase.cluster import Octahedron
 from graphatoms.system import SysGraph, System
 
 this_dir = Path(__file__).parent
-data_dir = this_dir.parent / "tests-data-for-match"
+data_dir = this_dir.parent / "tests-datasets" / "for-match"
 
 
 @pytest.fixture(scope="module")

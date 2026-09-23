@@ -7,8 +7,9 @@ from graphatoms.reaction import Adsorption, Desorption, EventBase, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System
 
 this_dir = Path(__file__).parent
-data_dir = this_dir.parent / "tests-data-for-match"
-data_dir_4simplify = data_dir / "4simplify"
+
+data_dir = this_dir.parent / "tests-datasets" / "for-match"
+data_dir_4simplify = data_dir.parent / "for-simplify"
 assert data_dir_4simplify.exists()
 
 
