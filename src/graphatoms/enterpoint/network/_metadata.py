@@ -14,6 +14,7 @@ from pydantic import (
 from graphatoms.dataclasses import OurBaseModel
 from graphatoms.enterpoint.config import EventConfig
 from graphatoms.reaction import EventBase, EventInfo
+from graphatoms.system.bonds import matchmode2nmatch
 
 __all__ = ["MetaData"]
 
@@ -181,7 +182,8 @@ class MetaData(BaseModel):
         names = ["rxn_key", "is_forward", "nmatched", "rate"]
         for (rxn_key, is_forward), single_match_res in matching_dct.items():
             i: int = self.table.key_rxn.index(rxn_key)
-            nmatched = int(single_match_res.shape[0])
+            # Eliminate the overestimation caused by permutation symmetry.
+            nmatched = matchmode2nmatch(single_match_res)
             if is_forward:
                 rate = self.table.rate_forword[i]
             else:
