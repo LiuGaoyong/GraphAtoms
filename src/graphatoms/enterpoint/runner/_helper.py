@@ -6,7 +6,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.network import RxNet
+from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.reaction import Adsorption, Desorption, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
 from graphatoms.utils import asetools
@@ -506,7 +506,7 @@ def helper_adsorption(
 
 
 def helper_match(
-    rxnet: RxNet,
+    ReactionNetwork: ReactionNetwork,
     system: System,
     rxn_is_forward: bool,
     rxn_key: str,
@@ -519,10 +519,10 @@ def helper_match(
         3. the match result
 
     """
-    info = rxnet.metadata.read(rxn_key)
+    info = ReactionNetwork.metadata.read(rxn_key)
     if rxn_is_forward:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(rxnet.db_minima[info.key_r]),
+            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_r]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -530,7 +530,7 @@ def helper_match(
         )
     else:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(rxnet.db_minima[info.key_p]),
+            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_p]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -541,13 +541,13 @@ def helper_match(
 
 
 def helper_apply(
-    rxnet: RxNet,
+    ReactionNetwork: ReactionNetwork,
     rxn_key: str,
     system: System,
     match_mode: np.ndarray,
     forward: bool = True,
 ) -> tuple[str, bool, Atoms, float]:
-    _, rxn = rxnet.read(rxn_key)
+    _, rxn = ReactionNetwork.read(rxn_key)
     if not forward:
         rxn = rxn.reversed
     atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)

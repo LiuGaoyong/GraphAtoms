@@ -27,7 +27,7 @@ from loguru._logger import Core, Logger
 from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.network import RxNet
+from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.enterpoint.parallel import get_executor
 from graphatoms.system import (  # type: ignore  # type: ignore
     Cluster,
@@ -116,7 +116,7 @@ class RunnerABC:
         log.info("=" * self._log_length)
 
         # restart/initialize configuration
-        self.network: RxNet = RxNet(
+        self.network: ReactionNetwork = ReactionNetwork(
             path=self.path / "event",
             config=config.event,
             format=config.event.db_format,
