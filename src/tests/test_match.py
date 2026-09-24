@@ -1,9 +1,11 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 from ase.cluster import Octahedron
 
 from graphatoms.system import SysGraph, System
+from graphatoms.system.bonds import matchmode2nmatch
 
 this_dir = Path(__file__).parent
 data_dir = this_dir.parent / "tests-datasets" / "for-match"
@@ -20,7 +22,11 @@ def test_match(p: Path, sys: System) -> None:
     sub = SysGraph.read_npz(p)
     print(sys.CN)
     print(sub.CN)
-    print(sys.get_match_mode(sub))
+    m = sys.get_match_mode(sub)
+    print(m)
+    if isinstance(m, np.ndarray):
+        print(matchmode2nmatch(m))
+    print(sys.get_match_mode(sub, only_count=True))
     print("-" * 32)
 
 
