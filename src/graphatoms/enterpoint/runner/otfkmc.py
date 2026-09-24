@@ -128,7 +128,7 @@ class OTFKMC(ExplorationABC):
                             helper_match,
                             rxn_key=rxn_key,
                             system=system,
-                            rxnet=self.network,
+                            ReactionNetwork=self.network,
                             rxn_is_forward=rxn_is_forward,
                         )
                     )
@@ -187,7 +187,7 @@ class OTFKMC(ExplorationABC):
                 match_mode=match_mode,
                 rxn_key=selected_rxn_key,
                 forward=rxn_is_forward,
-                rxnet=self.network,
+                ReactionNetwork=self.network,
             )
             self.logger.info(
                 f"Apply Rxn {selected_rxn_key} "

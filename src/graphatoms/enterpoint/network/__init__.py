@@ -4,8 +4,14 @@ from pathlib import Path
 from typing import Literal
 
 from graphatoms.enterpoint.config import EventConfig
-from graphatoms.reaction import EventBase, EventInfo, Reaction
-from graphatoms.system import Cluster, SysGraph
+from graphatoms.reaction import (
+    Adsorption,
+    Desorption,
+    EventBase,
+    EventInfo,
+    Reaction,
+)
+from graphatoms.system import Gas, SysGraph
 from graphatoms.system.database import DatabaseABC, get_db
 
 from ._metadata import MetaData
@@ -14,14 +20,14 @@ from ._recorder import Recorder
 from ._scheduler import Scheduler
 
 __all__ = [
-    "RxNet",
     "MetaData",
     "Recorder",
     "Scheduler",
+    "ReactionNetwork",
 ]
 
 
-class RxNet:
+class ReactionNetwork:
     def __init__(
         self,
         path: Path | str,
@@ -81,16 +87,26 @@ class RxNet:
                 self.metadata: MetaData = MetaData()
 
         # initialize the databases
-        lst: list[DatabaseABC] = [
+        (
+            self.db_ts,
+            self.db_gas,
+            self.db_minima,
+            self.db_cluster,
+            self.db_system,
+        ) = [
             get_db(
                 path=path,
                 format=format,
                 prefix=prefix,
                 append=restart,
             )
-            for prefix in ["ts", "gas", "minima"]
+            for prefix in ["ts", "gas", "minima", "cluster", "system"]
         ]
-        self.db_ts, self.db_gas, self.db_minima = lst
+        assert isinstance(self.db_ts, DatabaseABC)
+        assert isinstance(self.db_gas, DatabaseABC)
+        assert isinstance(self.db_minima, DatabaseABC)
+        assert isinstance(self.db_cluster, DatabaseABC)
+        assert isinstance(self.db_system, DatabaseABC)
 
     def summary(self) -> str:
         """Return the summary of the network."""
@@ -102,16 +118,24 @@ class RxNet:
         self.scheduler.write_npz(self.__path / "scheduler.npz")
         self.metadata.persistence(self.__path)
 
-    def read(self, key: str) -> tuple[EventInfo, EventBase]:
+    def read_event(self, key: str) -> tuple[EventInfo, EventBase]:
+        """Read the event from the database."""
         if self.metadata.has(key):
             info = self.metadata.read(key)
             if info.key_g is not None:
-                raise NotImplementedError("Ads/Des is not supported.")
+                assert info.key_t is None
+                g = Gas.from_ase(self.db_gas[info.key_g])
+                r = SysGraph.from_ase(self.db_minima[info.key_r])
+                p = SysGraph.from_ase(self.db_minima[info.key_p])
+                if r.natoms < p.natoms:
+                    return info, Adsorption(G=g, R=r, P=p)
+                else:
+                    return info, Desorption(G=g, R=r, P=p)
             else:
                 assert info.key_t is not None
-                ts = Cluster.from_ase(self.db_ts[info.key_t])
-                r = Cluster.from_ase(self.db_minima[info.key_r])
-                p = Cluster.from_ase(self.db_minima[info.key_p])
+                ts = SysGraph.from_ase(self.db_ts[info.key_t])
+                r = SysGraph.from_ase(self.db_minima[info.key_r])
+                p = SysGraph.from_ase(self.db_minima[info.key_p])
                 return info, Reaction(T=ts, R=r, P=p)
         else:
             raise ValueError(f"Event {key} is not in the database.")
@@ -143,7 +167,7 @@ class RxNet:
                     fname.write_bytes(pickle.dumps(event))
                     fname.with_suffix(".err").write_text(msg)
                     raise ValueError(msg)
-            is_new = self._write(
+            is_new = self.write_event(
                 event,
                 for_cluster,
                 for_system,
@@ -154,7 +178,7 @@ class RxNet:
         else:
             raise ValueError(f"Unknown event type: {type(event)}")
 
-    def _write(
+    def write_event(
         self,
         event: EventBase,
         for_cluster: str,
@@ -170,12 +194,12 @@ class RxNet:
         else:
             self.metadata.write(event, for_cluster, for_system)
             try:
-                self.__write(event.R, "minima")
-                self.__write(event.P, "minima")
+                self.write_sysgraph(event.R, "minima")
+                self.write_sysgraph(event.P, "minima")
                 if event.G is not None:
-                    self.__write(event.G, "gas")
+                    self.write_sysgraph(event.G, "gas")
                 if event.T is not None:
-                    self.__write(event.T, "ts")
+                    self.write_sysgraph(event.T, "ts")
                 if persist:
                     self.persistence()
                 return True
@@ -201,17 +225,21 @@ class RxNet:
                 self.persistence()
                 raise e
 
-    def __write(
+    def write_sysgraph(
         self,
         sysgraph: SysGraph,
-        type: Literal["minima", "ts", "gas"] | str,
+        type: Literal["minima", "ts", "gas", "cluster", "system"] | str,
     ) -> bool:
         """Return True if the value is new, False otherwise."""
-        if type == "minima":
+        if type.lower() == "minima":
             return self.db_minima.add(sysgraph, check_positions=True)
-        elif type == "ts":
+        elif type.lower() == "ts":
             return self.db_ts.add(sysgraph, check_positions=True)
-        elif type == "gas":
+        elif type.lower() == "gas":
             return self.db_gas.add(sysgraph, check_positions=False)
+        elif type.lower() == "system":
+            return self.db_system.add(sysgraph, check_positions=True)
+        elif type.lower() == "cluster":
+            return self.db_cluster.add(sysgraph, check_positions=True)
         else:
             raise ValueError(f"Unknown type: {type}")
