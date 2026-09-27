@@ -1,9 +1,9 @@
 """The steps for the on-the-fly KMC simulation."""
 
-from ._base import ExplorationABC
+from ._expl import ExplorationBase
 
 __all__ = ["ReactionNetworkGenerator"]
 
 
-class ReactionNetworkGenerator(ExplorationABC):
+class ReactionNetworkGenerator(ExplorationBase):
     """The class for the on-the-fly KMC simulation."""

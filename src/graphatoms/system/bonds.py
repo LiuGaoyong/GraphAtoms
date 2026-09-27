@@ -574,9 +574,7 @@ def match(
     else:
         raise RuntimeError("Impossible !!!")
 
-    if only_count:
-        return len(out)
-    elif len(out) == 0:
+    if len(out) == 0:
         return None
     elif return_match_target:
         result = -np.ones(shape=(len(out), len(color)), dtype=int)
@@ -584,18 +582,27 @@ def match(
             np.column_stack([np.arange(len(out))] * len(out[0])),
             np.asarray(out, dtype=int),
         ] = np.arange(len(color_small), dtype=int)
-        return result
     else:
-        return np.asarray(out, dtype=int)
+        result: np.ndarray = np.asarray(out, dtype=int)
+    return matchmode2nmatch(result) if only_count else result
 
 
-#######################################################################
-#                                   Test
-#######################################################################
+def matchmode2nmatch(matchmode: np.ndarray) -> int:
+    """Return the number of matching for matchmode.
+
+    original code:
+        u = np.sort(matchmode, axis=1)
+        return max([len(np.unique(row)) for row in u.T])
+
+    """
+    assert matchmode.ndim == 2, "matchmode must be 2D."
+    if matchmode.size == 0:
+        return 0
+    s = np.sort(matchmode, axis=1)
+    s = np.sort(s, axis=0)
+    eq = s[1:] == s[:-1]
+    if np.issubdtype(s.dtype, np.floating):
+        eq |= np.isnan(s[1:]) & np.isnan(s[:-1])
+    return int((1 + (~eq).sum(axis=0)).max())
 
 
-def test_BondGraph() -> None:
-    assert len(BondGraph.__abstractmethods__) == 0, (
-        BondGraph.__abstractmethods__,
-        BondGraph.__name__,
-    )

@@ -11,8 +11,12 @@ from ase.io.trajectory import TrajectoryWriter
 from pydantic import BaseModel
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.runner._base import ExplorationABC
-from graphatoms.enterpoint.runner._helper import helper_apply, helper_match
+from graphatoms.enterpoint.runner.common._helper import (
+    helper_apply,
+    helper_match,
+)
+
+from ._expl import ExplorationBase
 
 __all__ = ["OTFKMC"]
 
@@ -28,7 +32,7 @@ class OTFKMCInfo(BaseModel):
     cost_other: float = 0
 
 
-class OTFKMC(ExplorationABC):
+class OTFKMC(ExplorationBase):
     """The class for the on-the-fly KMC simulation."""
 
     @override
@@ -128,7 +132,7 @@ class OTFKMC(ExplorationABC):
                             helper_match,
                             rxn_key=rxn_key,
                             system=system,
-                            rxnet=self.network,
+                            ReactionNetwork=self.network,
                             rxn_is_forward=rxn_is_forward,
                         )
                     )
@@ -163,7 +167,9 @@ class OTFKMC(ExplorationABC):
             otfkmc_info.select_rxn_key = selected_rxn_key
             otfkmc_info.select_rxn_forward = rxn_is_forward
             otfkmc_info.time = df_data[-1].time + dt
-            selected_info, selected_rxn = self.network.read(selected_rxn_key)
+            selected_info, selected_rxn = self.network.read_event(
+                selected_rxn_key
+            )
             match_mode = matching_dct[(selected_rxn_key, rxn_is_forward)]
             if not rxn_is_forward:
                 selected_rxn = selected_rxn.reversed
@@ -187,7 +193,7 @@ class OTFKMC(ExplorationABC):
                 match_mode=match_mode,
                 rxn_key=selected_rxn_key,
                 forward=rxn_is_forward,
-                rxnet=self.network,
+                ReactionNetwork=self.network,
             )
             self.logger.info(
                 f"Apply Rxn {selected_rxn_key} "

@@ -7,7 +7,7 @@ from ase.cluster import Octahedron
 from hydra import compose, initialize
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.runner._helper import (
+from graphatoms.enterpoint.runner.common._helper import (
     HelperException,
     helper_dimer,
     helper_optimization,
@@ -104,7 +104,7 @@ def test_dimer(graph: SysGraph | Cluster | System, config: Config) -> None:
     for _ in range(10):
         print("#" * 50)
         try:
-            result, label, cost = helper_dimer(
+            result, label, cost, _ = helper_dimer(
                 graph=graph,
                 config=config,
                 allow_fixed_bonds_change=False,

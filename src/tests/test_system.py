@@ -13,6 +13,7 @@ from ase.cluster import Octahedron
 
 from graphatoms.system import Cluster, Gas, System
 from graphatoms.system import SysGraph as Graph
+from graphatoms.system.bonds import matchmode2nmatch
 
 
 @pytest.fixture(scope="module")
@@ -245,6 +246,10 @@ class Test_Container:
         )
         assert isinstance(matching1, np.ndarray)
         np.testing.assert_array_equal(matching0, matching1)
+
+        assert matchmode2nmatch(matching0) == 6, (
+            "OA regular octahedron has 6 vertices (corners)."
+        )
 
 
 class Test_PyArrowCompability:

@@ -6,8 +6,10 @@ import hydra
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
 
-from .otfkmc import OTFKMC
-from .rxngen import ReactionNetworkGenerator
+from .general.otfkmc import OTFKMC as OnTheFlyKMC
+from .general.rxngen import ReactionNetworkGenerator
+from .ray.otfkmc import RayOTFKMC as RayOnTheFlyKMC
+from .ray.rxngen import RayReactionNetworkGenerator
 
 
 @hydra.main(
@@ -16,9 +18,15 @@ from .rxngen import ReactionNetworkGenerator
     version_base=None,
 )
 def run(cfg: Config) -> None:
-    if cfg.run_type == "otfkmc":
-        OTFKMC(config=cfg).run()
-    elif cfg.run_type == "rxngen":
-        ReactionNetworkGenerator(config=cfg).run()
+    if str(cfg.run_type).lower() == "otfkmc":
+        if str(cfg.parallel).lower() == "ray":
+            RayOnTheFlyKMC(config=cfg).run()
+        else:
+            OnTheFlyKMC(config=cfg).run()
+    elif str(cfg.run_type).lower() == "rxngen":
+        if str(cfg.parallel).lower() == "ray":
+            RayReactionNetworkGenerator(config=cfg).run()
+        else:
+            ReactionNetworkGenerator(config=cfg).run()
     else:
         raise ValueError(f" run_type `{cfg.run_type}` is not supported.")

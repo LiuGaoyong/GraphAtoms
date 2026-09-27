@@ -5,7 +5,7 @@ import typer
 from ase import Atoms
 from ase.visualize import view as _ase_view
 
-from graphatoms.enterpoint.network import RxNet
+from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.system import SysGraph
 
 __p_help__ = "Path to the network directory."
@@ -32,7 +32,7 @@ def reaction(
     forward: bool = True,
 ) -> None:
     assert pathlib.Path(path).exists()
-    net = RxNet(path, restart=True, format="dir")
+    net = ReactionNetwork(path, restart=True, format="dir")
     _, rxn = net.read(name)
     if not forward:
         rxn = rxn.reversed
@@ -81,7 +81,7 @@ def structure(
     path: Path = ".",
 ) -> None:
     assert pathlib.Path(path).exists()
-    net = RxNet(path, restart=True, format="dir")
+    net = ReactionNetwork(path, restart=True, format="dir")
     if name in net.metadata.table.key_g:
         atoms: Atoms = net.db_gas[name]
     elif name in net.metadata.table.key_t:
@@ -98,7 +98,7 @@ def structure(
 @main.command(no_args_is_help=True)
 def summary(path: Path = ".") -> None:
     assert pathlib.Path(path).exists()
-    net = RxNet(path, restart=True, format="dir")
+    net = ReactionNetwork(path, restart=True, format="dir")
     print(net.summary())
 
 
