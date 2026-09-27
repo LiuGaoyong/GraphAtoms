@@ -10,7 +10,7 @@ from graphatoms.enterpoint.runner.common import _helper as funcs
 from graphatoms.system import System
 
 
-@ray.remote()
+@ray.remote
 def optimize_system(system: System, config: Config) -> System | str:
     result, _, _ = funcs.helper_optimization(
         config=config,
@@ -19,7 +19,7 @@ def optimize_system(system: System, config: Config) -> System | str:
     raise NotImplementedError("optimize_system is not implemented yet.")
 
 
-@ray.remote(num_returns="streaming")
+@ray.remote
 def analysis_system(system: System, config: Config) -> System | str:
     raise NotImplementedError("run_system is not implemented yet.")
 
