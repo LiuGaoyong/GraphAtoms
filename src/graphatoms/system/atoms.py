@@ -431,7 +431,7 @@ class Structure(Matter, Box, Energetics):
 
     @cached_property
     def area(self) -> float:
-        """Get the area of this structure."""
+        """Get the area (in Å^2) of this structure."""
         rdmol: rdutils.RDMol = rdutils.get_rdmol(
             # numbers=np.where(self.is_adsorbate, self.numbers, 0),
             numbers=self.numbers,

@@ -375,7 +375,7 @@ class EventBase(RTGP, MoveABC):
 
     @abstractmethod
     def get_Ea(self, temperature: float = 300.0, *a, **kw) -> float:
-        """Get the activation energy of the event."""
+        """Get the activation energy (in eV) of the event."""
         assert self.T is not None, "The transition state must be not None."
         e_T = self.T.get_free_energy(fqmin=30.0, temp=temperature)
         e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
@@ -383,14 +383,14 @@ class EventBase(RTGP, MoveABC):
 
     @abstractmethod
     def get_dE(self, temperature: float = 300.0, *a, **kw) -> float:
-        """Get the change in energy of the event."""
+        """Get the change in energy (in eV) of the event."""
         e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
         e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
         return e_P - e_R
 
     @abstractmethod
     def get_rate(self, temperature: float = 300.0, *a, **kw) -> float:
-        """Get the rate of the reaction by TST.
+        """Get the rate (in 1/s) of the reaction by TST.
 
         Eq:
                     kB*T       -Ea
@@ -518,10 +518,13 @@ class EventInfo(BaseModel):
 if __name__ == "__main__":
     from scipy import constants
 
-    print(constants.Boltzmann)
-    print(constants.Planck)
-    print(constants.eV)
+    print("Boltzmann Constant:", constants.Boltzmann)
+    print("Planck Constant:", constants.Planck)
+    print("eV Unit:", constants.eV)
+    print("---")
 
     temperature = 300.0  # K
+    print("kBT: (in eV)", kB * temperature)
+    print("Planck Constant: (in eV)", h)
     print(constants.Boltzmann * temperature / constants.Planck)
     print(kB * temperature / h)
