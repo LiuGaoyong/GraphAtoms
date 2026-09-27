@@ -31,7 +31,7 @@ site:
   max_moved_threshold: 8.0
 exploration:
   maxtry: 1000
-  maxconfidence: 10.0
+  maxconfidence: 3
   max_ncore_for_surface: 3
   surface_only_explore_single_core: true
   allow_multiple_adsorption: false

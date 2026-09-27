@@ -85,6 +85,7 @@ class ReactionNetwork:
                 self.metadata: MetaData = MetaData(basic=metadata_basic)
             else:
                 self.metadata: MetaData = MetaData()
+        self.__format = format
 
         # initialize the databases
         (
@@ -110,7 +111,14 @@ class ReactionNetwork:
 
     def summary(self) -> str:
         """Return the summary of the network."""
-        return "fasdasdgase"
+        msg = f"ReactionNetwork: {self.__path} (format={self.__format})\n"
+        msg += f"    #System    :{len(self.db_system)}\n"
+        msg += f"    #Cluster   :{len(self.db_cluster)}\n"
+        msg += f"    #Minima    :{len(self.db_minima)}\n"
+        msg += f"    #Gas       :{len(self.db_gas)}\n"
+        msg += f"    #TS        :{len(self.db_ts)}\n"
+        msg += f"#Event     :{len(self.metadata.table)}\n"
+        return msg
 
     def persistence(self) -> None:
         """Persist the data to the database."""
