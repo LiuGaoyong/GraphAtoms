@@ -5,9 +5,7 @@ import pytest
 
 from graphatoms.enterpoint.network import MetaData
 
-DATA_DIR = (
-    Path(__file__).parent.parent / "tests-datasets" / "for-ReactionNetwork"
-)
+DATA_DIR = Path(__file__).parent.parent / "tests-datasets" / "for-rxnet"
 
 
 def test_ReactionNetwork_metadata() -> None:

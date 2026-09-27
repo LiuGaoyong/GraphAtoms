@@ -547,7 +547,7 @@ def helper_apply(
     match_mode: np.ndarray,
     forward: bool = True,
 ) -> tuple[str, bool, Atoms, float]:
-    _, rxn = ReactionNetwork.read(rxn_key)
+    _, rxn = ReactionNetwork.read_event(rxn_key)
     if not forward:
         rxn = rxn.reversed
     atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
