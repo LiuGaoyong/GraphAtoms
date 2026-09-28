@@ -13,6 +13,7 @@ def get_db(
     format: str = "dict",
     path: Path | None = None,
     prefix: str | None = None,
+    use_positions_uuid: bool = False,
     append: bool = False,
 ) -> DatabaseABC:
     """Get the database."""
@@ -22,18 +23,33 @@ def get_db(
             assert path.suffix == ".db", "The path must be a SQLite file."
         else:
             path = path.joinpath(f"{prefix}.db")
-        return AseSqliteDB(path, append=append)
+        return AseSqliteDB(
+            path,
+            append=append,
+            use_positions_uuid=use_positions_uuid,
+        )
     elif format.lower() in ["folder", "directory", "dir"]:
         assert path is not None, "The path must be not None."
         if prefix is not None:
             path = path.joinpath(prefix)
-        return DirDB(path, append=append)
+        return DirDB(
+            path,
+            append=append,
+            use_positions_uuid=use_positions_uuid,
+        )
     elif format.lower() in ["hdf5", "h5"]:
         assert path is not None, "The path must be not None."
         if prefix is None:
             assert path.suffix == ".h5", "The path must be a HDF5 file."
         else:
             path = path.joinpath(f"{prefix}.h5")
-        return AseH5DB(path, append=append)
+        return AseH5DB(
+            path,
+            append=append,
+            use_positions_uuid=use_positions_uuid,
+        )
     else:
-        return DictDB()
+        return DictDB(
+            append=append,
+            use_positions_uuid=use_positions_uuid,
+        )

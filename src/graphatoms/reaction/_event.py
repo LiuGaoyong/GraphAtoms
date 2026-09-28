@@ -294,6 +294,51 @@ class EventBase(RTGP, MoveABC):
         )
         return self
 
+    def apply_once(
+        self,
+        atoms: Atoms,
+        matched_indxs: list[int] | np.ndarray,
+        info: dict[str, Any] = {},
+    ) -> tuple[Atoms, float]:
+        """Apply the event once to the system."""
+        matched_indxs = np.asarray(matched_indxs, dtype=int)
+        matched_indxs = matched_indxs.flatten()
+        assert len(matched_indxs) == len(atoms)
+        assert isinstance(atoms, Atoms)
+        atoms.info = {}
+
+        _i = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())(
+            np.arange(len(self.R))
+        )
+        rot, t, rmsd = kabsch(
+            A=self.R.positions,
+            B=atoms.positions[_i, :],
+        )  # A = rotate(B) + t
+        rot_inv, t_inv = rot.inv(), -t
+
+        # Old Usage: original atoms will be rotated.
+        # # 1. geom --> geom reactant
+        # geom = rot.apply(atoms.positions) + t
+        # # 2. geom reactant --> geom product
+        # geom[_i, :] += self.P.positions - self.R.positions
+        # # 3. geom product --> result
+        # geom = rot_inv.apply(geom) + t_inv
+
+        # New Usage: original atoms will not be rotated.
+        pos_r = rot_inv.apply(self.R.positions) + t_inv
+        pos_p = rot_inv.apply(self.P.positions) + t_inv
+        pos_diff = pos_p[: len(_i)] - pos_r[: len(_i)]
+        geom = atoms.positions.copy()
+        geom[_i, :] += pos_diff
+
+        return Atoms(
+            numbers=atoms.numbers,
+            positions=geom,
+            cell=atoms.cell,
+            pbc=atoms.pbc,
+            info=info,
+        ), rmsd
+
     @override
     def apply(
         self,
@@ -308,6 +353,8 @@ class EventBase(RTGP, MoveABC):
                 + "when `matched_indxs` is None."
             )
             matched_indxs = atoms.get_match_mode(self.R)  # type: ignore
+        assert isinstance(matched_indxs, np.ndarray) and matched_indxs.ndim == 2
+
         if not isinstance(atoms, Atoms):
             atoms = atoms.to_ase(
                 exclude_energetics=True,
@@ -319,55 +366,24 @@ class EventBase(RTGP, MoveABC):
         matched_indxs = np.asarray(matched_indxs, dtype=int)
 
         if matched_indxs.ndim == 1:
-            matched_indxs = matched_indxs.flatten()
-            assert len(matched_indxs) == len(atoms)
-            assert isinstance(atoms, Atoms)
-            atoms.info = {}
-
-            _i = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())(
-                np.arange(len(self.R))
-            )
-            rot, t, rmsd = kabsch(
-                A=self.R.positions,
-                B=atoms.positions[_i, :],
-            )  # A = rotate(B) + t
-            rot_inv, t_inv = rot.inv(), -t
-
-            # Old Usage: original atoms will be rotated.
-            # # 1. geom --> geom reactant
-            # geom = rot.apply(atoms.positions) + t
-            # # 2. geom reactant --> geom product
-            # geom[_i, :] += self.P.positions - self.R.positions
-            # # 3. geom product --> result
-            # geom = rot_inv.apply(geom) + t_inv
-
-            # New Usage: original atoms will not be rotated.
-            pos_r = rot_inv.apply(self.R.positions) + t_inv
-            pos_p = rot_inv.apply(self.P.positions) + t_inv
-            pos_diff = pos_p - pos_r
-            geom = atoms.positions.copy()
-            geom[_i, :] += pos_diff
-
-            return Atoms(
-                numbers=atoms.numbers,
-                positions=geom,
-                cell=atoms.cell,
-                pbc=atoms.pbc,
+            return self.apply_once(
+                matched_indxs=matched_indxs,
+                atoms=atoms,
                 info=info,
-            ), rmsd
+            )
 
         elif matched_indxs.ndim == 2:
             res_lst, rmsd_lst = [], []
             for i in range(len(matched_indxs)):
-                res, rmsd = self.apply(
-                    atoms=atoms,
+                res, rmsd = self.apply_once(
                     matched_indxs=matched_indxs[i, :],
+                    atoms=atoms,
+                    info=info,
                 )
                 res_lst.append(res)
                 rmsd_lst.append(rmsd)
             i = np.argmin(rmsd_lst)
             return res_lst[i], rmsd_lst[i]
-
         else:
             raise ValueError(
                 "The `matched_indxs` should be either a 1D or 2D array."
@@ -494,18 +510,18 @@ class EventInfo(BaseModel):
         reversed_event = event.reversed
         return cls(
             key_rxn=event.hash,
-            key_r=event.R.get_key_for_metadata(),
+            key_r=event.R.get_key_for_metadata(use_positions_uuid=True),
             key_g=(
-                event.G.get_key_for_metadata()  #
+                event.G.get_key_for_metadata(use_positions_uuid=False)
                 if event.G is not None
                 else None
             ),
             key_t=(
-                event.T.get_key_for_metadata()  #
+                event.T.get_key_for_metadata(use_positions_uuid=True)
                 if event.T is not None
                 else None
             ),
-            key_p=event.P.get_key_for_metadata(),
+            key_p=event.P.get_key_for_metadata(use_positions_uuid=True),
             Ea_forword=event.get_Ea(temperature),
             rate_forword=event.get_rate(temperature),
             rate_reversed=reversed_event.get_rate(temperature),

@@ -109,8 +109,15 @@ class ReactionNetwork:
                 format=format,
                 prefix=prefix,
                 append=restart,
+                use_positions_uuid=use_positions_uuid,
             )
-            for prefix in ["ts", "gas", "minima", "cluster", "system"]
+            for prefix, use_positions_uuid in [
+                ("ts", True),
+                ("gas", False),
+                ("minima", True),
+                ("cluster", False),
+                ("system", False),
+            ]
         ]
         assert isinstance(self.db_ts, DatabaseABC)
         assert isinstance(self.db_gas, DatabaseABC)
@@ -286,8 +293,8 @@ class ReactionNetwork:
         elif type.lower() == "gas":
             return self.db_gas.add(sysgraph, check_positions=False)
         elif type.lower() == "system":
-            return self.db_system.add(sysgraph, check_positions=True)
+            return self.db_system.add(sysgraph, check_positions=False)
         elif type.lower() == "cluster":
-            return self.db_cluster.add(sysgraph, check_positions=True)
+            return self.db_cluster.add(sysgraph, check_positions=False)
         else:
             raise ValueError(f"Unknown type: {type}")

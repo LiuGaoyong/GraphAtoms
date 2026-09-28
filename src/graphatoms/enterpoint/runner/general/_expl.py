@@ -108,7 +108,6 @@ class ExplorationBase(RunnerABC):
             self.__batch_optimization_parallel(
                 container={keys[int(id)]: values[int(id)] for id in idxs},
                 raise_on_failed=False,
-                is_minima=True,
             )
         )
 
@@ -120,7 +119,6 @@ class ExplorationBase(RunnerABC):
         self,
         container: list[SysGraph] | dict[Any, SysGraph],
         raise_on_failed: bool = True,
-        is_minima: bool = True,
     ) -> list[SysGraph] | dict[Any, SysGraph]:
         """Optimize the container in parallel mode."""
         if isinstance(container, list):
@@ -129,7 +127,6 @@ class ExplorationBase(RunnerABC):
                     i: cluster  # type: ignore
                     for i, cluster in enumerate(container)
                 },
-                is_minima=is_minima,
                 raise_on_failed=raise_on_failed,
             )
             if not isinstance(dct, dict):
@@ -139,7 +136,7 @@ class ExplorationBase(RunnerABC):
             return [dct[i] for i in sorted(dct.keys())]
 
         elif isinstance(container, dict):
-            start, msg = perf_counter(), "cluster" if is_minima else "gas"
+            start, msg = perf_counter(), "sysgraph"
             msg = f"Start to optimize the {len(container)} {msg}."
             self.logger.info(self._reformat_message(msg))
             result: dict[Any, SysGraph] = {}
@@ -150,17 +147,20 @@ class ExplorationBase(RunnerABC):
             # -------------------------------------------------
             for label, sysgraph in container.items():
                 key: str = sysgraph.get_key_for_metadata()
-                if is_minima and sysgraph in self.network.db_minima:
-                    atoms: Atoms = self.network.db_minima[key]
-                    result[label] = v = Cluster.from_ase(atoms)
-                    msg = f"Read '{key}' from the DB for {v}."
-                    self.logger.info(self._reformat_message(msg))
-                elif not is_minima and sysgraph in self.network.db_gas:
-                    atoms: Atoms = self.network.db_gas[key]
-                    result[label] = v = Gas.from_ase(atoms)
-                    msg = f"Read '{key}' from the DB for {v}."
-                    self.logger.info(self._reformat_message(msg))
-                else:
+                has_been_explored = False
+                for cls, db in [
+                    (Gas, self.network.db_gas),
+                    (Cluster, self.network.db_cluster),
+                    (System, self.network.db_system),
+                ]:
+                    if isinstance(sysgraph, cls) and sysgraph in db:
+                        atoms: Atoms = db[key]
+                        result[label] = v = cls.from_ase(atoms)
+                        msg = f"Read '{key}' from the DB for {v}."
+                        self.logger.info(self._reformat_message(msg))
+                        has_been_explored = True
+                        continue
+                if not has_been_explored:
                     futures.append(
                         self.executor.submit(
                             helper_optimization,
@@ -175,18 +175,21 @@ class ExplorationBase(RunnerABC):
             msg = f"Submit the optimization {len(futures)} jobs"
             msg += f" by {perf_counter() - start:.2f} seconds."
             self.logger.info(self._reformat_message(msg))
+
             # -------------------------------------------------
             # Wait for the sysgraph optimization to finish
             # -------------------------------------------------
             while len(futures) > 0:
                 future_result, futures = self.executor.wait(futures)  # type: ignore
                 sysgraph_or_msg, label, cost_time = future_result
-                if isinstance(sysgraph_or_msg, Gas | Cluster):
+                if isinstance(sysgraph_or_msg, Gas | Cluster | System):
                     msg: str = f"Optimization (success): {sysgraph_or_msg}."
-                    if isinstance(sysgraph_or_msg, Cluster):
-                        self.network.db_minima.add(sysgraph_or_msg)
-                    else:
+                    if isinstance(sysgraph_or_msg, Gas):
                         self.network.db_gas.add(sysgraph_or_msg)
+                    elif isinstance(sysgraph_or_msg, Cluster):
+                        self.network.db_cluster.add(sysgraph_or_msg)
+                    else:
+                        self.network.db_system.add(sysgraph_or_msg)
                     result[label] = sysgraph_or_msg
                 elif isinstance(sysgraph_or_msg, str):
                     msg = str(sysgraph_or_msg)
@@ -264,7 +267,7 @@ class ExplorationBase(RunnerABC):
         # -----------------------------------------------------------
         # check if the cluster has been explored
         # -----------------------------------------------------------
-        cluster_key = cluster.get_key_for_metadata()
+        cluster_key = cluster.get_key_for_metadata(False)
         confidence = self.config.exploration.maxconfidence
         oldnew = self.network.recorder.cluster[cluster_key]
         if oldnew.exploration_can_be_finished(
@@ -396,7 +399,7 @@ class ExplorationBase(RunnerABC):
         system_key: str = "",
     ) -> None:
         """The second step for the on-the-fly KMC simulation."""
-        cluster_key = cluster.get_key_for_metadata(True)
+        cluster_key = cluster.get_key_for_metadata(False)
         gas_key = gas.get_key_for_metadata(False)
 
         # ---------------------------------------------

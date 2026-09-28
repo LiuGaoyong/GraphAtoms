@@ -148,11 +148,19 @@ def helper_optimization(
     # ---------------------------------------------
     #       check graph hash changed or not
     # ---------------------------------------------
-    result = graph.update_geometry(
-        new_positions=lst[-1].get_positions(),
-        parse_bonds=config.bonds,  # type: ignore
-        deep=deep_copy,
-    )
+    try:
+        result = graph.update_geometry(
+            new_positions=lst[-1].get_positions(),
+            parse_bonds=config.bonds,  # type: ignore
+            deep=deep_copy,
+        )
+    except Exception as e:
+        lst[0].write(f"debug-{graph_label}.xyz", format="extxyz", append=False)
+        for i in range(1, len(lst)):
+            lst[i].write(
+                f"debug-{graph_label}.xyz", format="extxyz", append=True
+            )
+        raise e
     if (not allow_not_connected) and (not result.is_connected):
         e = HelperException(
             msg="graph is not connected after optimization",

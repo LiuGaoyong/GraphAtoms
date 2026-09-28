@@ -20,6 +20,13 @@ def _rxn() -> EventBase:
     return Reaction(R=r, T=ts, P=p)
 
 
+def _adsorption() -> EventBase:
+    p = SysGraph.read_npz(data_dir / "adsorption" / "Pd58CO.npz")
+    r = SysGraph.read_npz(data_dir / "adsorption" / "Pd58.npz")
+    gas = Gas.read_npz(data_dir / "adsorption" / "CO.npz")
+    return Adsorption(R=r, G=gas, P=p)
+
+
 @pytest.mark.parametrize(
     "event",
     [_rxn()] + sorted(data_dir_4simplify.glob("event-*")),
@@ -70,6 +77,33 @@ def test_apply(n: int, simplify: bool) -> None:
 
     res, rmsd = rxn.apply(sys)
     print(f"n={n}: RMSD={rmsd:.4f}")
+
+    # from ase.io import write
+    # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
+    # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
+
+@pytest.mark.parametrize("n", [8, 9, 10])
+@pytest.mark.parametrize("simplify", [True, False])
+def test_apply_adsorption(n: int, simplify: bool) -> None:
+    rxn = _adsorption()  # CO Adsorption Reaction
+    sys = System.from_ase(Octahedron("Pd", n))
+    if simplify:
+        rxn = rxn.simplify()
+    matched = sys.get_match_mode(rxn.R)
+
+    print()
+    print("-" * 32)
+    print(n, simplify)
+    if matched is None and not simplify:
+        print(f"n={n}: No match found.")
+        return
+
+    res, rmsd = rxn.apply(sys)
+    print(len(res))
+    print(f"n={n}: RMSD={rmsd:.4f}")
+    print(res.info.keys())
+    assert len(res) == len(sys) + 2
+    assert "is_adsorbate" in res.info
 
     # from ase.io import write
     # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)

@@ -1,4 +1,4 @@
-from typing import Self, override
+from typing import Any, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -8,7 +8,6 @@ from ase.units import _e as electron_charge
 from pydantic import model_validator
 
 from graphatoms.reaction._event import EventBase, kB
-from graphatoms.system.system import System
 
 
 class Adsorption(EventBase):
@@ -28,18 +27,29 @@ class Adsorption(EventBase):
         return Desorption(R=self.P, G=self.G, T=self.T, P=self.R)
 
     @override
-    def apply(
+    def apply_once(
         self,
-        atoms: System | Atoms,
-        *args,
-        matched_indxs: list[int] | np.ndarray | None = None,
-        **kwargs,
+        atoms: Atoms,
+        matched_indxs: list[int] | np.ndarray,
+        info: dict[str, Any] = {},
     ) -> tuple[Atoms, float]:
-        atoms, rmsd = super().apply(atoms, *args, matched_indxs, **kwargs)
+        """Apply the event once to the system."""
+        result, rmsd = super().apply_once(atoms, matched_indxs, info=info)
         patoms: Atoms = self.P.to_ase(exclude_energetics=True)
         mask = np.arange(len(self.P)) >= len(self.R)
-        atoms.extend(patoms[mask])
-        return atoms, rmsd
+        if "is_fix" in result.info:
+            result.info["is_fix"] = np.append(
+                result.info["is_fix"],
+                np.zeros(np.sum(mask), dtype=bool),
+            )
+        result.info["is_adsorbate"] = np.append(
+            result.info.get("is_adsorbate", np.zeros(len(atoms), dtype=bool)),
+            np.ones(np.sum(mask), dtype=bool),
+        )
+        result.info.pop("is_outer", None)
+        result.info.pop("is_core", None)
+        result.extend(patoms[mask])
+        return result, rmsd
 
     @override
     def get_Ea(self, *args, **kwargs) -> float:  # type: ignore
@@ -150,15 +160,18 @@ class Desorption(EventBase):
         return Adsorption(R=self.P, G=self.G, T=self.T, P=self.R)
 
     @override
-    def apply(
+    def apply_once(
         self,
-        atoms: System | Atoms,
-        *args,
-        matched_indxs: list[int] | np.ndarray | None = None,
-        **kwargs,
+        atoms: Atoms,
+        matched_indxs: list[int] | np.ndarray,
+        info: dict[str, Any] = {},
     ) -> tuple[Atoms, float]:
-        atoms, rmsd = super().apply(atoms, *args, matched_indxs, **kwargs)
+        """Apply the event once to the system."""
+        atoms, rmsd = super().apply_once(atoms, matched_indxs, info=info)
         del atoms[np.arange(len(self.R)) >= len(self.P)]
+        for k, v in atoms.info.items():
+            if k.startswith("is_") and isinstance(v, np.ndarray):
+                atoms.info[k] = v[np.arange(len(self.R)) >= len(self.P)]
         return atoms, rmsd
 
     @override

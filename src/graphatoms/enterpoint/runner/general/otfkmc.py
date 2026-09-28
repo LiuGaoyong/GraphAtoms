@@ -184,6 +184,7 @@ class OTFKMC(ExplorationBase):
             self.logger.info(f"Selected reaction is forward: {rxn_is_forward}")
             self.logger.info(f"Selected reaction: {selected_rxn_key}")
             self.logger.info(f"Selected reaction info: {selected_info}")
+            self.logger.info(f"Reaction match indexes: {match_mode}")
 
             # -------------------------------------------
             # 5. update the system
