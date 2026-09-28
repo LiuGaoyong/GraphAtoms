@@ -8,7 +8,7 @@ from ase.calculators.calculator import Calculator
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.reaction import Adsorption, Desorption, Reaction
-from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
+from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils import asetools
 from graphatoms.utils.adsorption import Helper
 from graphatoms.utils.parser import hydra_parse
@@ -453,7 +453,7 @@ def helper_adsorption(
     """
     if graph_label is None:
         graph_label = graph.get_key_for_metadata()
-        graph_label += f"_{gas.get_key_for_metadata(False)}"
+        graph_label += f"_{gas.get_key_for_metadata()}"
 
     # -----------------------------------------
     #       call adsorption initial positions
@@ -522,7 +522,7 @@ def helper_match(
     info = ReactionNetwork.metadata.read(rxn_key)
     if rxn_is_forward:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_r]),
+            pattern=SysGraph.from_ase(ReactionNetwork.db_minima[info.key_r]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -530,7 +530,7 @@ def helper_match(
         )
     else:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_p]),
+            pattern=SysGraph.from_ase(ReactionNetwork.db_minima[info.key_p]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,

@@ -5,7 +5,7 @@ from typing import override
 import numpy as np
 from ase import Atoms
 
-from graphatoms.system import SysGraph
+from graphatoms.system import Gas, SysGraph
 
 
 class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
@@ -76,4 +76,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
 
     @staticmethod
     def __get_key_of(value: SysGraph, use_positions_uuid: bool = True) -> str:
-        return value.get_key_for_metadata(use_positions_uuid)
+        if isinstance(value, Gas):
+            return value.get_key_for_metadata(False)
+        else:
+            return value.get_key_for_metadata(use_positions_uuid)

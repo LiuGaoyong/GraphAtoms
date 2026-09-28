@@ -357,7 +357,8 @@ class ExplorationBase(RunnerABC):
             event, _, cost_time, _ = future_result
             label = self.network.found(
                 event,
-                for_cluster=None,
+                for_gas=None,
+                for_cluster=cluster_key,
                 for_system=system_key,
                 persist=True,
             )
@@ -365,7 +366,6 @@ class ExplorationBase(RunnerABC):
                 msg = f"Dimer search {label} by {cost_time:.2f}"
                 msg += f" seconds because of {event}"
                 self.logger.info(self._reformat_message(msg))
-                oldnew.found_fail()
             else:
                 msg = "Dimer search successfully, and got "
                 msg += f"{label} by {cost_time:.2f} seconds."
@@ -373,10 +373,6 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-                if "new" in label:
-                    oldnew.found_new()
-                else:
-                    oldnew.found_old()
             if oldnew.exploration_can_be_finished(
                 confidence=confidence,
                 min_found=self.network.metadata.table.get_minconut_for(
@@ -407,7 +403,14 @@ class ExplorationBase(RunnerABC):
         # check if the adsorption has been explored
         # ---------------------------------------------
         graph_label = f"{cluster_key}_{gas_key}"
-        if graph_label in self.network.recorder.adsorption:
+        oldnew = self.network.recorder.adsorption[graph_label]
+        if oldnew.exploration_can_be_finished(
+            confidence=self.config.exploration.maxconfidence,
+            min_found=self.network.metadata.table.get_minconut_for(
+                cluster_key=cluster_key,
+                exclude_gas=False,
+            ),
+        ):
             msg = f"The adsorption for {cluster_key} with "
             msg += f"{gas_key} has been explored."
             self.logger.info(self._reformat_message(msg))
@@ -465,14 +468,14 @@ class ExplorationBase(RunnerABC):
         # -----------------------------------------------------------
         # wait for the adsorption tasks to finish
         # -----------------------------------------------------------
-        old_new = self.network.recorder.adsorption[graph_label]
         confidence = self.config.exploration.maxconfidence
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
             event, _, cost_time, _ = future_result
             event_label = self.network.found(
                 event,
-                for_cluster=None,
+                for_gas=gas_key,
+                for_cluster=cluster_key,
                 for_system=system_key,
                 persist=True,
             )
@@ -480,7 +483,6 @@ class ExplorationBase(RunnerABC):
                 msg = f"Adsorption search {event_label} by {cost_time:.2f}"
                 msg += f" seconds because of {event}"
                 self.logger.info(self._reformat_message(msg))
-                old_new.found_fail()
             else:
                 msg = "Adsorption search successfully, and got "
                 msg += f"{event_label} by {cost_time:.2f} seconds."
@@ -488,11 +490,7 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-                if "new" in event_label:
-                    old_new.found_new()
-                else:
-                    old_new.found_old()
-            if old_new.exploration_can_be_finished(
+            if oldnew.exploration_can_be_finished(
                 confidence=confidence,
                 min_found=self.network.metadata.table.get_minconut_for(
                     cluster_key=cluster_key,

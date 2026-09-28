@@ -19,11 +19,14 @@ from .ray.rxngen import RayReactionNetworkGenerator
 )
 def run(cfg: Config) -> None:
     if str(cfg.run_type).lower() == "otfkmc":
+        OnTheFlyKMC(config=cfg).run()
+        return
         if str(cfg.parallel).lower() == "ray":
             RayOnTheFlyKMC(config=cfg).run()
         else:
             OnTheFlyKMC(config=cfg).run()
     elif str(cfg.run_type).lower() == "rxngen":
+        raise NotImplementedError("rxngen is not implemented.")
         if str(cfg.parallel).lower() == "ray":
             RayReactionNetworkGenerator(config=cfg).run()
         else:

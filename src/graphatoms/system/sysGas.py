@@ -268,3 +268,7 @@ class Gas(System):
             pressure=pressure,
             verbose=False,
         )
+
+    @override
+    def get_key_for_metadata(self, *args, **kwargs) -> str:
+        return super().get_key_for_metadata(use_positions_uuid=False)
