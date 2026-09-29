@@ -1,7 +1,9 @@
 from pathlib import Path
 
 import pytest
+from ase import Atoms
 from ase.cluster import Octahedron
+from ase.io import read
 
 from graphatoms.reaction import Adsorption, Desorption, EventBase, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System
@@ -103,6 +105,35 @@ def test_apply_adsorption(n: int, simplify: bool) -> None:
     print(f"n={n}: RMSD={rmsd:.4f}")
     print(res.info.keys())
     assert len(res) == len(sys) + 2
+    assert "is_adsorbate" in res.info
+
+    # from ase.io import write
+    # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
+    # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
+
+
+def test_apply_desorption() -> None:
+    r = Cluster.read_npz(data_dir / "desorption" / "Pd49O2.npz")
+    p = Cluster.read_npz(data_dir / "desorption" / "Pd49.npz")
+    gas = Gas.read_npz(data_dir / "desorption" / "O2.npz")
+    rxn = Desorption(R=r, G=gas, P=p)  # O2 Desorption Reaction
+
+    atoms = read(data_dir / "desorption" / "system.xyz")
+    assert isinstance(atoms, Atoms), "The atoms must be ase.Atoms."
+    sys = System.from_ase(atoms)
+    matched = sys.get_match_mode(rxn.R)
+
+    print()
+    print("-" * 32)
+    if matched is None:
+        print("No match found.")
+        return
+
+    res, rmsd = rxn.apply(sys)
+    print(len(res))
+    print(f"RMSD={rmsd:.4f}")
+    print(res.info.keys())
+    assert len(res) == len(sys) - 2
     assert "is_adsorbate" in res.info
 
     # from ase.io import write

@@ -167,12 +167,15 @@ class Desorption(EventBase):
         info: dict[str, Any] = {},
     ) -> tuple[Atoms, float]:
         """Apply the event once to the system."""
-        atoms, rmsd = super().apply_once(atoms, matched_indxs, info=info)
-        del atoms[np.arange(len(self.R)) >= len(self.P)]
-        for k, v in atoms.info.items():
+        assert self.G is not None, "The gas must be not None."
+        result, rmsd = super().apply_once(atoms, matched_indxs, info=info)
+        mask_4_delete = np.zeros(len(atoms), dtype=bool)
+        mask_4_delete[-len(self.G) :] = True
+        del result[mask_4_delete]
+        for k, v in result.info.items():
             if k.startswith("is_") and isinstance(v, np.ndarray):
-                atoms.info[k] = v[np.arange(len(self.R)) >= len(self.P)]
-        return atoms, rmsd
+                result.info[k] = v[mask_4_delete]
+        return result, rmsd
 
     @override
     def get_Ea(self, *args, **kwargs) -> float:  # type: ignore

@@ -325,11 +325,12 @@ class EventBase(RTGP, MoveABC):
         # geom = rot_inv.apply(geom) + t_inv
 
         # New Usage: original atoms will not be rotated.
+        n = min(len(self.R), len(self.P), len(_i))
         pos_r = rot_inv.apply(self.R.positions) + t_inv
         pos_p = rot_inv.apply(self.P.positions) + t_inv
-        pos_diff = pos_p[: len(_i)] - pos_r[: len(_i)]
+        pos_diff = pos_p[:n] - pos_r[:n]
         geom = atoms.positions.copy()
-        geom[_i, :] += pos_diff
+        geom[_i[:n], :] += pos_diff
 
         return Atoms(
             numbers=atoms.numbers,
