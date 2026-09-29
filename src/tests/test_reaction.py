@@ -106,6 +106,7 @@ def test_apply_adsorption(n: int, simplify: bool) -> None:
     print(res.info.keys())
     assert len(res) == len(sys) + 2
     assert "is_adsorbate" in res.info
+    assert res.info["is_adsorbate"].shape == (len(res),)
 
     # from ase.io import write
     # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
@@ -135,6 +136,7 @@ def test_apply_desorption() -> None:
     print(res.info.keys())
     assert len(res) == len(sys) - 2
     assert "is_adsorbate" in res.info
+    assert res.info["is_adsorbate"].shape == (len(res),)
 
     # from ase.io import write
     # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)

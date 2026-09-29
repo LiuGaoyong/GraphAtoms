@@ -174,7 +174,7 @@ class Desorption(EventBase):
         del result[mask_4_delete]
         for k, v in result.info.items():
             if k.startswith("is_") and isinstance(v, np.ndarray):
-                result.info[k] = v[mask_4_delete]
+                result.info[k] = v[~mask_4_delete]
         return result, rmsd
 
     @override
