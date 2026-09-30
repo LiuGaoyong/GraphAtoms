@@ -1,6 +1,7 @@
 import os
 import sys
 from abc import abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -13,16 +14,15 @@ os.environ["LOGURU_FORMAT"] = LOGURU_FORMAT = (
 import hydra
 import numpy as np
 from ase import Atoms
+from ase.io import iread
 from loguru._logger import Core, Logger
 from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.enterpoint.config import Config
+from graphatoms.enterpoint.config.atoms import AseReadAtomsConfig
 from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.enterpoint.parallel import get_executor
-from graphatoms.system import (  # type: ignore  # type: ignore
-    Gas,
-    System,
-)
+from graphatoms.system import Gas, System
 from graphatoms.utils.parser import hydra_parse
 
 from ._helper import helper_optimization
@@ -138,6 +138,13 @@ class RunnerABC:
         pworkers: int | None = None if pworkers <= 0 else pworkers
         self.executor = get_executor(parallel, pworkers)
 
+        # check run_type
+        if self.config.run_type not in ["otfkmc", "rxngen"]:
+            msg = f"Invalid run_type: {self.config.run_type}."
+            msg += " Please choose one from 'otfkmc', 'rxngen'."
+            self.logger.error(self._reformat_message(msg))
+            raise ValueError(msg)
+
         self.__gas_lst: list[Gas] = []
         for gas_info in self.network.metadata.basic.gas_info_lst:
             gas, _, cost_time = helper_optimization(
@@ -181,7 +188,28 @@ class RunnerABC:
     def run(self, *args, **kwargs) -> Any:
         """Run the class."""
 
+    def get_batch_system_for(self) -> list[System]:
+        """Get the batch of systems for the Reaction Network."""
+        if self.config.run_type == "rxngen":
+            if isinstance(self.config.atoms, AseReadAtomsConfig):
+                msg = "Read the system list from "
+                msg += f"{self.config.atoms.filename}"
+                self.logger.info(self._reformat_message(msg))
+                lst: Iterable[Atoms] = iread(self.config.atoms.filename)
+                return [self.get_system_for(inp=atoms) for atoms in lst]
+        return [self.get_system_for(inp=None)]
+
     def get_system_for(self, inp: Atoms | None) -> System:
+        """Get the system object for exploration.
+
+        if inp is None:
+            parse system for first step from config
+        else:
+            convert inp to System object
+
+        Returns:
+            System: the system object for exploration.
+        """
         if inp is None:
             # parse system for first step
             try:

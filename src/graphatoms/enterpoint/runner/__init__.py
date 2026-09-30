@@ -26,7 +26,8 @@ def run(cfg: Config) -> None:
         else:
             OnTheFlyKMC(config=cfg).run()
     elif str(cfg.run_type).lower() == "rxngen":
-        raise NotImplementedError("rxngen is not implemented.")
+        ReactionNetworkGenerator(config=cfg).run()
+        return
         if str(cfg.parallel).lower() == "ray":
             RayReactionNetworkGenerator(config=cfg).run()
         else:

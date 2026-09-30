@@ -198,13 +198,21 @@ class OTFKMC(ExplorationBase):
             # -------------------------------------------
             # 5. update the system
             # -------------------------------------------
-            (_, _, atoms, rmsd) = helper_apply(
+            (_, _, apply_result, rmsd) = helper_apply(
                 system=system,
                 match_mode=match_mode,
                 rxn_key=selected_rxn_key,
                 forward=rxn_is_forward,
-                ReactionNetwork=self.network,
+                network=self.network,
+                raise_when_fail=True,
             )
+            if isinstance(apply_result, Atoms):
+                atoms = apply_result
+            else:
+                msg = "Apply result is not a ase.Atoms object."
+                msg += f"Its type is {type(apply_result)}."
+                self.logger.error(self._reformat_message(msg))
+                raise AssertionError(msg)
             self.logger.info(
                 f"Apply Rxn {selected_rxn_key} "
                 + f"Successfully, RMSD: {rmsd:.4f}.\n {selected_info}"

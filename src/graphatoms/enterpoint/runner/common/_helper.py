@@ -556,14 +556,21 @@ def helper_match(
 
 
 def helper_apply(
-    ReactionNetwork: ReactionNetwork,
     rxn_key: str,
     system: System,
     match_mode: np.ndarray,
+    network: ReactionNetwork,
+    raise_when_fail: bool = True,
     forward: bool = True,
-) -> tuple[str, bool, Atoms, float]:
-    _, rxn = ReactionNetwork.read_event(rxn_key)
+) -> tuple[str, bool, Atoms | str, float]:
+    _, rxn = network.read_event(rxn_key)
     if not forward:
         rxn = rxn.reversed
-    atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
-    return rxn_key, forward, atoms, rmsd
+    try:
+        atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
+        return rxn_key, forward, atoms, rmsd
+    except Exception as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return rxn_key, forward, str(e), np.inf
