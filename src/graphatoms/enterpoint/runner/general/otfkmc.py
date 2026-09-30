@@ -111,12 +111,21 @@ class OTFKMC(ExplorationBase):
             # 1-2 step: analyze the system & exploration
             # -------------------------------------------
             start = perf_counter()
-            self.explore(system)
+            expl_success, energy_real = self.explore(system)
+            otfkmc_info.energy_real = energy_real
             end = perf_counter()
             otfkmc_info.cost_exploration = end - start
-            msg = f"Exploration finished by {end - start:.2f} s"
-            self.logger.info(self._reformat_message(msg))
-            self.logger.info(self._reformat_message("-" * self._log_length))
+            if expl_success:
+                msg = f"Exploration finished by {end - start:.2f} s "
+                msg += f"for system={system.get_key_for_metadata()}"
+                self.logger.info(self._reformat_message(msg))
+                msg = "-" * self._log_length
+                self.logger.info(self._reformat_message(msg))
+            else:
+                msg = f"Exploration failed by {end - start:.2f} s "
+                msg += f"for system={system.get_key_for_metadata()}"
+                self.logger.warning(self._reformat_message(msg))
+                continue
 
             # -------------------------------------------
             # 3 step: graph matching

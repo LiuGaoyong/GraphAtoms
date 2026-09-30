@@ -180,7 +180,14 @@ def helper_optimization(
         else:
             return str(e), graph_label, perf_counter() - start
     if not run_vibration:
-        return result, graph_label, perf_counter() - start
+        f: np.ndarray = lst[-1].get_forces(apply_constraint=True)
+        result = result.update_energetics(
+            energy=lst[-1].get_potential_energy(),
+            fmax=np.linalg.norm(f, axis=1).max(),
+            frequencies=None,
+            deep=deep_copy,
+        )
+        return (result, graph_label, perf_counter() - start)
 
     # ---------------------------------------------
     #       call vibration & return result

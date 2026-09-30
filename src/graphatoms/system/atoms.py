@@ -535,7 +535,9 @@ class Structure(Matter, Box, Energetics):
         **kwargs,
     ) -> Self:
         update: dict[str, Any] = {"energy": float(energy), "fmax": float(fmax)}
-        update["frequencies"] = np.asarray(frequencies, dtype=float).flatten()
+        if frequencies is not None:
+            frequencies = np.asarray(frequencies, dtype=float)
+            update["frequencies"] = frequencies.flatten()
         return self.model_copy(update=update, deep=deep)
 
 
