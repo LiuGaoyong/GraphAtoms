@@ -29,6 +29,7 @@ class ExplConfig:
     maxtry: int = 1000
     maxconfidence: float = 10
     max_ncore_for_surface: int = 3  # 4, 5, 6
+    optimization_for_system: bool = True
     surface_only_explore_single_core: bool = True
     allow_multiple_adsorption: bool = False
     allow_explore_bulk: bool = False

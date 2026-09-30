@@ -11,14 +11,20 @@ from graphatoms.system import SysGraph
 class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
     @abstractmethod
     @override
-    def __init__(self, *, append: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        append: bool = True,
+        use_positions_uuid: bool = False,
+    ) -> None:
         """Initialize the database."""
+        self.use_positions_uuid = bool(use_positions_uuid)
 
     @override
     def __contains__(self, key: object) -> bool:
         if not isinstance(key, str):
             if isinstance(key, SysGraph):
-                key = self.__get_key_of(key)
+                key = key.get_key_for_metadata(self.use_positions_uuid)
             else:
                 raise TypeError(
                     "The key must be a string or a SysGraph object."
@@ -45,7 +51,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         If the value is already in the database, return False.
         Otherwise, return True.
         """
-        key = self.__get_key_of(value)
+        key = value.get_key_for_metadata(self.use_positions_uuid)
         if not self.__contains__(key):
             self._save(key, value)
             return True
@@ -73,7 +79,3 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
     @override
     def discard(self, *args, **kwargs) -> None:
         raise RuntimeError("The discard method is not supported.")
-
-    @staticmethod
-    def __get_key_of(value: SysGraph, use_positions_uuid: bool = True) -> str:
-        return value.get_key_for_metadata(use_positions_uuid)

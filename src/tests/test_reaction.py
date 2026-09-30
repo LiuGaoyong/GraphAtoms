@@ -1,7 +1,9 @@
 from pathlib import Path
 
 import pytest
+from ase import Atoms
 from ase.cluster import Octahedron
+from ase.io import read
 
 from graphatoms.reaction import Adsorption, Desorption, EventBase, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System
@@ -18,6 +20,13 @@ def _rxn() -> EventBase:
     r = SysGraph.read_npz(data_dir / "minima" / "Pd236" / "1824a8.npz")
     ts = SysGraph.read_npz(data_dir / "ts" / "Pd236" / "1824a8.npz")
     return Reaction(R=r, T=ts, P=p)
+
+
+def _adsorption() -> EventBase:
+    p = SysGraph.read_npz(data_dir / "adsorption" / "Pd58CO.npz")
+    r = SysGraph.read_npz(data_dir / "adsorption" / "Pd58.npz")
+    gas = Gas.read_npz(data_dir / "adsorption" / "CO.npz")
+    return Adsorption(R=r, G=gas, P=p)
 
 
 @pytest.mark.parametrize(
@@ -70,6 +79,64 @@ def test_apply(n: int, simplify: bool) -> None:
 
     res, rmsd = rxn.apply(sys)
     print(f"n={n}: RMSD={rmsd:.4f}")
+
+    # from ase.io import write
+    # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
+    # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
+
+@pytest.mark.parametrize("n", [8, 9, 10])
+@pytest.mark.parametrize("simplify", [True, False])
+def test_apply_adsorption(n: int, simplify: bool) -> None:
+    rxn = _adsorption()  # CO Adsorption Reaction
+    sys = System.from_ase(Octahedron("Pd", n))
+    if simplify:
+        rxn = rxn.simplify()
+    matched = sys.get_match_mode(rxn.R)
+
+    print()
+    print("-" * 32)
+    print(n, simplify)
+    if matched is None and not simplify:
+        print(f"n={n}: No match found.")
+        return
+
+    res, rmsd = rxn.apply(sys)
+    print(len(res))
+    print(f"n={n}: RMSD={rmsd:.4f}")
+    print(res.info.keys())
+    assert len(res) == len(sys) + 2
+    assert "is_adsorbate" in res.info
+    assert res.info["is_adsorbate"].shape == (len(res),)
+
+    # from ase.io import write
+    # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
+    # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
+
+
+def test_apply_desorption() -> None:
+    r = Cluster.read_npz(data_dir / "desorption" / "Pd49O2.npz")
+    p = Cluster.read_npz(data_dir / "desorption" / "Pd49.npz")
+    gas = Gas.read_npz(data_dir / "desorption" / "O2.npz")
+    rxn = Desorption(R=r, G=gas, P=p)  # O2 Desorption Reaction
+
+    atoms = read(data_dir / "desorption" / "system.xyz")
+    assert isinstance(atoms, Atoms), "The atoms must be ase.Atoms."
+    sys = System.from_ase(atoms)
+    matched = sys.get_match_mode(rxn.R)
+
+    print()
+    print("-" * 32)
+    if matched is None:
+        print("No match found.")
+        return
+
+    res, rmsd = rxn.apply(sys)
+    print(len(res))
+    print(f"RMSD={rmsd:.4f}")
+    print(res.info.keys())
+    assert len(res) == len(sys) - 2
+    assert "is_adsorbate" in res.info
+    assert res.info["is_adsorbate"].shape == (len(res),)
 
     # from ase.io import write
     # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)

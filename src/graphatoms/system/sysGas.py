@@ -249,9 +249,26 @@ class Gas(System):
         temp: NonNegativeFloat = 300,
         pressure: NonNegativeFloat = 101325,
     ) -> float:
+        """Calculates the free energy in in the ideal gas approximation.
+
+        Args:
+            fqmin (PositiveFloat, optional):
+                a frequency threshold in cm^-1. Defaults to 10.0.
+            temp (NonNegativeFloat, optional):
+                a temperature given in Kelvin. Defaults to 300.
+            pressure (pydantic.NonNegativeFloat, optional):
+                a pressure given in Pa. Defaults to 101325.
+
+        Returns:
+            float: the free energy in eV.
+        """
         thermo: IdealGasThermo = self._get_thermo(fqmin=fqmin)  # type: ignore
         return thermo.get_gibbs_energy(
             temperature=float(temp),
             pressure=pressure,
             verbose=False,
         )
+
+    @override
+    def get_key_for_metadata(self, *args, **kwargs) -> str:
+        return super().get_key_for_metadata(use_positions_uuid=False)

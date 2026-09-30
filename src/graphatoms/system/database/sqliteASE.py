@@ -18,7 +18,15 @@ from .abc import DatabaseABC
 
 class AseSqliteDB(DatabaseABC):
     @override
-    def __init__(self, path: Path, append: bool = True) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        append: bool = True,
+        use_positions_uuid: bool = False,
+    ) -> None:
+        """Initialize the database."""
+        super().__init__(append=append, use_positions_uuid=use_positions_uuid)
         assert path.name.endswith(".db"), "The filename must end with .db"
         if append:
             assert path.exists(), "The database file does not exist."

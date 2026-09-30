@@ -8,7 +8,7 @@ from graphatoms.system import SysGraph, System
 from graphatoms.system.bonds import matchmode2nmatch
 
 this_dir = Path(__file__).parent
-data_dir = this_dir.parent / "tests-datasets" / "for-match"
+data_dir = this_dir.parent / "tests-datasets" / "for-match" / "minima"
 
 
 @pytest.fixture(scope="module")

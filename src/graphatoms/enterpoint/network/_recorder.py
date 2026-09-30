@@ -24,11 +24,11 @@ Ref:
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Annotated, override
+from typing import Annotated, Self, override
 
 import pydantic
 
-from graphatoms.dataclasses import OurBaseModel  # type: ignore
+from graphatoms.dataclasses import OurBaseModel
 
 
 class _RecorderBase(pydantic.BaseModel):
@@ -47,50 +47,6 @@ class _RecorderBase(pydantic.BaseModel):
         Note: The `skip` is not included in the total number of events.
         """
         return sum([self.old, self.new, self.fail])
-
-class RecorderInfo(_RecorderBase):
-    create_at: datetime = pydantic.Field(default_factory=lambda: datetime.now())
-    confidence: Annotated[float, pydantic.Field(ge=0.5, lt=1.0)]
-    for_cluster: str = pydantic.Field(default="")
-    for_system: str = pydantic.Field(default="")
-    for_gas: str = pydantic.Field(default="")
-
-    @classmethod
-    def get_csv_title(cls) -> str:
-        return ",".join(
-            [
-                "old",
-                "new",
-                "fail",
-                "total",
-                "skip",
-                "continuous_old",
-                "continuous_nonnew",
-                "confidence",
-                "create_at",
-                "for_cluster",
-                "for_system",
-                "for_gas",
-            ]
-        )
-
-    def to_csv_line(self) -> str:
-        return ",".join(
-            [
-                f"{self.old}",
-                f"{self.new}",
-                f"{self.fail}",
-                f"{self.total}",
-                f"{self.skip}",
-                f"{self.continuous_old}",
-                f"{self.continuous_nonnew}",
-                f"{self.confidence}",
-                f"{self.create_at.strftime('%Y-%m-%d %H:%M:%S.%f')}",
-                f"{self.for_cluster}",
-                f"{self.for_system}",
-                f"{self.for_gas}",
-            ]
-        )
 
 
 class _OldNewRecorder(OurBaseModel, _RecorderBase):
@@ -163,6 +119,49 @@ class _OldNewRecorder(OurBaseModel, _RecorderBase):
     def found_fail(self) -> None:
         self.continuous_nonnew += 1
         self.fail += 1
+
+
+class RecorderInfo(_RecorderBase):
+    create_at: datetime = pydantic.Field(default_factory=lambda: datetime.now())
+    confidence: Annotated[float, pydantic.Field(ge=0.5, lt=1.0)]
+    for_cluster: str = pydantic.Field(default="")
+    for_system: str = pydantic.Field(default="")
+    for_gas: str = pydantic.Field(default="")
+
+    @classmethod
+    def from_oldnew(
+        cls,
+        oldnew: _OldNewRecorder,
+        min_found: pydantic.NonNegativeInt,
+        *,
+        for_cluster: str = "",
+        for_system: str = "",
+        for_gas: str = "",
+    ) -> Self:
+        return cls(
+            old=oldnew.old,
+            new=oldnew.new,
+            fail=oldnew.fail,
+            skip=oldnew.skip,
+            continuous_old=oldnew.continuous_old,
+            continuous_nonnew=oldnew.continuous_nonnew,
+            confidence=oldnew.get_williams_confidence(min_found),
+            for_cluster=for_cluster,
+            for_system=for_system,
+            for_gas=for_gas,
+        )
+
+    @classmethod
+    def get_csv_title(cls) -> str:
+        msg = "old,new,fail,total,skip,continuous_old,continuous_nonnew"
+        return f"{msg},confidence,for_cluster,for_system,for_gas,create_at"
+
+    def to_csv_line(self) -> str:
+        msg = f"{self.old},{self.new},{self.fail},{self.total},"
+        msg += f"{self.skip},{self.continuous_old},{self.continuous_nonnew},"
+        msg += f"{self.confidence},{self.for_cluster},{self.for_system}"
+        create_at = self.create_at.strftime("%Y-%m-%d %H:%M:%S.%f")
+        return f"{msg},{self.for_gas},{create_at}"
 
 
 class Recorder(OurBaseModel):
