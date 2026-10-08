@@ -232,28 +232,20 @@ class RTGP(OurFrozenModel):
         v = self.R.positions[:, np.newaxis, :] - pos
         d = np.linalg.norm(v, axis=-1).min(-1)
         sub = np.argwhere(d < env_radius).flatten()
+        sub = np.unique(sub.astype(int))
 
-        sub2 = np.array([], dtype=sub.dtype)
-        rtgp: list[SysGraph | None] = []
-        for i in [self.R, self.T, self.G, self.P]:
-            if i is None or isinstance(i, Gas):
-                rtgp.append(i)
-            elif isinstance(i, SysGraph):
-                if len(i) == nmax:
-                    sub = np.append(sub, gas_moved)
-                else:
-                    sub = np.setdiff1d(sub, gas_moved)
-                rtgp.append(
-                    Cluster.select(
-                        i,
-                        sub_idxs=sub,
-                        exclude_energetics=False,
-                    )  # type: ignore
-                )
-            else:
-                raise TypeError(f"Unknown type: {type(i)}")
+        # while True:
+        for _ in range(10):
+            rtgp, sub2 = self.__sub_rgtp(
+                nmax=nmax,
+                sub=sub,
+                gas_moved=gas_moved,
+            )
+            if len(sub2) == 0:
+                break
+            sub = np.setdiff1d(sub, sub[sub2])
 
-        r, t, g, p = rtgp
+        r, t, g, p = rtgp  # type: ignore
         assert isinstance(r, SysGraph)
         assert isinstance(p, SysGraph)
         assert g is None or isinstance(g, Gas)
@@ -261,30 +253,34 @@ class RTGP(OurFrozenModel):
         return self.__class__(R=r, T=t, G=g, P=p)
 
     def __sub_rgtp(
-            self,
-                   nmax: int,
-                   sub: np.ndarray, 
-                   gas_moved: list[int],
-                   ) -> tuple[list[SysGraph | None], np.ndarray]:
-        rtgp: list[SysGraph | None] = []
+        self,
+        nmax: int,
+        sub: np.ndarray,
+        gas_moved: list[int],
+    ) -> tuple[list[SysGraph | None], np.ndarray]:
+        sub2 = np.array([], dtype=sub.dtype)
+        result: list[SysGraph | None] = []
         for i in [self.R, self.T, self.G, self.P]:
             if i is None or isinstance(i, Gas):
-                rtgp.append(i)
+                result.append(i)
             elif isinstance(i, SysGraph):
                 if len(i) == nmax:
                     sub = np.append(sub, gas_moved)
                 else:
                     sub = np.setdiff1d(sub, gas_moved)
-                rtgp.append(
-                    Cluster.select(
-                        i,
-                        sub_idxs=sub,
-                        exclude_energetics=False,
-                    )  # type: ignore
-                )
+                item = Cluster.select(
+                    i,
+                    sub_idxs=sub,
+                    exclude_energetics=False,
+                )  # type: ignore
+                if not item.is_connected:
+                    biggest = item.connected_components_biggest
+                    arr = np.setdiff1d(np.arange(len(item)), biggest)
+                    sub2 = np.append(sub2, arr)
+                result.append(item)
             else:
                 raise TypeError(f"Unknown type: {type(i)}")
-        return rtgp, sub
+        return result, np.unique(sub2)
 
     @property
     def reversed(self) -> Self:
