@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from pprint import pprint
 from tempfile import TemporaryDirectory
@@ -7,7 +8,8 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.runner import OnTheFlyKMC as Mock
+from graphatoms.enterpoint.runner import ReactionNetworkGenerator
+from graphatoms.enterpoint.runner.common._base import RunnerABC
 
 this_dir = Path(__file__).parent
 
@@ -21,7 +23,14 @@ this_dir = Path(__file__).parent
         "ray",
     ],
 )
-def test_run_step(parallel) -> None:
+@pytest.mark.parametrize(
+    "Mock",
+    [
+        # OnTheFlyKMC,
+        ReactionNetworkGenerator,
+    ],
+)
+def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
     with TemporaryDirectory(dir=this_dir) as tmp:
         Path(tmp).mkdir(exist_ok=True, parents=True)
         print(f"Test in the temporary folder: '{tmp}'")
@@ -49,12 +58,18 @@ def test_run_step(parallel) -> None:
             cfg.parallel = parallel
             cfg.parallel_workers = 4
             cfg.exploration.maxtry = maxtry
-            cfg.max_steps = 1000
+            cfg.run_type = "rxngen"
+            cfg.max_steps = 2
             cfg.max_times = float("inf")
             cfg.event.gas_pressure = {"O2": 1.0, "CO": 1.0}
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
+            if Path(cfg.outputs).exists():
+                shutil.rmtree(Path(cfg.outputs))
 
+            print("-----------------")
+            print(f"Test {Mock.__name__}")
+            print("-----------------")
             obj = Mock(config=cfg)  # type: ignore
             obj.run()
             pprint(list(Path(tmp).rglob("*")))

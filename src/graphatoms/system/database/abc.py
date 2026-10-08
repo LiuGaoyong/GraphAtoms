@@ -18,13 +18,13 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         use_positions_uuid: bool = False,
     ) -> None:
         """Initialize the database."""
-        self.__use_positions_uuid = bool(use_positions_uuid)
+        self.use_positions_uuid = bool(use_positions_uuid)
 
     @override
     def __contains__(self, key: object) -> bool:
         if not isinstance(key, str):
             if isinstance(key, SysGraph):
-                key = key.get_key_for_metadata(self.__use_positions_uuid)
+                key = key.get_key_for_metadata(self.use_positions_uuid)
             else:
                 raise TypeError(
                     "The key must be a string or a SysGraph object."
@@ -51,7 +51,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         If the value is already in the database, return False.
         Otherwise, return True.
         """
-        key = value.get_key_for_metadata(self.__use_positions_uuid)
+        key = value.get_key_for_metadata(self.use_positions_uuid)
         if not self.__contains__(key):
             self._save(key, value)
             return True

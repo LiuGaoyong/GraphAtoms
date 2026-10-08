@@ -36,13 +36,13 @@ class ExplorationBase(RunnerABC):
     def _first_step(
         self,
         system: System | Atoms | None,
-    ) -> tuple[dict[tuple[bool, int, str], Cluster], str]:
+    ) -> tuple[dict[tuple[bool, int, str], Cluster], str, float]:
         """Return the dictionary of clusters & system key.
 
-        Keys:
-            (is_surface, ncore, hash)
-        Values:
-            Cluster: the cluster of the core
+        Returns:
+            dct (dict[tuple[bool, int, str], Cluster]):
+            system_key (str): the system key.
+            energy_opt (float): the optimized energy.
         """
         if not isinstance(system, System):
             system = self.get_system_for(system)
@@ -50,6 +50,40 @@ class ExplorationBase(RunnerABC):
             msg = f"Unknown type of input: {type(system)}"
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
+        use_pos_uuid = self.network.db_system.use_positions_uuid
+        sys_k = system.get_key_for_metadata(use_pos_uuid)
+        if sys_k in self.network.db_system:
+            atoms = self.network.db_system[sys_k]
+            system = System.from_ase(atoms)
+            msg = f"Load system({sys_k}) from database."
+            self.logger.info(self._reformat_message(msg))
+        else:
+            if bool(self.config.exploration.optimization_for_system):
+                system_or_msg, _, _ = helper_optimization(
+                    graph=system,
+                    config=self.config,
+                    allow_hash_change=True,
+                    allow_not_connected=False,
+                    raise_when_fail=False,
+                    run_vibration=False,
+                    graph_label=None,
+                    deep_copy=True,
+                )
+                if isinstance(system_or_msg, str):
+                    self.logger.warning(self._reformat_message(system_or_msg))
+                    msg = f"Optimization system({sys_k}) failed. skip it."
+                    self.logger.info(self._reformat_message(msg))
+                    return {}, "", np.nan
+                elif not isinstance(system_or_msg, System):
+                    msg = f"Unknown type of output: {type(system_or_msg)}"
+                    self.logger.error(self._reformat_message(msg))
+                    raise ValueError(msg)
+                else:
+                    system = system_or_msg
+                    msg = f"Optimization system({sys_k}) "
+                    msg += f"successfully. E={system.energy}"
+                    self.logger.info(self._reformat_message(msg))
+                    self.network.db_system.add(system)
 
         oesc = bool(self.config.exploration.surface_only_explore_single_core)
         if oesc and len(self.gas_lst) == 0:
@@ -113,7 +147,8 @@ class ExplorationBase(RunnerABC):
 
         # persist the network for restart. [minima list]
         self.network.persistence()
-        return result, system.get_key_for_metadata()
+        energy = np.nan if system.energy is None else system.energy
+        return result, system.get_key_for_metadata(), energy
 
     def __batch_optimization_parallel(
         self,
@@ -214,9 +249,16 @@ class ExplorationBase(RunnerABC):
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
 
-    def explore(self, system: System | Atoms | None = None) -> None:
+    def explore(
+        self,
+        system: System | Atoms | None = None,
+    ) -> tuple[bool, float]:
+        """Explore the system, and return whether it is explored successfully and the final energy."""  # noqa: E501
+
         # 1 step: analyze the system
-        dct, system_key = self._first_step(system)
+        dct, system_key, energy = self._first_step(system)
+        if system_key == "":
+            return False, energy
 
         # 2 step: exploration
         ncore_4_adspt = int(self.config.exploration.max_ncore_for_surface)
@@ -258,6 +300,7 @@ class ExplorationBase(RunnerABC):
                 )
         self.network.recorder.system.add(system_key)
         self.network.persistence()
+        return True, energy
 
     def _second_step_surface(
         self,
