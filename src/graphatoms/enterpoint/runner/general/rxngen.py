@@ -1,6 +1,7 @@
 """The steps for the on-the-fly KMC simulation."""
 
 from collections import defaultdict
+from pathlib import Path
 from time import perf_counter
 from typing import override
 
@@ -20,6 +21,10 @@ class MatchApplyRecorder(BaseModel):
     #          system_key:  (rxn_key, is_forward)
     record: dict[str, set[tuple[str, bool]]] = defaultdict(set)
 
+    def persist(self, path: str | Path) -> None:
+        with Path(path).open("w") as f:
+            f.write(self.model_dump_json())
+
 
 class ReactionNetworkGenerator(ExplorationBase):
     """The class for the reaction network exploration."""
@@ -31,6 +36,7 @@ class ReactionNetworkGenerator(ExplorationBase):
         self.__path = self.path.joinpath(fname)
         if not self.config.restart:
             self.__match_apply_recorder = MatchApplyRecorder()
+            self.__match_apply_recorder.persist(self.__path)
         else:
             data = self.__path.read_text()
             obj = MatchApplyRecorder.model_validate_json(data)
@@ -83,6 +89,7 @@ class ReactionNetworkGenerator(ExplorationBase):
                             )
                         )
                         record.add((rxn_key, is_forward))
+        self.__match_apply_recorder.persist(self.__path)
         msg = f"Istep={self.__istep}: Submit {len(futures)} match and"
         msg += f" apply tasks by {perf_counter() - start:.2f} seconds"
         self.logger.info(self._reformat_message(msg))
