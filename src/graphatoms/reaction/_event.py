@@ -233,6 +233,7 @@ class RTGP(OurFrozenModel):
         d = np.linalg.norm(v, axis=-1).min(-1)
         sub = np.argwhere(d < env_radius).flatten()
 
+        sub2 = np.array([], dtype=sub.dtype)
         rtgp: list[SysGraph | None] = []
         for i in [self.R, self.T, self.G, self.P]:
             if i is None or isinstance(i, Gas):
@@ -258,6 +259,32 @@ class RTGP(OurFrozenModel):
         assert g is None or isinstance(g, Gas)
         assert t is None or isinstance(t, SysGraph)
         return self.__class__(R=r, T=t, G=g, P=p)
+
+    def __sub_rgtp(
+            self,
+                   nmax: int,
+                   sub: np.ndarray, 
+                   gas_moved: list[int],
+                   ) -> tuple[list[SysGraph | None], np.ndarray]:
+        rtgp: list[SysGraph | None] = []
+        for i in [self.R, self.T, self.G, self.P]:
+            if i is None or isinstance(i, Gas):
+                rtgp.append(i)
+            elif isinstance(i, SysGraph):
+                if len(i) == nmax:
+                    sub = np.append(sub, gas_moved)
+                else:
+                    sub = np.setdiff1d(sub, gas_moved)
+                rtgp.append(
+                    Cluster.select(
+                        i,
+                        sub_idxs=sub,
+                        exclude_energetics=False,
+                    )  # type: ignore
+                )
+            else:
+                raise TypeError(f"Unknown type: {type(i)}")
+        return rtgp, sub
 
     @property
     def reversed(self) -> Self:

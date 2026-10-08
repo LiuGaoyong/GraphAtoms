@@ -57,8 +57,9 @@ def test_simplify(event: EventBase | Path) -> None:
     event.simplify()
     print(event)
     print(event.reversed)
-    event.reversed.simplify()
-    event.reversed.reversed.simplify()
+    event.reversed.simplify(env_radius=7.0)
+    event.reversed.reversed.simplify(env_radius=7.0)
+
 
 
 @pytest.mark.parametrize("n", [8, 9, 10])
