@@ -1,12 +1,13 @@
-from typing import Self, override
+from typing import Any, Self, override
 
 import numpy as np
 from ase import Atoms
 from ase.data import atomic_masses as MASS
+from ase.units import _amu as atomic_mass_unit
+from ase.units import _e as electron_charge
 from pydantic import model_validator
 
-from graphatoms.reaction._event import EventBase, h, kB
-from graphatoms.system.system import System
+from graphatoms.reaction._event import EventBase, kB
 
 
 class Adsorption(EventBase):
@@ -26,18 +27,29 @@ class Adsorption(EventBase):
         return Desorption(R=self.P, G=self.G, T=self.T, P=self.R)
 
     @override
-    def apply(
+    def apply_once(
         self,
-        atoms: System | Atoms,
-        *args,
-        matched_indxs: list[int] | np.ndarray | None = None,
-        **kwargs,
+        atoms: Atoms,
+        matched_indxs: list[int] | np.ndarray,
+        info: dict[str, Any] = {},
     ) -> tuple[Atoms, float]:
-        atoms, rmsd = super().apply(atoms, *args, matched_indxs, **kwargs)
+        """Apply the event once to the system."""
+        result, rmsd = super().apply_once(atoms, matched_indxs, info=info)
         patoms: Atoms = self.P.to_ase(exclude_energetics=True)
         mask = np.arange(len(self.P)) >= len(self.R)
-        atoms.extend(patoms[mask])
-        return atoms, rmsd
+        if "is_fix" in result.info:
+            result.info["is_fix"] = np.append(
+                result.info["is_fix"],
+                np.zeros(np.sum(mask), dtype=bool),
+            )
+        result.info["is_adsorbate"] = np.append(
+            result.info.get("is_adsorbate", np.zeros(len(atoms), dtype=bool)),
+            np.ones(np.sum(mask), dtype=bool),
+        )
+        result.info.pop("is_outer", None)
+        result.info.pop("is_core", None)
+        result.extend(patoms[mask])
+        return result, rmsd
 
     @override
     def get_Ea(self, *args, **kwargs) -> float:  # type: ignore
@@ -56,6 +68,17 @@ class Adsorption(EventBase):
         pressure: float | None = None,
         **kwargs,
     ) -> float:
+        """Get the change in energy (in eV) of the adsorption reaction.
+
+        Args:
+            temperature (float, optional):
+                a temperature given in Kelvin. Defaults to 300.0.
+            pressure (float | None, optional):
+                a pressure given in Pa. Defaults to None.
+
+        Returns:
+            float: the change in energy in eV.
+        """
         assert self.G is not None, "The gas must be not None."
         e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
         e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
@@ -78,7 +101,18 @@ class Adsorption(EventBase):
         sticking: float | None = None,
         **kwargs,
     ) -> float:
-        """Get the rate of the reaction by the collision theory.
+        """Get the rate (in 1/s) of the reaction by the collision theory.
+
+        Args:
+            temperature (float, optional):
+                a temperature given in Kelvin. Defaults to 300.0.
+            pressure (float | None, optional):
+                a pressure given in Pa. Defaults to None.
+            sticking (float | None, optional):
+                a sticking coefficient. Defaults to None.
+
+        Returns:
+            float: the rate in 1/s.
 
         Ref: Dominic R. Alfonso; Kinetic Monte Carlo Simul-
             ation of CO Adsorption on Sulfur-Covered Pd(100).
@@ -88,10 +122,15 @@ class Adsorption(EventBase):
             rate = -------------------
                     sqrt(2*pi*m*kB*T)
         """
+        # for Oxygen gas
+        # A=4,P=1atm,T=300K --> rate=1.09e8
         assert self.G is not None, "The gas must be not None."
-        kBT = kB * temperature
+        kBT = kB * temperature  # energy in eV
+        kBT *= electron_charge  # Convert to J
         m = np.sum(MASS[self.G.numbers])
+        m *= atomic_mass_unit  # Convert amu to kg
         A = abs(self.G.area + self.R.area - self.P.area) / 2.0
+        A *= 1e-20  # Convert Å^2 to m^2
 
         if sticking is None:
             sticking = self.G.sticking
@@ -121,16 +160,22 @@ class Desorption(EventBase):
         return Adsorption(R=self.P, G=self.G, T=self.T, P=self.R)
 
     @override
-    def apply(
+    def apply_once(
         self,
-        atoms: System | Atoms,
-        *args,
-        matched_indxs: list[int] | np.ndarray | None = None,
-        **kwargs,
+        atoms: Atoms,
+        matched_indxs: list[int] | np.ndarray,
+        info: dict[str, Any] = {},
     ) -> tuple[Atoms, float]:
-        atoms, rmsd = super().apply(atoms, *args, matched_indxs, **kwargs)
-        del atoms[np.arange(len(self.R)) >= len(self.P)]
-        return atoms, rmsd
+        """Apply the event once to the system."""
+        assert self.G is not None, "The gas must be not None."
+        result, rmsd = super().apply_once(atoms, matched_indxs, info=info)
+        mask_4_delete = np.zeros(len(atoms), dtype=bool)
+        mask_4_delete[-len(self.G) :] = True
+        del result[mask_4_delete]
+        for k, v in result.info.items():
+            if k.startswith("is_") and isinstance(v, np.ndarray):
+                result.info[k] = v[~mask_4_delete]
+        return result, rmsd
 
     @override
     def get_Ea(self, *args, **kwargs) -> float:  # type: ignore
@@ -173,26 +218,24 @@ class Desorption(EventBase):
     ) -> float:
         """Get the rate of the reaction by the collision theory.
 
-        Ref: Dominic R. Alfonso; Kinetic Monte Carlo Simul-
-            ation of CO Adsorption on Sulfur-Covered Pd(100).
-            J. Phys. Chem. A  2014, 118, 7306-7313.
         Eq:
-                     S*A*2*pi*m*(kB*T)**2        -dE
-            rate = -----------------------*exp(-------)
-                            h**3                 kB*T
+                                   -dE
+            rate = rate(ads)*exp(-------)
+                                   kB*T
         """
         assert self.G is not None, "The gas must be not None."
-        kBT = kB * temperature
-        m = np.sum(MASS[self.G.numbers])
-        A = abs(self.G.area + self.R.area - self.P.area) / 2.0
-
         if pressure is None:
             pressure = self.G.pressure
         assert pressure is not None, "The pressure must be not None."
         dE = self.get_dE(temperature=temperature, pressure=pressure)
-        exp = np.exp(-dE / kBT)
+        exp = np.exp(-dE / kB * temperature)
 
         if sticking is None:
             sticking = self.G.sticking
         assert sticking is not None, "The sticking must be not None."
-        return sticking * A * 2.0 * np.pi * m * kBT**2 / h**3 * exp
+        factor = self.reversed.get_rate(
+            pressure=1.0e5,  # the standard pressure is 1bar
+            temperature=temperature,
+            sticking=sticking,
+        )
+        return factor * exp

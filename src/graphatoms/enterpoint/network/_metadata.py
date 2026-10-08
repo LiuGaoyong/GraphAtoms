@@ -37,17 +37,14 @@ class _MetaDataBasic(OurBaseModel, EventConfig):
     @computed_field
     @property
     def gas_info_lst(self) -> list[_GasInfo]:
-        result: list[_GasInfo] = []
-        for name, sticking in self.gas_sticking.items():
-            pressure = self.gas_pressure.get(name, self.default_pressure)
-            result.append(
-                _GasInfo(
-                    name=name,
-                    sticking=sticking,
-                    pressure=pressure,
-                )
-            )
-        return result
+        result: dict[str, _GasInfo] = {}
+        for k, s in self.gas_sticking.items():
+            p = self.gas_pressure.get(k, self.default_pressure)
+            result[k] = _GasInfo(name=k, sticking=s, pressure=p)
+        for k, p in self.gas_pressure.items():
+            s = self.gas_sticking.get(k, self.default_sticking)
+            result[k] = _GasInfo(name=k, sticking=s, pressure=p)
+        return list(result.values())
 
 
 class _MetaDataTable(BaseModel):
@@ -111,7 +108,7 @@ class _MetaDataTable(BaseModel):
         *,
         cluster_key: str | None = None,
         system_key: str | None = None,
-        exclude_gas: bool = False,
+        gas_key: str | None = None,
         **kwargs,
     ) -> int:
         if cluster_key is not None:
@@ -121,7 +118,7 @@ class _MetaDataTable(BaseModel):
                     for i, ck in enumerate(self.for_cluster)
                     if (
                         ck == cluster_key
-                        and ((not exclude_gas) or self.key_g[i] is None)
+                        and ((gas_key is None) or self.key_g[i] is gas_key)
                     )
                 ]
                 + [0]
@@ -133,7 +130,7 @@ class _MetaDataTable(BaseModel):
                     for i, sk in enumerate(self.for_system)
                     if (
                         sk == system_key
-                        and ((not exclude_gas) or self.key_g[i] is None)
+                        and ((gas_key is None) or self.key_g[i] is gas_key)
                     )
                 ]
                 + [0]

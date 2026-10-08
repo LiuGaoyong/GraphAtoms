@@ -232,32 +232,55 @@ class RTGP(OurFrozenModel):
         v = self.R.positions[:, np.newaxis, :] - pos
         d = np.linalg.norm(v, axis=-1).min(-1)
         sub = np.argwhere(d < env_radius).flatten()
+        sub = np.unique(sub.astype(int))
 
-        rtgp: list[SysGraph | None] = []
-        for i in [self.R, self.T, self.G, self.P]:
-            if i is None or isinstance(i, Gas):
-                rtgp.append(i)
-            elif isinstance(i, SysGraph):
-                if len(i) == nmax:
-                    sub = np.append(sub, gas_moved)
-                else:
-                    sub = np.setdiff1d(sub, gas_moved)
-                rtgp.append(
-                    Cluster.select(
-                        i,
-                        sub_idxs=sub,
-                        exclude_energetics=False,
-                    )  # type: ignore
-                )
-            else:
-                raise TypeError(f"Unknown type: {type(i)}")
+        # while True:
+        for _ in range(10):
+            rtgp, sub2 = self.__sub_rgtp(
+                nmax=nmax,
+                sub=sub,
+                gas_moved=gas_moved,
+            )
+            if len(sub2) == 0:
+                break
+            sub = np.setdiff1d(sub, sub[sub2])
 
-        r, t, g, p = rtgp
+        r, t, g, p = rtgp  # type: ignore
         assert isinstance(r, SysGraph)
         assert isinstance(p, SysGraph)
         assert g is None or isinstance(g, Gas)
         assert t is None or isinstance(t, SysGraph)
         return self.__class__(R=r, T=t, G=g, P=p)
+
+    def __sub_rgtp(
+        self,
+        nmax: int,
+        sub: np.ndarray,
+        gas_moved: list[int],
+    ) -> tuple[list[SysGraph | None], np.ndarray]:
+        sub2 = np.array([], dtype=sub.dtype)
+        result: list[SysGraph | None] = []
+        for i in [self.R, self.T, self.G, self.P]:
+            if i is None or isinstance(i, Gas):
+                result.append(i)
+            elif isinstance(i, SysGraph):
+                if len(i) == nmax:
+                    sub = np.append(sub, gas_moved)
+                else:
+                    sub = np.setdiff1d(sub, gas_moved)
+                item = Cluster.select(
+                    i,
+                    sub_idxs=sub,
+                    exclude_energetics=False,
+                )  # type: ignore
+                if not item.is_connected:
+                    biggest = item.connected_components_biggest
+                    arr = np.setdiff1d(np.arange(len(item)), biggest)
+                    sub2 = np.append(sub2, arr)
+                result.append(item)
+            else:
+                raise TypeError(f"Unknown type: {type(i)}")
+        return result, np.unique(sub2)
 
     @property
     def reversed(self) -> Self:
@@ -294,6 +317,52 @@ class EventBase(RTGP, MoveABC):
         )
         return self
 
+    def apply_once(
+        self,
+        atoms: Atoms,
+        matched_indxs: list[int] | np.ndarray,
+        info: dict[str, Any] = {},
+    ) -> tuple[Atoms, float]:
+        """Apply the event once to the system."""
+        matched_indxs = np.asarray(matched_indxs, dtype=int)
+        matched_indxs = matched_indxs.flatten()
+        assert len(matched_indxs) == len(atoms)
+        assert isinstance(atoms, Atoms)
+        atoms.info = {}
+
+        _i = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())(
+            np.arange(len(self.R))
+        )
+        rot, t, rmsd = kabsch(
+            A=self.R.positions,
+            B=atoms.positions[_i, :],
+        )  # A = rotate(B) + t
+        rot_inv, t_inv = rot.inv(), -t
+
+        # Old Usage: original atoms will be rotated.
+        # # 1. geom --> geom reactant
+        # geom = rot.apply(atoms.positions) + t
+        # # 2. geom reactant --> geom product
+        # geom[_i, :] += self.P.positions - self.R.positions
+        # # 3. geom product --> result
+        # geom = rot_inv.apply(geom) + t_inv
+
+        # New Usage: original atoms will not be rotated.
+        n = min(len(self.R), len(self.P), len(_i))
+        pos_r = rot_inv.apply(self.R.positions) + t_inv
+        pos_p = rot_inv.apply(self.P.positions) + t_inv
+        pos_diff = pos_p[:n] - pos_r[:n]
+        geom = atoms.positions.copy()
+        geom[_i[:n], :] += pos_diff
+
+        return Atoms(
+            numbers=atoms.numbers,
+            positions=geom,
+            cell=atoms.cell,
+            pbc=atoms.pbc,
+            info=info,
+        ), rmsd
+
     @override
     def apply(
         self,
@@ -308,6 +377,8 @@ class EventBase(RTGP, MoveABC):
                 + "when `matched_indxs` is None."
             )
             matched_indxs = atoms.get_match_mode(self.R)  # type: ignore
+        assert isinstance(matched_indxs, np.ndarray) and matched_indxs.ndim == 2
+
         if not isinstance(atoms, Atoms):
             atoms = atoms.to_ase(
                 exclude_energetics=True,
@@ -319,55 +390,24 @@ class EventBase(RTGP, MoveABC):
         matched_indxs = np.asarray(matched_indxs, dtype=int)
 
         if matched_indxs.ndim == 1:
-            matched_indxs = matched_indxs.flatten()
-            assert len(matched_indxs) == len(atoms)
-            assert isinstance(atoms, Atoms)
-            atoms.info = {}
-
-            _i = np.vectorize(lambda x: np.argwhere(matched_indxs == x).item())(
-                np.arange(len(self.R))
-            )
-            rot, t, rmsd = kabsch(
-                A=self.R.positions,
-                B=atoms.positions[_i, :],
-            )  # A = rotate(B) + t
-            rot_inv, t_inv = rot.inv(), -t
-
-            # Old Usage: original atoms will be rotated.
-            # # 1. geom --> geom reactant
-            # geom = rot.apply(atoms.positions) + t
-            # # 2. geom reactant --> geom product
-            # geom[_i, :] += self.P.positions - self.R.positions
-            # # 3. geom product --> result
-            # geom = rot_inv.apply(geom) + t_inv
-
-            # New Usage: original atoms will not be rotated.
-            pos_r = rot_inv.apply(self.R.positions) + t_inv
-            pos_p = rot_inv.apply(self.P.positions) + t_inv
-            pos_diff = pos_p - pos_r
-            geom = atoms.positions.copy()
-            geom[_i, :] += pos_diff
-
-            return Atoms(
-                numbers=atoms.numbers,
-                positions=geom,
-                cell=atoms.cell,
-                pbc=atoms.pbc,
+            return self.apply_once(
+                matched_indxs=matched_indxs,
+                atoms=atoms,
                 info=info,
-            ), rmsd
+            )
 
         elif matched_indxs.ndim == 2:
             res_lst, rmsd_lst = [], []
             for i in range(len(matched_indxs)):
-                res, rmsd = self.apply(
-                    atoms=atoms,
+                res, rmsd = self.apply_once(
                     matched_indxs=matched_indxs[i, :],
+                    atoms=atoms,
+                    info=info,
                 )
                 res_lst.append(res)
                 rmsd_lst.append(rmsd)
             i = np.argmin(rmsd_lst)
             return res_lst[i], rmsd_lst[i]
-
         else:
             raise ValueError(
                 "The `matched_indxs` should be either a 1D or 2D array."
@@ -375,7 +415,7 @@ class EventBase(RTGP, MoveABC):
 
     @abstractmethod
     def get_Ea(self, temperature: float = 300.0, *a, **kw) -> float:
-        """Get the activation energy of the event."""
+        """Get the activation energy (in eV) of the event."""
         assert self.T is not None, "The transition state must be not None."
         e_T = self.T.get_free_energy(fqmin=30.0, temp=temperature)
         e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
@@ -383,14 +423,14 @@ class EventBase(RTGP, MoveABC):
 
     @abstractmethod
     def get_dE(self, temperature: float = 300.0, *a, **kw) -> float:
-        """Get the change in energy of the event."""
+        """Get the change in energy (in eV) of the event."""
         e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
         e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
         return e_P - e_R
 
     @abstractmethod
     def get_rate(self, temperature: float = 300.0, *a, **kw) -> float:
-        """Get the rate of the reaction by TST.
+        """Get the rate (in 1/s) of the reaction by TST.
 
         Eq:
                     kB*T       -Ea
@@ -494,18 +534,18 @@ class EventInfo(BaseModel):
         reversed_event = event.reversed
         return cls(
             key_rxn=event.hash,
-            key_r=event.R.get_key_for_metadata(),
+            key_r=event.R.get_key_for_metadata(use_positions_uuid=True),
             key_g=(
-                event.G.get_key_for_metadata()  #
+                event.G.get_key_for_metadata(use_positions_uuid=False)
                 if event.G is not None
                 else None
             ),
             key_t=(
-                event.T.get_key_for_metadata()  #
+                event.T.get_key_for_metadata(use_positions_uuid=True)
                 if event.T is not None
                 else None
             ),
-            key_p=event.P.get_key_for_metadata(),
+            key_p=event.P.get_key_for_metadata(use_positions_uuid=True),
             Ea_forword=event.get_Ea(temperature),
             rate_forword=event.get_rate(temperature),
             rate_reversed=reversed_event.get_rate(temperature),
@@ -518,10 +558,13 @@ class EventInfo(BaseModel):
 if __name__ == "__main__":
     from scipy import constants
 
-    print(constants.Boltzmann)
-    print(constants.Planck)
-    print(constants.eV)
+    print("Boltzmann Constant:", constants.Boltzmann)
+    print("Planck Constant:", constants.Planck)
+    print("eV Unit:", constants.eV)
+    print("---")
 
     temperature = 300.0  # K
+    print("kBT: (in eV)", kB * temperature)
+    print("Planck Constant: (in eV)", h)
     print(constants.Boltzmann * temperature / constants.Planck)
     print(kB * temperature / h)

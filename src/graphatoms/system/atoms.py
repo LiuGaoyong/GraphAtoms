@@ -431,7 +431,7 @@ class Structure(Matter, Box, Energetics):
 
     @cached_property
     def area(self) -> float:
-        """Get the area of this structure."""
+        """Get the area (in Å^2) of this structure."""
         rdmol: rdutils.RDMol = rdutils.get_rdmol(
             # numbers=np.where(self.is_adsorbate, self.numbers, 0),
             numbers=self.numbers,
@@ -535,7 +535,9 @@ class Structure(Matter, Box, Energetics):
         **kwargs,
     ) -> Self:
         update: dict[str, Any] = {"energy": float(energy), "fmax": float(fmax)}
-        update["frequencies"] = np.asarray(frequencies, dtype=float).flatten()
+        if frequencies is not None:
+            frequencies = np.asarray(frequencies, dtype=float)
+            update["frequencies"] = frequencies.flatten()
         return self.model_copy(update=update, deep=deep)
 
 

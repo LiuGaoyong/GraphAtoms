@@ -8,7 +8,7 @@ from ase.calculators.calculator import Calculator
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.reaction import Adsorption, Desorption, Reaction
-from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
+from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils import asetools
 from graphatoms.utils.adsorption import Helper
 from graphatoms.utils.parser import hydra_parse
@@ -148,11 +148,19 @@ def helper_optimization(
     # ---------------------------------------------
     #       check graph hash changed or not
     # ---------------------------------------------
-    result = graph.update_geometry(
-        new_positions=lst[-1].get_positions(),
-        parse_bonds=config.bonds,  # type: ignore
-        deep=deep_copy,
-    )
+    try:
+        result = graph.update_geometry(
+            new_positions=lst[-1].get_positions(),
+            parse_bonds=config.bonds,  # type: ignore
+            deep=deep_copy,
+        )
+    except Exception as e:
+        lst[0].write(f"debug-{graph_label}.xyz", format="extxyz", append=False)
+        for i in range(1, len(lst)):
+            lst[i].write(
+                f"debug-{graph_label}.xyz", format="extxyz", append=True
+            )
+        raise e
     if (not allow_not_connected) and (not result.is_connected):
         e = HelperException(
             msg="graph is not connected after optimization",
@@ -172,7 +180,14 @@ def helper_optimization(
         else:
             return str(e), graph_label, perf_counter() - start
     if not run_vibration:
-        return result, graph_label, perf_counter() - start
+        f: np.ndarray = lst[-1].get_forces(apply_constraint=True)
+        result = result.update_energetics(
+            energy=lst[-1].get_potential_energy(),
+            fmax=np.linalg.norm(f, axis=1).max(),
+            frequencies=None,
+            deep=deep_copy,
+        )
+        return (result, graph_label, perf_counter() - start)
 
     # ---------------------------------------------
     #       call vibration & return result
@@ -453,7 +468,7 @@ def helper_adsorption(
     """
     if graph_label is None:
         graph_label = graph.get_key_for_metadata()
-        graph_label += f"_{gas.get_key_for_metadata(False)}"
+        graph_label += f"_{gas.get_key_for_metadata()}"
 
     # -----------------------------------------
     #       call adsorption initial positions
@@ -522,7 +537,7 @@ def helper_match(
     info = ReactionNetwork.metadata.read(rxn_key)
     if rxn_is_forward:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_r]),
+            pattern=SysGraph.from_ase(ReactionNetwork.db_minima[info.key_r]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -530,7 +545,7 @@ def helper_match(
         )
     else:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_p]),
+            pattern=SysGraph.from_ase(ReactionNetwork.db_minima[info.key_p]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -541,14 +556,21 @@ def helper_match(
 
 
 def helper_apply(
-    ReactionNetwork: ReactionNetwork,
     rxn_key: str,
     system: System,
     match_mode: np.ndarray,
+    network: ReactionNetwork,
+    raise_when_fail: bool = True,
     forward: bool = True,
-) -> tuple[str, bool, Atoms, float]:
-    _, rxn = ReactionNetwork.read_event(rxn_key)
+) -> tuple[str, bool, Atoms | str, float]:
+    _, rxn = network.read_event(rxn_key)
     if not forward:
         rxn = rxn.reversed
-    atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
-    return rxn_key, forward, atoms, rmsd
+    try:
+        atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
+        return rxn_key, forward, atoms, rmsd
+    except Exception as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return rxn_key, forward, str(e), np.inf

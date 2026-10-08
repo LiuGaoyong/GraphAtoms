@@ -36,13 +36,13 @@ class ExplorationBase(RunnerABC):
     def _first_step(
         self,
         system: System | Atoms | None,
-    ) -> tuple[dict[tuple[bool, int, str], Cluster], str]:
+    ) -> tuple[dict[tuple[bool, int, str], Cluster], str, float]:
         """Return the dictionary of clusters & system key.
 
-        Keys:
-            (is_surface, ncore, hash)
-        Values:
-            Cluster: the cluster of the core
+        Returns:
+            dct (dict[tuple[bool, int, str], Cluster]):
+            system_key (str): the system key.
+            energy_opt (float): the optimized energy.
         """
         if not isinstance(system, System):
             system = self.get_system_for(system)
@@ -50,6 +50,40 @@ class ExplorationBase(RunnerABC):
             msg = f"Unknown type of input: {type(system)}"
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
+        use_pos_uuid = self.network.db_system.use_positions_uuid
+        sys_k = system.get_key_for_metadata(use_pos_uuid)
+        if sys_k in self.network.db_system:
+            atoms = self.network.db_system[sys_k]
+            system = System.from_ase(atoms)
+            msg = f"Load system({sys_k}) from database."
+            self.logger.info(self._reformat_message(msg))
+        else:
+            if bool(self.config.exploration.optimization_for_system):
+                system_or_msg, _, _ = helper_optimization(
+                    graph=system,
+                    config=self.config,
+                    allow_hash_change=True,
+                    allow_not_connected=False,
+                    raise_when_fail=False,
+                    run_vibration=False,
+                    graph_label=None,
+                    deep_copy=True,
+                )
+                if isinstance(system_or_msg, str):
+                    self.logger.warning(self._reformat_message(system_or_msg))
+                    msg = f"Optimization system({sys_k}) failed. skip it."
+                    self.logger.info(self._reformat_message(msg))
+                    return {}, "", np.nan
+                elif not isinstance(system_or_msg, System):
+                    msg = f"Unknown type of output: {type(system_or_msg)}"
+                    self.logger.error(self._reformat_message(msg))
+                    raise ValueError(msg)
+                else:
+                    system = system_or_msg
+                    msg = f"Optimization system({sys_k}) "
+                    msg += f"successfully. E={system.energy}"
+                    self.logger.info(self._reformat_message(msg))
+                    self.network.db_system.add(system)
 
         oesc = bool(self.config.exploration.surface_only_explore_single_core)
         if oesc and len(self.gas_lst) == 0:
@@ -108,19 +142,18 @@ class ExplorationBase(RunnerABC):
             self.__batch_optimization_parallel(
                 container={keys[int(id)]: values[int(id)] for id in idxs},
                 raise_on_failed=False,
-                is_minima=True,
             )
         )
 
         # persist the network for restart. [minima list]
         self.network.persistence()
-        return result, system.get_key_for_metadata()
+        energy = np.nan if system.energy is None else system.energy
+        return result, system.get_key_for_metadata(), energy
 
     def __batch_optimization_parallel(
         self,
         container: list[SysGraph] | dict[Any, SysGraph],
         raise_on_failed: bool = True,
-        is_minima: bool = True,
     ) -> list[SysGraph] | dict[Any, SysGraph]:
         """Optimize the container in parallel mode."""
         if isinstance(container, list):
@@ -129,7 +162,6 @@ class ExplorationBase(RunnerABC):
                     i: cluster  # type: ignore
                     for i, cluster in enumerate(container)
                 },
-                is_minima=is_minima,
                 raise_on_failed=raise_on_failed,
             )
             if not isinstance(dct, dict):
@@ -139,7 +171,7 @@ class ExplorationBase(RunnerABC):
             return [dct[i] for i in sorted(dct.keys())]
 
         elif isinstance(container, dict):
-            start, msg = perf_counter(), "cluster" if is_minima else "gas"
+            start, msg = perf_counter(), "sysgraph"
             msg = f"Start to optimize the {len(container)} {msg}."
             self.logger.info(self._reformat_message(msg))
             result: dict[Any, SysGraph] = {}
@@ -150,17 +182,20 @@ class ExplorationBase(RunnerABC):
             # -------------------------------------------------
             for label, sysgraph in container.items():
                 key: str = sysgraph.get_key_for_metadata()
-                if is_minima and sysgraph in self.network.db_minima:
-                    atoms: Atoms = self.network.db_minima[key]
-                    result[label] = v = Cluster.from_ase(atoms)
-                    msg = f"Read '{key}' from the DB for {v}."
-                    self.logger.info(self._reformat_message(msg))
-                elif not is_minima and sysgraph in self.network.db_gas:
-                    atoms: Atoms = self.network.db_gas[key]
-                    result[label] = v = Gas.from_ase(atoms)
-                    msg = f"Read '{key}' from the DB for {v}."
-                    self.logger.info(self._reformat_message(msg))
-                else:
+                has_been_explored = False
+                for cls, db in [
+                    (Gas, self.network.db_gas),
+                    (Cluster, self.network.db_cluster),
+                    (System, self.network.db_system),
+                ]:
+                    if isinstance(sysgraph, cls) and sysgraph in db:
+                        atoms: Atoms = db[key]
+                        result[label] = v = cls.from_ase(atoms)
+                        msg = f"Read '{key}' from the DB for {v}."
+                        self.logger.info(self._reformat_message(msg))
+                        has_been_explored = True
+                        continue
+                if not has_been_explored:
                     futures.append(
                         self.executor.submit(
                             helper_optimization,
@@ -175,18 +210,21 @@ class ExplorationBase(RunnerABC):
             msg = f"Submit the optimization {len(futures)} jobs"
             msg += f" by {perf_counter() - start:.2f} seconds."
             self.logger.info(self._reformat_message(msg))
+
             # -------------------------------------------------
             # Wait for the sysgraph optimization to finish
             # -------------------------------------------------
             while len(futures) > 0:
                 future_result, futures = self.executor.wait(futures)  # type: ignore
                 sysgraph_or_msg, label, cost_time = future_result
-                if isinstance(sysgraph_or_msg, Gas | Cluster):
+                if isinstance(sysgraph_or_msg, Gas | Cluster | System):
                     msg: str = f"Optimization (success): {sysgraph_or_msg}."
-                    if isinstance(sysgraph_or_msg, Cluster):
-                        self.network.db_minima.add(sysgraph_or_msg)
-                    else:
+                    if isinstance(sysgraph_or_msg, Gas):
                         self.network.db_gas.add(sysgraph_or_msg)
+                    elif isinstance(sysgraph_or_msg, Cluster):
+                        self.network.db_cluster.add(sysgraph_or_msg)
+                    else:
+                        self.network.db_system.add(sysgraph_or_msg)
                     result[label] = sysgraph_or_msg
                 elif isinstance(sysgraph_or_msg, str):
                     msg = str(sysgraph_or_msg)
@@ -211,9 +249,16 @@ class ExplorationBase(RunnerABC):
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
 
-    def explore(self, system: System | Atoms | None = None) -> None:
+    def explore(
+        self,
+        system: System | Atoms | None = None,
+    ) -> tuple[bool, float]:
+        """Explore the system, and return whether it is explored successfully and the final energy."""  # noqa: E501
+
         # 1 step: analyze the system
-        dct, system_key = self._first_step(system)
+        dct, system_key, energy = self._first_step(system)
+        if system_key == "":
+            return False, energy
 
         # 2 step: exploration
         ncore_4_adspt = int(self.config.exploration.max_ncore_for_surface)
@@ -255,6 +300,7 @@ class ExplorationBase(RunnerABC):
                 )
         self.network.recorder.system.add(system_key)
         self.network.persistence()
+        return True, energy
 
     def _second_step_surface(
         self,
@@ -264,7 +310,7 @@ class ExplorationBase(RunnerABC):
         # -----------------------------------------------------------
         # check if the cluster has been explored
         # -----------------------------------------------------------
-        cluster_key = cluster.get_key_for_metadata()
+        cluster_key = cluster.get_key_for_metadata(False)
         confidence = self.config.exploration.maxconfidence
         oldnew = self.network.recorder.cluster[cluster_key]
         if oldnew.exploration_can_be_finished(
@@ -357,7 +403,8 @@ class ExplorationBase(RunnerABC):
             event, _, cost_time, _ = future_result
             label = self.network.found(
                 event,
-                for_cluster=None,
+                for_gas=None,
+                for_cluster=cluster_key,
                 for_system=system_key,
                 persist=True,
             )
@@ -365,7 +412,6 @@ class ExplorationBase(RunnerABC):
                 msg = f"Dimer search {label} by {cost_time:.2f}"
                 msg += f" seconds because of {event}"
                 self.logger.info(self._reformat_message(msg))
-                oldnew.found_fail()
             else:
                 msg = "Dimer search successfully, and got "
                 msg += f"{label} by {cost_time:.2f} seconds."
@@ -373,10 +419,6 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-                if "new" in label:
-                    oldnew.found_new()
-                else:
-                    oldnew.found_old()
             if oldnew.exploration_can_be_finished(
                 confidence=confidence,
                 min_found=self.network.metadata.table.get_minconut_for(
@@ -400,14 +442,21 @@ class ExplorationBase(RunnerABC):
         system_key: str = "",
     ) -> None:
         """The second step for the on-the-fly KMC simulation."""
-        cluster_key = cluster.get_key_for_metadata(True)
+        cluster_key = cluster.get_key_for_metadata(False)
         gas_key = gas.get_key_for_metadata(False)
 
         # ---------------------------------------------
         # check if the adsorption has been explored
         # ---------------------------------------------
         graph_label = f"{cluster_key}_{gas_key}"
-        if graph_label in self.network.recorder.adsorption:
+        oldnew = self.network.recorder.adsorption[graph_label]
+        if oldnew.exploration_can_be_finished(
+            confidence=self.config.exploration.maxconfidence,
+            min_found=self.network.metadata.table.get_minconut_for(
+                cluster_key=cluster_key,
+                exclude_gas=False,
+            ),
+        ):
             msg = f"The adsorption for {cluster_key} with "
             msg += f"{gas_key} has been explored."
             self.logger.info(self._reformat_message(msg))
@@ -465,14 +514,14 @@ class ExplorationBase(RunnerABC):
         # -----------------------------------------------------------
         # wait for the adsorption tasks to finish
         # -----------------------------------------------------------
-        old_new = self.network.recorder.adsorption[graph_label]
         confidence = self.config.exploration.maxconfidence
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
             event, _, cost_time, _ = future_result
             event_label = self.network.found(
                 event,
-                for_cluster=None,
+                for_gas=gas_key,
+                for_cluster=cluster_key,
                 for_system=system_key,
                 persist=True,
             )
@@ -480,7 +529,6 @@ class ExplorationBase(RunnerABC):
                 msg = f"Adsorption search {event_label} by {cost_time:.2f}"
                 msg += f" seconds because of {event}"
                 self.logger.info(self._reformat_message(msg))
-                old_new.found_fail()
             else:
                 msg = "Adsorption search successfully, and got "
                 msg += f"{event_label} by {cost_time:.2f} seconds."
@@ -488,11 +536,7 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-                if "new" in event_label:
-                    old_new.found_new()
-                else:
-                    old_new.found_old()
-            if old_new.exploration_can_be_finished(
+            if oldnew.exploration_can_be_finished(
                 confidence=confidence,
                 min_found=self.network.metadata.table.get_minconut_for(
                     cluster_key=cluster_key,

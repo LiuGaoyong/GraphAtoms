@@ -16,7 +16,15 @@ class AseH5DB(DatabaseABC):
     """The database class based on HDF5 file."""
 
     @override
-    def __init__(self, path: Path, append: bool = True) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        append: bool = True,
+        use_positions_uuid: bool = False,
+    ) -> None:
+        """Initialize the database."""
+        super().__init__(append=append, use_positions_uuid=use_positions_uuid)
         assert path.name.endswith(".h5"), "The filename must end with .h5"
         if append:
             assert path.exists(), "The database file does not exist."

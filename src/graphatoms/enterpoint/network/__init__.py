@@ -16,7 +16,7 @@ from graphatoms.system.database import DatabaseABC, get_db
 
 from ._metadata import MetaData
 from ._metadata import _MetaDataBasic as MetaDataBasic
-from ._recorder import Recorder
+from ._recorder import Recorder, RecorderInfo
 from ._scheduler import Scheduler
 
 __all__ = [
@@ -38,6 +38,7 @@ class ReactionNetwork:
         **kwargs,
     ) -> None:
         self.__path = path = Path(path)
+        self.__path_exploration_recorder = path / "exploration.csv"
         if config is not None:
             metadata_basic = MetaDataBasic(
                 **(
@@ -62,6 +63,10 @@ class ReactionNetwork:
                 f"The path `{self.__path}` does not exist."
                 + " Please create it or use `restart=False`."
             )
+            assert self.__path_exploration_recorder.exists(), (
+                f"The path `{self.__path_exploration_recorder}` does not exist."
+                + " Please create it or use `restart=False`."
+            )
             self.scheduler = Scheduler.read_npz(path / "scheduler.npz")
             self.recorder = Recorder.read_json(path / "recorder.json")
             self.metadata = MetaData.from_storage(path)
@@ -79,12 +84,17 @@ class ReactionNetwork:
                 f"The path `{self.__path}` does exist."
                 + " Please delete it or use `restart=True`."
             )
+            self.__path.mkdir(parents=True, exist_ok=True)
+            self.__path_exploration_recorder.write_text(
+                RecorderInfo.get_csv_title() + "\n"
+            )
             self.recorder: Recorder = Recorder()
             self.scheduler: Scheduler = Scheduler()
             if metadata_basic is not None:
                 self.metadata: MetaData = MetaData(basic=metadata_basic)
             else:
                 self.metadata: MetaData = MetaData()
+        self.__format = format
 
         # initialize the databases
         (
@@ -99,8 +109,15 @@ class ReactionNetwork:
                 format=format,
                 prefix=prefix,
                 append=restart,
+                use_positions_uuid=use_positions_uuid,
             )
-            for prefix in ["ts", "gas", "minima", "cluster", "system"]
+            for prefix, use_positions_uuid in [
+                ("ts", True),
+                ("gas", False),
+                ("minima", True),
+                ("cluster", False),
+                ("system", False),
+            ]
         ]
         assert isinstance(self.db_ts, DatabaseABC)
         assert isinstance(self.db_gas, DatabaseABC)
@@ -110,7 +127,14 @@ class ReactionNetwork:
 
     def summary(self) -> str:
         """Return the summary of the network."""
-        return "fasdasdgase"
+        msg = f"ReactionNetwork: {self.__path} (format={self.__format})\n"
+        msg += f"    #System    :{len(self.db_system)}\n"
+        msg += f"    #Cluster   :{len(self.db_cluster)}\n"
+        msg += f"    #Minima    :{len(self.db_minima)}\n"
+        msg += f"    #Gas       :{len(self.db_gas)}\n"
+        msg += f"    #TS        :{len(self.db_ts)}\n"
+        msg += f"#Event     :{len(self.metadata.table)}\n"
+        return msg
 
     def persistence(self) -> None:
         """Persist the data to the database."""
@@ -143,20 +167,36 @@ class ReactionNetwork:
     def found(
         self,
         event: EventBase | str,
+        for_gas: str | None,
+        for_cluster: str,
         *,
-        for_cluster: str | None = None,
         for_system: str | None = None,
         persist: bool = True,
         **kwargs,
     ) -> Literal["new", "old", "fail"] | str:
+        if for_system is None:
+            for_system = ""
+        if for_gas is None:
+            for_gas = ""
+            old_new = self.recorder.cluster[for_cluster]
+            min_found = self.metadata.table.get_minconut_for(
+                cluster_key=for_cluster,
+                system_key=for_system,
+                gas_key=None,
+            )
+        else:
+            old_new = self.recorder.adsorption[f"{for_cluster}_{for_gas}"]
+            min_found = self.metadata.table.get_minconut_for(
+                cluster_key=for_cluster,
+                system_key=for_system,
+                gas_key=for_gas,
+            )
+
         if isinstance(event, str):
-            return "fail"
+            old_new.found_fail()
+            result = "fail"
         elif isinstance(event, EventBase):
             simplified_threshold = self.metadata.basic.simplified_threshold
-            if for_system is None:
-                for_system = ""
-            if for_cluster is None:
-                for_cluster = event.R.get_key_for_metadata()
             if simplified_threshold > 0:
                 try:
                     event = event.simplify(simplified_threshold)
@@ -167,16 +207,31 @@ class ReactionNetwork:
                     fname.write_bytes(pickle.dumps(event))
                     fname.with_suffix(".err").write_text(msg)
                     raise ValueError(msg)
-            is_new = self.write_event(
+            if self.write_event(
                 event,
                 for_cluster,
                 for_system,
                 persist=persist,
                 **kwargs,
-            )
-            return f"{'new' if is_new else 'old'} {event}"
+            ):
+                old_new.found_new()
+                result = f"new {event}"
+            else:
+                old_new.found_old()
+                result = f"old {event}"
         else:
             raise ValueError(f"Unknown event type: {type(event)}")
+
+        info = RecorderInfo.from_oldnew(
+            oldnew=old_new,
+            min_found=min_found,
+            for_cluster=for_cluster,
+            for_system=for_system,
+            for_gas=for_gas,
+        )
+        with self.__path_exploration_recorder.open("a") as f:
+            f.write(info.to_csv_line() + "\n")
+        return result
 
     def write_event(
         self,
@@ -238,8 +293,8 @@ class ReactionNetwork:
         elif type.lower() == "gas":
             return self.db_gas.add(sysgraph, check_positions=False)
         elif type.lower() == "system":
-            return self.db_system.add(sysgraph, check_positions=True)
+            return self.db_system.add(sysgraph, check_positions=False)
         elif type.lower() == "cluster":
-            return self.db_cluster.add(sysgraph, check_positions=True)
+            return self.db_cluster.add(sysgraph, check_positions=False)
         else:
             raise ValueError(f"Unknown type: {type}")

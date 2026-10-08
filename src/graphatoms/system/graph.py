@@ -194,7 +194,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             )
             return Chem.MolToSmarts(largest_frag)  # type: ignore
 
-    def get_key_for_metadata(self, use_positions_uuid: bool = True) -> str:
+    def get_key_for_metadata(self, use_positions_uuid: bool = False) -> str:
         """Get the key of the value for metadata.
 
         Note: Donot use_positions_uuid if you want reuse the data.
@@ -203,9 +203,11 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         fml: str = symbols.get_chemical_formula("metal")
         if use_positions_uuid:
             geometry: np.ndarray = self.positions
-            x = np.char.rjust(np.char.mod("%.1f", geometry[:, 0]), 20)
-            y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
-            z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
+            # Round to 2 decimal places, so the max difference
+            # between two atoms is 0.01*sqrt(3) i.e. 0.0173 Angstrom
+            x = np.char.rjust(np.char.mod("%.2f", geometry[:, 0]), 20)
+            y = np.char.rjust(np.char.mod("%.2f", geometry[:, 1]), 20)
+            z = np.char.rjust(np.char.mod("%.2f", geometry[:, 2]), 20)
             pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
             return f"{fml}-{self.hash}-{hash_string(pos_str)}"
         else:

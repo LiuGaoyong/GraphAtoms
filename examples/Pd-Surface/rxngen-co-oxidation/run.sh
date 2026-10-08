@@ -30,8 +30,11 @@ if [[ "$SCRIPT_DIR" == "$CURRENT_DIR" ]]; then
   graphatoms-config parallel=ray          \
     restart=false outputs=./outputs       \
     atoms.filename=../structure.xyz       \
+    +event.gas_sticking="{CO:1.0}"        \
+    +event.gas_sticking="{O2:1.0}"        \
     exploration.maxtry="3"                \
     exploration.maxconfidence="3"         \
+    ~calculator run_type=rxngen           \
     +calculator="{_target_:ase.calculators.emt.EMT}"  |\
 	sed 's/NequIP-OAM-S-0.1/PdAgCHO-S/g' | tee config.yaml
   rm -rf $SCRIPT_DIR/outputs
