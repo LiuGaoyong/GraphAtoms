@@ -8,7 +8,10 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
-from graphatoms.enterpoint.runner import ReactionNetworkGenerator
+from graphatoms.enterpoint.runner import (  # noqa: F401
+    OnTheFlyKMC,
+    ReactionNetworkGenerator,
+)
 from graphatoms.enterpoint.runner.common._base import RunnerABC
 
 this_dir = Path(__file__).parent
@@ -26,8 +29,8 @@ this_dir = Path(__file__).parent
 @pytest.mark.parametrize(
     "Mock",
     [
-        # OnTheFlyKMC,
-        ReactionNetworkGenerator,
+        OnTheFlyKMC,
+        # ReactionNetworkGenerator,
     ],
 )
 def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
@@ -61,7 +64,7 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             cfg.run_type = "rxngen"
             cfg.max_steps = 2
             cfg.max_times = float("inf")
-            cfg.event.gas_pressure = {"O2": 1.0, "CO": 1.0}
+            cfg.event.gas_sticking = {"O2": 1.0, "CO": 1.0}
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
             if Path(cfg.outputs).exists():

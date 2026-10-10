@@ -46,9 +46,6 @@ class EventConfig:
     min_frequency_for_ts: float = 20.0  # cm^-1
     simplified_threshold: float = 7.0  # the simplified threshold for event
     gas_sticking: dict[str, float] = field(default_factory=dict)
-    gas_pressure: dict[str, float] = field(default_factory=dict)
-    default_pressure: float = 101325
-    default_sticking: float = 1.0
     temperature: float = 300
 
 

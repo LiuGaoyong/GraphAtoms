@@ -2,7 +2,7 @@
 **test.*
 **outputs*/
 **/config.yaml
-
+slides/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

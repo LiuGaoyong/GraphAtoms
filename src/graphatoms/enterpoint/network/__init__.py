@@ -1,7 +1,7 @@
 import dataclasses as dc
 import pickle
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from graphatoms.enterpoint.config import EventConfig
 from graphatoms.reaction import (
@@ -124,6 +124,23 @@ class ReactionNetwork:
         assert isinstance(self.db_minima, DatabaseABC)
         assert isinstance(self.db_cluster, DatabaseABC)
         assert isinstance(self.db_system, DatabaseABC)
+
+    @classmethod
+    def merge(
+        cls,
+        *networks: Self,
+        new_path: Path | str,
+        new_format: str | Literal["dir", "h5", "sqlite"] = "dir",
+        **kwargs,
+    ) -> Self:
+        """Merge the networks."""
+        raise NotImplementedError("Merge the networks.")
+        cls(
+            path=new_path,
+            restart=False,
+            config=networks[0].metadata.basic,
+            format=networks[0].__format,
+        )
 
     def summary(self) -> str:
         """Return the summary of the network."""

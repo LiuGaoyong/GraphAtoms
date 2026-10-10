@@ -7,7 +7,6 @@ import pandas as pd
 from pydantic import (
     BaseModel,
     NonNegativeFloat,
-    computed_field,
     model_validator,
 )
 
@@ -19,32 +18,13 @@ from graphatoms.system.bonds import matchmode2nmatch
 __all__ = ["MetaData"]
 
 
-class _GasInfo(BaseModel):
-    name: str
-    sticking: float
-    pressure: float
-
-
 class _MetaDataBasic(OurBaseModel, EventConfig):
     gas_sticking: dict[str, NonNegativeFloat] = {}
-    gas_pressure: dict[str, NonNegativeFloat] = {}
     temperature: float = 300
 
     @override
     def _string(self) -> str:
         return ", ".join([f"{k}={v}" for k, v in self.model_dump().items()])
-
-    @computed_field
-    @property
-    def gas_info_lst(self) -> list[_GasInfo]:
-        result: dict[str, _GasInfo] = {}
-        for k, s in self.gas_sticking.items():
-            p = self.gas_pressure.get(k, self.default_pressure)
-            result[k] = _GasInfo(name=k, sticking=s, pressure=p)
-        for k, p in self.gas_pressure.items():
-            s = self.gas_sticking.get(k, self.default_sticking)
-            result[k] = _GasInfo(name=k, sticking=s, pressure=p)
-        return list(result.values())
 
 
 class _MetaDataTable(BaseModel):

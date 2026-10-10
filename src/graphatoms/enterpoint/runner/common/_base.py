@@ -146,13 +146,12 @@ class RunnerABC:
             raise ValueError(msg)
 
         self.__gas_lst: list[Gas] = []
-        for gas_info in self.network.metadata.basic.gas_info_lst:
+        for k, s in self.network.metadata.basic.gas_sticking.items():
             gas, _, cost_time = helper_optimization(
                 config=self.config,
                 graph=Gas.from_name(
-                    gas_info.name,
-                    sticking=gas_info.sticking,
-                    pressure=gas_info.pressure,
+                    name_or_smiles=k,
+                    sticking=float(s) if s is not None else 1.0,
                     parse_bonds=self.config.bonds,  # type: ignore
                 ),
                 raise_when_fail=True,
@@ -162,16 +161,12 @@ class RunnerABC:
                 deep_copy=True,
             )
             if isinstance(gas, Gas):
-                self.logger.info(
-                    self._reformat_message(
-                        f"Optimized gas({gas_info.name}) "
-                        f"in {cost_time:.2f} seconds."
-                    )
-                )
+                msg = f"Optimized gas({k}) in {cost_time:.2f} seconds."
+                self.logger.info(self._reformat_message(msg))
                 self.__gas_lst.append(gas)
                 self.network.db_gas.add(gas)
             else:
-                msg = f"Failed to optimize gas({gas_info.name})."
+                msg = f"Failed to optimize gas({k})."
                 self.logger.error(self._reformat_message(msg))
                 raise ValueError(msg)
         # persist the network for restart. [gas list]
@@ -179,7 +174,7 @@ class RunnerABC:
 
     @property
     def gas_lst(self) -> list[Gas]:
-        if len(self.network.metadata.basic.gas_info_lst) != 0:
+        if len(self.network.metadata.basic.gas_sticking) != 0:
             return self.__gas_lst
         else:
             return []

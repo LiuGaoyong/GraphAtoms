@@ -6,7 +6,7 @@ import igraph
 import numpy as np
 from ase import Atoms
 from ase.units import _e, _hplanck, kB
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, PositiveFloat, model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
 from graphatoms.geometry.rotation import kabsch
@@ -200,7 +200,7 @@ class RTGP(OurFrozenModel):
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
         return hash_string(v)
 
-    def simplify(self, env_radius: float = 5.0) -> Self:
+    def simplify(self, env_radius: PositiveFloat = 5.0) -> Self:
         """Simplify the event by removing the atoms that are not involved."""
         graph_node_moved: set[int] = set()
         g0: igraph.Graph = self.R.get_igraph()
@@ -413,23 +413,38 @@ class EventBase(RTGP, MoveABC):
                 "The `matched_indxs` should be either a 1D or 2D array."
             )
 
-    @abstractmethod
-    def get_Ea(self, temperature: float = 300.0, *a, **kw) -> float:
+    def get_Ea(
+        self,
+        temperature: PositiveFloat = 300.0,
+        *args,
+        fqmin: PositiveFloat = 30.0,
+        **kwargs,
+    ) -> float:
         """Get the activation energy (in eV) of the event."""
         assert self.T is not None, "The transition state must be not None."
-        e_T = self.T.get_free_energy(fqmin=30.0, temp=temperature)
-        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
+        e_T = self.T.get_free_energy(fqmin=fqmin, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=fqmin, temp=temperature)
         return e_T - e_R
 
-    @abstractmethod
-    def get_dE(self, temperature: float = 300.0, *a, **kw) -> float:
+    def get_dE(
+        self,
+        temperature: PositiveFloat = 300.0,
+        *args,
+        fqmin: PositiveFloat = 30.0,
+        **kwargs,
+    ) -> float:
         """Get the change in energy (in eV) of the event."""
-        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
-        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
+        e_P = self.P.get_free_energy(fqmin=fqmin, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=fqmin, temp=temperature)
         return e_P - e_R
 
-    @abstractmethod
-    def get_rate(self, temperature: float = 300.0, *a, **kw) -> float:
+    def get_rate(
+        self,
+        temperature: PositiveFloat = 300.0,
+        *args,
+        fqmin: PositiveFloat = 30.0,
+        **kwargs,
+    ) -> float:
         """Get the rate (in 1/s) of the reaction by TST.
 
         Eq:
@@ -437,10 +452,13 @@ class EventBase(RTGP, MoveABC):
             rate = ------*exp(------)
                       h        kB*T
         """
-        Ea = self.get_Ea(temperature)
-        kBT = kB * temperature
-        exp = np.exp(-Ea / kBT)
-        return kBT / h * exp
+        Ea, kBT = self.get_Ea(temperature, fqmin=fqmin), kB * temperature
+        return self._get_kBT_h(temperature) * np.exp(-Ea / kBT)
+
+    @staticmethod
+    def _get_kBT_h(temperature: PositiveFloat = 300.0) -> float:
+        """Get the `kB*T/h`."""
+        return kB * temperature / h
 
     ########################################################################
     #           Properties for checking the type of the event.

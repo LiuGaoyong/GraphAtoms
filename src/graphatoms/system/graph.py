@@ -10,7 +10,7 @@ from ase.constraints import FixAtoms
 from ase.symbols import Symbols
 from igraph import Graph as IGraph
 from pandas import DataFrame
-from pydantic import NonNegativeFloat, model_validator
+from pydantic import Field, model_validator
 from rdkit import Chem
 from scipy import sparse as sp
 
@@ -24,26 +24,11 @@ from graphatoms.utils.bytestool import hash_string
 
 
 class GasMixin(OurFrozenModel):
-    sticking: NonNegativeFloat | None = None
-    pressure: NonNegativeFloat | None = None
-
-    @model_validator(mode="after")
-    def __check_gas(self) -> Self:
-        if not self.is_gas:
-            object.__setattr__(self, "sticking", None)
-            object.__setattr__(self, "pressure", None)
-        else:
-            if self.sticking is None:
-                object.__setattr__(self, "sticking", 1.0)
-            assert isinstance(self.sticking, float)
-            assert 0.0 <= self.sticking <= 10.0
-            assert isinstance(self.pressure, float)
-            assert 0.0 <= self.pressure
-        return self
+    sticking: float | None = Field(default=None, gt=0.0, le=1.0, strict=True)
 
     @property
     def is_gas(self) -> bool:
-        return self.pressure is not None
+        return self.sticking is not None
 
     @override
     def _string(self) -> str:

@@ -1,7 +1,7 @@
 import warnings
 from collections.abc import Mapping
 from functools import cached_property
-from typing import Any, Self, override
+from typing import Annotated, Any, Self, override
 
 import numpy as np
 import pydantic
@@ -12,6 +12,7 @@ from ase.thermochemistry import _GEOMETRY_OPTIONS as IDEAL_GAS_GEOMETRY_OPTIONS
 from ase.thermochemistry import BaseThermoChem, IdealGasThermo
 from ase.units import invcm
 from pydantic import (
+    Field,
     NonNegativeFloat,
     PositiveFloat,
     model_validator,
@@ -57,8 +58,7 @@ class Gas(System):
         cls,
         atoms: Atoms,
         *,
-        sticking: float = 1.0,
-        pressure: float = 101325.0,
+        sticking: Annotated[float, Field(ge=0, le=1, strict=True)] = 1.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
         parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
@@ -67,13 +67,7 @@ class Gas(System):
             atoms=atoms,
             parse_bonds=parse_bonds,
             parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
-            **(
-                kwargs
-                | dict(
-                    sticking=sticking,
-                    pressure=pressure,
-                )
-            ),
+            **(kwargs | dict(sticking=sticking)),
         )
 
     @classmethod
@@ -81,8 +75,7 @@ class Gas(System):
         cls,
         name: str,
         *,
-        sticking: float = 1.0,
-        pressure: float = 101325.0,
+        sticking: Annotated[float, Field(ge=0, le=1, strict=True)] = 1.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
         parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
@@ -90,7 +83,6 @@ class Gas(System):
         return cls.from_ase(
             atoms=molecule(name),
             sticking=sticking,
-            pressure=pressure,
             parse_bonds=parse_bonds,
             parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
             **kwargs,
@@ -101,14 +93,12 @@ class Gas(System):
         cls,
         name_or_smiles: str,
         *,
-        sticking: float = 1.0,
-        pressure: float = 101325.0,
+        sticking: Annotated[float, Field(ge=0, le=1, strict=True)] = 1.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
         parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
     ) -> Self:
         kwargs["sticking"] = sticking
-        kwargs["pressure"] = pressure
         kwargs["parse_bonds"] = parse_bonds
         kwargs["parse_atoms_is_outer_or_not"] = parse_atoms_is_outer_or_not
         try:
@@ -121,8 +111,7 @@ class Gas(System):
         cls,
         smiles: str,
         *,
-        sticking: float = 1.0,
-        pressure: float = 101325.0,
+        sticking: Annotated[float, Field(ge=0, le=1, strict=True)] = 1.0,
         parse_bonds: Mapping[str, Any] | None = {"method": "raw"},
         parse_atoms_is_outer_or_not: bool = False,
         **kwargs,
@@ -132,7 +121,6 @@ class Gas(System):
         return cls.from_ase(
             atoms=atoms,
             sticking=sticking,
-            pressure=pressure,
             parse_bonds=parse_bonds,
             parse_atoms_is_outer_or_not=parse_atoms_is_outer_or_not,
             **kwargs,
@@ -217,8 +205,8 @@ class Gas(System):
         self,
         *,
         fqmin: PositiveFloat = 10.0,
-        temp: NonNegativeFloat = 300,
-        pressure: NonNegativeFloat = 101325,
+        temp: NonNegativeFloat = 300.0,
+        pressure: NonNegativeFloat = 101325.0,
     ) -> float:
         """Calculates the entropy in in the ideal gas approximation.
 
@@ -246,8 +234,8 @@ class Gas(System):
         self,
         *,
         fqmin: PositiveFloat = 10.0,
-        temp: NonNegativeFloat = 300,
-        pressure: NonNegativeFloat = 101325,
+        temp: NonNegativeFloat = 300.0,
+        pressure: NonNegativeFloat = 101325.0,
     ) -> float:
         """Calculates the free energy in in the ideal gas approximation.
 

@@ -5,7 +5,7 @@ from ase import Atoms
 from ase.data import atomic_masses as MASS
 from ase.units import _amu as atomic_mass_unit
 from ase.units import _e as electron_charge
-from pydantic import model_validator
+from pydantic import PositiveFloat, model_validator
 
 from graphatoms.reaction._event import EventBase, kB
 
@@ -63,10 +63,11 @@ class Adsorption(EventBase):
     @override
     def get_dE(
         self,
-        temperature: float = 300.0,
+        temperature: PositiveFloat = 300.0,
         *args,
-        pressure: float | None = None,
-        **kwargs,
+        pressure: PositiveFloat = 101325.0,
+        fqmin: PositiveFloat = 30.0,
+        **kwargs: Any,
     ) -> float:
         """Get the change in energy (in eV) of the adsorption reaction.
 
@@ -80,13 +81,10 @@ class Adsorption(EventBase):
             float: the change in energy in eV.
         """
         assert self.G is not None, "The gas must be not None."
-        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
-        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
-        if pressure is None:
-            pressure = self.G.pressure
-        assert pressure is not None, "The pressure must be not None."
+        e_P = self.P.get_free_energy(fqmin=fqmin, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=fqmin, temp=temperature)
         e_G = self.G.get_free_energy(
-            fqmin=30.0,
+            fqmin=fqmin,
             temp=temperature,
             pressure=pressure,
         )
@@ -95,13 +93,12 @@ class Adsorption(EventBase):
     @override
     def get_rate(
         self,
-        temperature: float = 300.0,
+        temperature: PositiveFloat = 300.0,
         *args,
-        pressure: float | None = None,
-        sticking: float | None = None,
+        pressure: PositiveFloat = 101325.0,
         **kwargs,
     ) -> float:
-        """Get the rate (in 1/s) of the reaction by the collision theory.
+        """Get the rate (in 1/s) of the adsorption event by collision theory.
 
         Args:
             temperature (float, optional):
@@ -132,14 +129,10 @@ class Adsorption(EventBase):
         A = abs(self.G.area + self.R.area - self.P.area) / 2.0
         A *= 1e-20  # Convert Å^2 to m^2
 
-        if sticking is None:
-            sticking = self.G.sticking
+        sticking = self.G.sticking
         assert sticking is not None, (
             "The sticking coefficient must be not None."
         )
-        if pressure is None:
-            pressure = self.G.pressure
-        assert pressure is not None, "The pressure must be not None."
         return (sticking * A * pressure) / np.sqrt(2 * np.pi * m * kBT)
 
 
@@ -189,19 +182,17 @@ class Desorption(EventBase):
     @override
     def get_dE(
         self,
-        temperature: float = 300.0,
+        temperature: PositiveFloat = 300.0,
         *args,
-        pressure: float | None = None,
+        pressure: PositiveFloat = 101325.0,
+        fqmin: PositiveFloat = 30.0,
         **kwargs,
     ) -> float:
         assert self.G is not None, "The gas must be not None."
-        e_P = self.P.get_free_energy(fqmin=30.0, temp=temperature)
-        e_R = self.R.get_free_energy(fqmin=30.0, temp=temperature)
-        if pressure is None:
-            pressure = self.G.pressure
-        assert pressure is not None, "The pressure must be not None."
+        e_P = self.P.get_free_energy(fqmin=fqmin, temp=temperature)
+        e_R = self.R.get_free_energy(fqmin=fqmin, temp=temperature)
         e_G = self.G.get_free_energy(
-            fqmin=30.0,
+            fqmin=fqmin,
             temp=temperature,
             pressure=pressure,
         )
@@ -210,32 +201,19 @@ class Desorption(EventBase):
     @override
     def get_rate(
         self,
-        temperature: float = 300.0,
+        temperature: PositiveFloat = 300.0,
         *args,
-        pressure: float | None = None,
-        sticking: float | None = None,
+        pressure: PositiveFloat = 101325.0,
+        fqmin: PositiveFloat = 30.0,
         **kwargs,
     ) -> float:
-        """Get the rate of the reaction by the collision theory.
+        """Get the rate of the desorption event.
 
         Eq:
-                                   -dE
-            rate = rate(ads)*exp(-------)
-                                   kB*T
+                    kB*T       -dE
+            rate = ------*exp(------)
+                      h        kB*T
         """
         assert self.G is not None, "The gas must be not None."
-        if pressure is None:
-            pressure = self.G.pressure
-        assert pressure is not None, "The pressure must be not None."
-        dE = self.get_dE(temperature=temperature, pressure=pressure)
-        exp = np.exp(-dE / kB * temperature)
-
-        if sticking is None:
-            sticking = self.G.sticking
-        assert sticking is not None, "The sticking must be not None."
-        factor = self.reversed.get_rate(
-            pressure=1.0e5,  # the standard pressure is 1bar
-            temperature=temperature,
-            sticking=sticking,
-        )
-        return factor * exp
+        dE = self.get_dE(temperature, pressure=pressure, fqmin=fqmin)
+        return self._get_kBT_h(temperature) * np.exp(-dE / (kB * temperature))
