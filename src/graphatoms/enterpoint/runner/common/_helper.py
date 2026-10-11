@@ -1,5 +1,5 @@
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from ase import Atoms
@@ -217,6 +217,7 @@ def helper_dimer(
     *,
     graph_label: Any | None = None,
     allow_fixed_bonds_change: bool = False,
+    allow_desorption: bool | Literal["all", "input"] = "all",
     displacement: np.ndarray | None = None,
     raise_when_fail: bool = False,
     deep_copy: bool = True,
@@ -229,6 +230,12 @@ def helper_dimer(
         graph_label: The label of the graph.
         allow_fixed_bonds_change: Whether to
             allow the fixed bonds change after dimer.
+        allow_desorption: Whether to
+            allow the desorption of the gas after dimer search.
+                If 'all', then allow the desorption
+                    of all the gas molecules.
+                If 'input', then allow the desorption of
+                    the gas molecules only in the input file.
         displacement: The displacement vector for dimer.
         raise_when_fail: Whether to raise exception when failed.
         deep_copy: Whether to deep copy the optimized graph.
@@ -381,21 +388,89 @@ def helper_dimer(
             raise e
         else:
             return str(e), graph_label, cost_time, result_type
+    conn_comp = product_result.connected_components
+    assert len(conn_comp) >= 1, "Impossible !!!!"
+
+    # ------------------------------------------------------------
+    #       return if the product is not connected
+    # ------------------------------------------------------------
+    if len(conn_comp) != 1 and (not allow_desorption):
+        msg = "The `product` is not connected (not allow desorption event)."
+        e = HelperException(msg, label=graph_label)
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start, result_type
+    if len(conn_comp) >= 3 and allow_desorption:
+        msg = f"The `product` is not connected (# {len(conn_comp)} blocks)."
+        e = HelperException(msg, label=graph_label)
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start, result_type
+
+    # ------------------------------------------------------------
+    #       handle the product if allow desorption event
+    # ------------------------------------------------------------
+    if len(conn_comp) == 2 and allow_desorption:
+        gas_z = product_result.numbers[conn_comp[1]]
+        gas_r = product_result.positions[conn_comp[1]]
+        gas_atoms = Atoms(numbers=gas_z, positions=gas_r)
+        gas, _, cost_time = helper_optimization(
+            config=config,
+            graph=Gas.from_ase(gas_atoms, parse_bonds=config.bonds),  # type: ignore
+            allow_hash_change=True,
+            raise_when_fail=False,
+            deep_copy=deep_copy,
+            run_vibration=True,
+            **kwargs,
+        )
+        assert isinstance(gas, Gas), "Impossible !!!!"
+        if allow_desorption == "input":
+            gas_name_set = set(config.event.gas_sticking.keys())
+            gas_name_set.update(config.initial_gas_pressure.keys())
+            if gas.smiles not in gas_name_set:
+                msg = f"The gas({gas.smiles}) is not in the input file."
+                e = HelperException(msg, label=graph_label)
+                if raise_when_fail:
+                    raise e
+                else:
+                    cost = perf_counter() - start
+                    return (str(e), graph_label, cost, result_type)
+        elif allow_desorption == "all":
+            if not gas.is_nonmetal:
+                msg = f"The gas({gas.smiles}) has metal atoms."
+                e = HelperException(msg, label=graph_label)
+                if raise_when_fail:
+                    raise e
+                else:
+                    cost = perf_counter() - start
+                    return (str(e), graph_label, cost, result_type)
+        else:
+            raise ValueError(
+                f"The `allow_desorption={allow_desorption}` is invalid."
+                " Only `input` and `all` are supported."
+            )
+        sticking = config.event.gas_sticking.get(gas.smiles, 1.0)
+        gas = gas.model_copy(update={"sticking": sticking}, deep=deep_copy)
+        assert isinstance(product_result, Cluster), "Impossible !!!!"
+        product, _, cost_time = helper_optimization(
+            config=config,
+            graph=Cluster.select(product_result, conn_comp[0]),
+            allow_hash_change=True,
+            raise_when_fail=False,
+            deep_copy=deep_copy,
+            run_vibration=False,
+            **kwargs,
+        )
+        assert isinstance(product, Cluster), "Impossible !!!!"
+        product_result = product
+    else:
+        gas = None
 
     # ------------------------------------------------------------
     #       check the fixed bond change or not for product
     # ------------------------------------------------------------
-    cost_time = perf_counter() - start
-    if not product_result.is_connected:
-        # TODO: parse Desorption
-        e = HelperException(
-            msg="product is not connected",
-            label=graph_label,
-        )
-        if raise_when_fail:
-            raise e
-        else:
-            return str(e), graph_label, cost_time, result_type
     if product_result.hash == graph.hash:  # type: ignore
         key_r = graph.get_key_for_metadata(use_positions_uuid=True)
         key_p = product_result.get_key_for_metadata(use_positions_uuid=True)
@@ -407,13 +482,12 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time, result_type
+                return str(e), graph_label, perf_counter() - start, result_type
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(product_result)
         diff_bonds = np.asarray(break_bonds + make_bonds)
         if np.any(np.isin(diff_bonds, product_result.idx_fix)):
             kp = product_result.get_key_for_metadata()
-            cost_time = perf_counter() - start
             e = HelperException(
                 msg="fixed bonds modified for product",
                 label=f"{graph_label}, {k}, P={kp}",
@@ -421,7 +495,7 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time, result_type
+                return str(e), graph_label, perf_counter() - start, result_type
 
     # -----------------------------------------
     # call vibration for product
@@ -437,7 +511,10 @@ def helper_dimer(
             config=config,
             start=start,
         )
-        rxn = Reaction(R=graph, P=product_result, T=ts)
+        if gas is None:
+            rxn = Reaction(R=graph, P=product_result, T=ts)
+        else:
+            rxn = Desorption(R=graph, P=product_result, G=gas)
         return rxn, graph_label, perf_counter() - start, result_type
     except CheckVibrationFailed as e:
         if raise_when_fail:
