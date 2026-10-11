@@ -6,8 +6,8 @@ from time import perf_counter
 from typing import override
 
 from ase import Atoms
-from pydantic import BaseModel
 
+from graphatoms.dataclasses import OurBaseModel
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.runner.common import helper_apply
 from graphatoms.system import System
@@ -17,13 +17,16 @@ from ._expl import ExplorationBase
 __all__ = ["ReactionNetworkGenerator"]
 
 
-class MatchApplyRecorder(BaseModel):
+class MatchApplyRecorder(OurBaseModel):
     #          system_key:  (rxn_key, is_forward)
     record: dict[str, set[tuple[str, bool]]] = defaultdict(set)
 
     def persist(self, path: str | Path) -> None:
-        with Path(path).open("w") as f:
-            f.write(self.model_dump_json())
+        self.write_json(filename=Path(path))
+
+    @override
+    def _string(self) -> str:
+        return self.record.__str__()
 
 
 class ReactionNetworkGenerator(ExplorationBase):

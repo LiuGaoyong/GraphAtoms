@@ -29,8 +29,8 @@ this_dir = Path(__file__).parent
 @pytest.mark.parametrize(
     "Mock",
     [
-        OnTheFlyKMC,
-        # ReactionNetworkGenerator,
+        # OnTheFlyKMC,
+        ReactionNetworkGenerator,
     ],
 )
 def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
@@ -61,7 +61,7 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             cfg.parallel = parallel
             cfg.parallel_workers = 2
             cfg.exploration.maxtry = maxtry
-            cfg.run_type = "otfkmc"
+            cfg.run_type = "rxngen"
             cfg.max_steps = 200
             cfg.max_times = float("inf")
             cfg.exploration.surface_only_explore_single_core = True
