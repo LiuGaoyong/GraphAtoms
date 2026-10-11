@@ -260,6 +260,19 @@ class ReactionNetwork:
         **kwargs,
     ) -> bool:
         """Write the event to the database."""
+        if isinstance(event, Desorption):
+            event = event.reversed
+        assert isinstance(event, Adsorption | Reaction), (
+            f"Unknown event type: {type(event)}. Only "  #
+            "Adsorption and Reaction are supported, "  #
+            "and the Desorption will be reversed."
+        )
+        if event.G is not None:
+            assert event.R.natoms < event.P.natoms, (
+                f"Event {event._string()} is not Adsorption. "
+                "The R must have fewer atoms than P."
+            )
+
         if self.metadata.has(event):
             self.metadata.rxn_count_add_one(event)
             return False

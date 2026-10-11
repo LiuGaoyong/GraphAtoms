@@ -141,6 +141,9 @@ class MetaData(BaseModel):
     def bkl_solver(
         self,
         matching_dct: dict[tuple[str, bool], np.ndarray],
+        *args,
+        env_pressure: dict[str, float] = {},
+        **kwargs,
     ) -> tuple[pd.DataFrame, str, bool, float, float]:
         """Solve the BKL equation to select the reaction.
 
@@ -163,6 +166,9 @@ class MetaData(BaseModel):
             nmatched = matchmode2nmatch(single_match_res)
             if is_forward:
                 rate = self.table.rate_forword[i]
+                key_g = self.table.key_g[i]
+                if key_g is not None:
+                    rate *= env_pressure.get(key_g, 0.0)
             else:
                 rate = self.table.rate_reversed[i]
             lst.append((rxn_key, is_forward, nmatched, rate))

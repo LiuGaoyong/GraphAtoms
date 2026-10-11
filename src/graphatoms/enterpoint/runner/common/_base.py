@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from abc import abstractmethod
@@ -15,6 +16,8 @@ import hydra
 import numpy as np
 from ase import Atoms
 from ase.io import iread
+from ase.units import _e as _electron_charge
+from ase.units import kB as _boltzmann_constant
 from loguru._logger import Core, Logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -27,6 +30,7 @@ from graphatoms.utils.parser import hydra_parse
 
 from ._helper import helper_optimization
 
+_kB_in_JperK = _boltzmann_constant * _electron_charge
 
 class RunnerABC:
     """The base class for all classes.
@@ -145,12 +149,20 @@ class RunnerABC:
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
 
+        T = self.config.event.temperature
+        self.__kBT_in_J = T * _kB_in_JperK
+        gas_box_length = self.config.gas_pressure_cache_box_length
+        self.__gas_box_volume: float = (gas_box_length * 1e-10) ** 3  # m^3
+        gas_name_set = set(self.network.metadata.basic.gas_sticking.keys())
+        gas_name_set.update(self.config.initial_gas_pressure.keys())
+        self.gas_number_dct: dict[str, float] = {}
         self.__gas_lst: list[Gas] = []
-        for k, s in self.network.metadata.basic.gas_sticking.items():
+        for gas_name in gas_name_set:
+            s = self.network.metadata.basic.gas_sticking.get(gas_name, 1.0)
             gas, _, cost_time = helper_optimization(
                 config=self.config,
                 graph=Gas.from_name(
-                    name_or_smiles=k,
+                    name_or_smiles=gas_name,
                     sticking=float(s) if s is not None else 1.0,
                     parse_bonds=self.config.bonds,  # type: ignore
                 ),
@@ -161,14 +173,35 @@ class RunnerABC:
                 deep_copy=True,
             )
             if isinstance(gas, Gas):
-                msg = f"Optimized gas({k}) in {cost_time:.2f} seconds."
+                msg = f"Optimized gas({gas_name}) in {cost_time:.2f} seconds."
                 self.logger.info(self._reformat_message(msg))
                 self.__gas_lst.append(gas)
                 self.network.db_gas.add(gas)
+                gas_positions_uuid = self.network.db_gas.use_positions_uuid
+                gas_k = gas.get_key_for_metadata(gas_positions_uuid)
+                p = self.config.initial_gas_pressure.get(gas_name, 0.0)
+                V, kBT = self.__gas_box_volume, self.__kBT_in_J
+                self.gas_number_dct[gas_k] = p * V / kBT
             else:
-                msg = f"Failed to optimize gas({k})."
+                msg = f"Failed to optimize gas({gas_name})."
                 self.logger.error(self._reformat_message(msg))
                 raise ValueError(msg)
+
+        msg = f"Gas number dict: {self.gas_number_dct}"
+        self.logger.info(self._reformat_message(msg))
+        self.__gas_number_path = self.path.joinpath("gas_number.json")
+        if self.config.run_type.lower() == "otfkmc":
+            if self.config.restart:
+                self.load_gas_number_dct()
+                msg1 = f"Load gas number dict from {self.__gas_number_path}"
+                msg2 = f"Gas number dict(reload): {self.gas_number_dct}"
+                self.logger.info(self._reformat_message(msg1))
+                self.logger.info(self._reformat_message(msg2))
+            else:
+                self.persist_gas_number_dct()
+                msg = f"Persist gas number dict to {self.__gas_number_path}"
+                self.logger.info(self._reformat_message(msg))
+
         # persist the network for restart. [gas list]
         self.network.persistence()
 
@@ -178,6 +211,31 @@ class RunnerABC:
             return self.__gas_lst
         else:
             return []
+
+    @property
+    def gas_pressure_dct(self) -> dict[str, float]:
+        """Get the gas pressure for each gas for this simulation.
+
+        Returns:
+            dict[str, float]: the gas pressure for each gas for this simulation.
+        """
+        V, kBT = self.__gas_box_volume, self.__kBT_in_J
+        result: dict[str, float] = {}
+        for gas_key, N in self.gas_number_dct.items():
+            N = float(0.0 if N <= 0 else N)
+            result[gas_key] = N * kBT / V
+        return result
+
+    def persist_gas_number_dct(self) -> None:
+        """Persist the gas number dct to file."""
+        with open(self.__gas_number_path, "w") as f:
+            json.dump(self.gas_number_dct, f, indent=4)
+
+    def load_gas_number_dct(self) -> None:
+        """Load the gas number dct from file."""
+        with open(self.__gas_number_path) as f:
+            dct: dict[str, float] = json.load(f)
+        self.gas_number_dct.update(dct)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Any:

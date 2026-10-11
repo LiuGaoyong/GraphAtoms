@@ -530,7 +530,7 @@ def helper_match(
 
     Returns:
         1. the reaction key
-        2. the forward or reversed
+        2. the reaction is forward or reversed
         3. the match result
 
     """

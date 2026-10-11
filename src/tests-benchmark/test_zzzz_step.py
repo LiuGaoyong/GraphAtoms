@@ -59,11 +59,14 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
-            cfg.parallel_workers = 4
+            cfg.parallel_workers = 2
             cfg.exploration.maxtry = maxtry
-            cfg.run_type = "rxngen"
-            cfg.max_steps = 2
+            cfg.run_type = "otfkmc"
+            cfg.max_steps = 200
             cfg.max_times = float("inf")
+            cfg.exploration.surface_only_explore_single_core = True
+            cfg.exploration.max_ncore_for_surface = 1
+            cfg.initial_gas_pressure = {"O2": 1e4, "CO": 1e3}
             cfg.event.gas_sticking = {"O2": 1.0, "CO": 1.0}
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
@@ -74,14 +77,14 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             print(f"Test {Mock.__name__}")
             print("-----------------")
             obj = Mock(config=cfg)  # type: ignore
-            obj.run()
+            obj.run()  # type: ignore
             pprint(list(Path(tmp).rglob("*")))
 
             print("-----------------")
             print("Test restart")
             cfg.restart = True
             obj2 = Mock(config=cfg)  # type: ignore
-            obj2.run()
+            obj2.run()  # type: ignore
             pprint(list(Path(tmp).rglob("*")))
 
 

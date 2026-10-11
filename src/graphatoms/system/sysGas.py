@@ -259,4 +259,5 @@ class Gas(System):
 
     @override
     def get_key_for_metadata(self, *args, **kwargs) -> str:
+        """The `use_positions_uuid` will be set to `False`."""
         return super().get_key_for_metadata(use_positions_uuid=False)

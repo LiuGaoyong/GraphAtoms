@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -68,6 +69,13 @@ class Config:
     max_steps: int = 100000
     max_times: float = 1000.0  # seconds
     run_type: str = "otfkmc"  # otfkmc, rxngen
+    gas_pressure_cache_box_length: float = 1e4  # in Angstrom
+    initial_gas_pressure: dict[str, float] = field(default_factory=dict)
+    # the initial gas pressure only effect for `OTFKMC`, and the key of
+    # `initial_gas_pressure` must be the same as the key of `gas_sticking`
+    # 2. if the key of `initial_gas_pressure` is not in `gas_sticking`, then the initial gas pressure is 0.0    # noqa: E501
+    # 1. if the key of `gas_sticking` is not in `initial_gas_pressure`, then the gas sticking is 1.0            # noqa: E501
+
     parallel_workers: int = 0  # 0 means use all cores
     parallel: str = "serial"  # serial, multiprocessing, ray, dask, executorlib
     loglevel: str = "info"  # Literal["debug", "info", "warning", "error"]

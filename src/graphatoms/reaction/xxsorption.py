@@ -91,22 +91,12 @@ class Adsorption(EventBase):
         return e_P - e_R - e_G
 
     @override
-    def get_rate(
-        self,
-        temperature: PositiveFloat = 300.0,
-        *args,
-        pressure: PositiveFloat = 101325.0,
-        **kwargs,
-    ) -> float:
+    def get_rate(self, temperature: PositiveFloat = 300.0, *a, **kw) -> float:
         """Get the rate (in 1/s) of the adsorption event by collision theory.
 
         Args:
             temperature (float, optional):
                 a temperature given in Kelvin. Defaults to 300.0.
-            pressure (float | None, optional):
-                a pressure given in Pa. Defaults to None.
-            sticking (float | None, optional):
-                a sticking coefficient. Defaults to None.
 
         Returns:
             float: the rate in 1/s.
@@ -133,7 +123,7 @@ class Adsorption(EventBase):
         assert sticking is not None, (
             "The sticking coefficient must be not None."
         )
-        return (sticking * A * pressure) / np.sqrt(2 * np.pi * m * kBT)
+        return (sticking * A) / np.sqrt(2 * np.pi * m * kBT)
 
 
 class Desorption(EventBase):
