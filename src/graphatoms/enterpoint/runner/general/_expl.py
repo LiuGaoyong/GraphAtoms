@@ -274,10 +274,14 @@ class ExplorationBase(RunnerABC):
             if is_surface:
                 if ncore <= ncore_4_surface:
                     lst_4surface.append(v)
-                elif ncore <= ncore_4_adspt:
+                if ncore <= ncore_4_adspt:
                     lst_4adsorption.append(v)
             else:
                 lst_4bulk.append(v)
+        msg = f"The system {system_key} will be explored"
+        msg += f" with {len(lst_4bulk)}-bulk,{len(lst_4adsorption)}"
+        msg += f"-adsorption,{len(lst_4surface)}-surface."
+        self.logger.info(self._reformat_message(msg))
         # 2.2 exploration for each cluster ... ...
         if len(lst_4bulk) > 0:
             self._second_step_bulk(
