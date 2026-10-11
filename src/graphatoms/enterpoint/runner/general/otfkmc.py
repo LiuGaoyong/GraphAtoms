@@ -148,7 +148,7 @@ class OTFKMC(ExplorationBase):
                             helper_match,
                             rxn_key=rxn_key,
                             system=system,
-                            ReactionNetwork=self.network,
+                            network=self.network,
                             rxn_is_forward=rxn_is_forward,
                         )
                     )

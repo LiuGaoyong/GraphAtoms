@@ -354,6 +354,7 @@ class ExplorationBase(RunnerABC):
                     self.executor.submit(
                         helper_dimer,
                         config=self.config,
+                        network=self.network,
                         graph_label=cluster_key,
                         allow_fixed_bonds_change=False,
                         graph=cluster.model_copy(deep=True),
@@ -383,6 +384,7 @@ class ExplorationBase(RunnerABC):
                         self.executor.submit(
                             helper_dimer,
                             config=self.config,
+                            network=self.network,
                             graph_label=cluster_key,
                             allow_fixed_bonds_change=False,
                             graph=cluster.model_copy(deep=True),
