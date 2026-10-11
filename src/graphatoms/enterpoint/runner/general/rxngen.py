@@ -37,18 +37,28 @@ class ReactionNetworkGenerator(ExplorationBase):
         if not self.config.restart:
             self.__match_apply_recorder = MatchApplyRecorder()
             self.__match_apply_recorder.persist(self.__path)
+            self.__system_dct: dict[str, System] = {
+                sys.get_key_for_metadata(use_positions_uuid=False): sys
+                for sys in self.get_batch_system_for()
+            }
         else:
             data = self.__path.read_text()
             obj = MatchApplyRecorder.model_validate_json(data)
             self.__match_apply_recorder: MatchApplyRecorder = obj
+            assert self.network.db_system.use_positions_uuid is False
+            self.__system_dct: dict[str, System] = {
+                k: System.from_ase(
+                    v,
+                    parse_bonds=self.config.bonds,  # type: ignore
+                    parse_atoms_is_outer_or_not=True,
+                )
+                for k, v in self.network.db_system.items()
+            }
 
     @override
     def run(self) -> None:
         """Run the simulation for the given number of steps."""
-        system_dct: dict[str, System] = {
-            sys.get_key_for_metadata(use_positions_uuid=False): sys
-            for sys in self.get_batch_system_for()
-        }
+        system_dct: dict[str, System] = self.__system_dct
         for self.__istep in range(self.config.max_steps):
             for sys_key, system in system_dct.items():
                 start = perf_counter()
