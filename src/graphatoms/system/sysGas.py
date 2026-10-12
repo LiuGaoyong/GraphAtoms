@@ -45,12 +45,18 @@ class Gas(System):
     @cached_property
     def smiles(self) -> str:
         """Return the canonical SMILES."""
-        return rdtool.get_smiles(
-            numbers=self.numbers,
-            source=self.source,
-            target=self.target,
-            canonical=True,
-        )
+        if self.natoms == 0:
+            return ""
+        elif self.nbonds == 0:
+            smi = ".".join(f"[{s}]" for s in self.symbols)
+            return rdtool.Chem.CanonSmiles(smi)
+        else:
+            return rdtool.get_smiles(
+                numbers=self.numbers,
+                source=self.source,
+                target=self.target,
+                canonical=True,
+            )
 
     @override
     @classmethod
@@ -261,3 +267,18 @@ class Gas(System):
     def get_key_for_metadata(self, *args, **kwargs) -> str:
         """The `use_positions_uuid` will be set to `False`."""
         return super().get_key_for_metadata(use_positions_uuid=False)
+
+
+if __name__ == "__main__":
+    from ase.build import molecule
+
+    atoms = molecule("O2")
+
+    sys = Gas.from_ase(atoms)
+    print(sys.smiles)
+    sys = Gas(
+        numbers=np.array([8, 8]),
+        positions=np.array([[0, 0, 0], [1, 0, 0]]),
+        sticking=1.0,
+    )
+    print(sys.smiles)
