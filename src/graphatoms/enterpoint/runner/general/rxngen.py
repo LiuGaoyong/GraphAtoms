@@ -63,7 +63,20 @@ class ReactionNetworkGenerator(ExplorationBase):
         """Run the simulation for the given number of steps."""
         system_dct: dict[str, System] = self.__system_dct
         for self.__istep in range(self.config.max_steps):
-            for sys_key, system in system_dct.items():
+            un_explred_systems: dict[str, System] = {
+                k: v
+                for k, v in system_dct.items()
+                if k not in self.network.db_system
+            }
+            if len(system_dct) == 0:
+                msg = f"Istep={self.__istep}: No system left to explore."
+                self.logger.info(self._reformat_message(msg))
+                break
+            else:
+                msg = f"Istep={self.__istep}: Explore "
+                msg += f"{len(un_explred_systems)} systems."
+                self.logger.info(self._reformat_message(msg))
+            for sys_key, system in un_explred_systems.items():
                 start = perf_counter()
                 expl_success, _ = self.explore(system)
                 end = perf_counter()
@@ -78,6 +91,9 @@ class ReactionNetworkGenerator(ExplorationBase):
                     msg += f"{end - start:.2f} s for system={sys_key}"
                     self.logger.warning(self._reformat_message(msg))
             system_dct = self.__match_and_apply(system_dct)
+        self.logger.info("-" * self._log_length)
+        msg = f"Istep={self.__istep}: Simulation finished."
+        self.logger.info(self._reformat_message(msg))
 
     def __match_and_apply(self, dct: dict[str, System]) -> dict[str, System]:
         # ---------------------------------------------
