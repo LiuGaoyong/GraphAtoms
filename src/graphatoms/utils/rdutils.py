@@ -53,7 +53,7 @@ def get_sdf_str(
     target = target[i]
     order = order[i]
     n_bonds = source.shape[0]
-    assert all(i != 0 for i in (n_atoms, n_bonds))
+    assert all(i != 0 for i in (n_atoms, n_bonds)), (n_atoms, n_bonds)
     na, nb = np.array(np.log10([n_atoms, n_bonds]) + 1, dtype=int)
     if geometry is None:
         geometry = np.random.rand(n_atoms, 3)

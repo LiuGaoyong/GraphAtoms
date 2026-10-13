@@ -1,12 +1,11 @@
-from typing import Self, override
+from typing import Self
 
-from ase.units import kB
 from pydantic import model_validator
 
 from graphatoms.reaction._event import EventBase
 
 
-class _Reaction(EventBase):
+class ReactionBase(EventBase):
     @model_validator(mode="after")
     def __check_something(self) -> Self:
         n = int(max(len(self.R), len(self.P)))
@@ -19,7 +18,7 @@ class _Reaction(EventBase):
         return self
 
 
-class ReactionLH(_Reaction):
+class Reaction(ReactionBase):
     """The reaction by Langmuir-Hinshelwood mechanism."""
 
     @model_validator(mode="after")
@@ -31,20 +30,11 @@ class ReactionLH(_Reaction):
         )
         return self
 
-    @override
-    def get_Ea(self, temperature: float = 300.0) -> float:  # type: ignore
-        return super().get_Ea(temperature=temperature)
 
-    @override
-    def get_dE(self, temperature: float = 300.0) -> float:  # type: ignore
-        return super().get_dE(temperature=temperature)
-
-    @override
-    def get_rate(self, temperature: float = 300.0) -> float:  # type: ignore
-        return super().get_rate(temperature=temperature)
+ReactionLH = Reaction
 
 
-class ReactionER(_Reaction):
+class ReactionER(ReactionBase):
     """The reaction by Eley-Rideal mechanism."""
 
     @model_validator(mode="after")

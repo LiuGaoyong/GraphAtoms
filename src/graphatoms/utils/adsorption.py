@@ -192,7 +192,7 @@ class AdsorptionABC(ABC):
         except Exception:
             # Sometimes, FixBondLengths will cause an error:
             #     RuntimeError: Did not converge
-            # TODO: use torch automatic differentiation instead.
+            # try to use torch automatic differentiation instead.
             lst, coveraged = [atoms], False
         return lst, coveraged
 

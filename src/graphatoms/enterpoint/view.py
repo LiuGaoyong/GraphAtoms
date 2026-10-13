@@ -33,7 +33,7 @@ def reaction(
 ) -> None:
     assert pathlib.Path(path).exists()
     net = ReactionNetwork(path, restart=True, format="dir")
-    _, rxn = net.read(name)
+    _, rxn = net.read_event(name)
     if not forward:
         rxn = rxn.reversed
     names, lst = [], []
@@ -77,9 +77,26 @@ def reaction(
 
 @view.command(no_args_is_help=True)
 def structure(
-    name: str,
+    name_or_path: str,
     path: Path = ".",
 ) -> None:
+    try:
+        fname = pathlib.Path(name_or_path)
+        if fname.name.count("*") == 0:
+            assert fname.exists() and fname.is_file()
+            sys = SysGraph.read_npz(fname)
+            atoms: Atoms = sys.to_ase()
+            return _ase_view(atoms)
+        else:
+            return _ase_view(
+                [
+                    SysGraph.read_npz(i).to_ase()
+                    for i in fname.parent.glob(fname.name)
+                ]
+            )
+    except ValueError:
+        name = name_or_path
+
     assert pathlib.Path(path).exists()
     net = ReactionNetwork(path, restart=True, format="dir")
     if name in net.metadata.table.key_g:

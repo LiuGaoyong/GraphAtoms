@@ -117,9 +117,8 @@ def bond_list(
     )
     matrix = sp.csr_matrix(matrix, dtype=int)
     if infer_order:
-        # TODO: use rdkit to get bond order !!!
+        raise NotImplementedError("infer_order is not implemented.")
         edges = sp.coo_array(matrix).coords
-        raise NotImplementedError
         get_adjacency_by_rdkit(
             numbers=np.array(
                 [

@@ -10,7 +10,7 @@ from ase.constraints import FixAtoms
 from ase.symbols import Symbols
 from igraph import Graph as IGraph
 from pandas import DataFrame
-from pydantic import NonNegativeFloat, model_validator
+from pydantic import Field, model_validator
 from rdkit import Chem
 from scipy import sparse as sp
 
@@ -24,26 +24,11 @@ from graphatoms.utils.bytestool import hash_string
 
 
 class GasMixin(OurFrozenModel):
-    sticking: NonNegativeFloat | None = None
-    pressure: NonNegativeFloat | None = None
-
-    @model_validator(mode="after")
-    def __check_gas(self) -> Self:
-        if not self.is_gas:
-            object.__setattr__(self, "sticking", None)
-            object.__setattr__(self, "pressure", None)
-        else:
-            if self.sticking is None:
-                object.__setattr__(self, "sticking", 1.0)
-            assert isinstance(self.sticking, float)
-            assert 0.0 <= self.sticking <= 10.0
-            assert isinstance(self.pressure, float)
-            assert 0.0 <= self.pressure
-        return self
+    sticking: float | None = Field(default=None, gt=0.0, le=1.0, strict=True)
 
     @property
     def is_gas(self) -> bool:
-        return self.pressure is not None
+        return self.sticking is not None
 
     @override
     def _string(self) -> str:
@@ -194,7 +179,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             )
             return Chem.MolToSmarts(largest_frag)  # type: ignore
 
-    def get_key_for_metadata(self, use_positions_uuid: bool = True) -> str:
+    def get_key_for_metadata(self, use_positions_uuid: bool = False) -> str:
         """Get the key of the value for metadata.
 
         Note: Donot use_positions_uuid if you want reuse the data.
@@ -203,9 +188,11 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         fml: str = symbols.get_chemical_formula("metal")
         if use_positions_uuid:
             geometry: np.ndarray = self.positions
-            x = np.char.rjust(np.char.mod("%.1f", geometry[:, 0]), 20)
-            y = np.char.rjust(np.char.mod("%.1f", geometry[:, 1]), 20)
-            z = np.char.rjust(np.char.mod("%.1f", geometry[:, 2]), 20)
+            # Round to 2 decimal places, so the max difference
+            # between two atoms is 0.01*sqrt(3) i.e. 0.0173 Angstrom
+            x = np.char.rjust(np.char.mod("%.2f", geometry[:, 0]), 20)
+            y = np.char.rjust(np.char.mod("%.2f", geometry[:, 1]), 20)
+            z = np.char.rjust(np.char.mod("%.2f", geometry[:, 2]), 20)
             pos_str = "".join(reduce(np.char.add, [x, y, z, " \n"]))
             return f"{fml}-{self.hash}-{hash_string(pos_str)}"
         else:

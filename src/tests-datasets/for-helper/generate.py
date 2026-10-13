@@ -34,7 +34,7 @@ if __name__ == "__main__":
     ]
     lst[0]
 
-    rxn, _, cot, _ = helper_dimer(cfg, lst[0])
+    rxn, _, cot, _ = helper_dimer(config=cfg, graph=lst[0])
     print(rxn)
     if isinstance(rxn, Reaction):
         for k in rxn.__pydantic_fields__:

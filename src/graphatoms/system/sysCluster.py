@@ -188,6 +188,7 @@ class Cluster(SysGraph):
             dct = dct | dct_eng  # type: ignore
 
         if movefixtag is not None:
+            assert len(movefixtag) == len(idxs), "Invalid movefixtag."
             is_core: np.ndarray = movefixtag == 0
             is_fix: np.ndarray = movefixtag < 0
             if "is_fix" in dct:

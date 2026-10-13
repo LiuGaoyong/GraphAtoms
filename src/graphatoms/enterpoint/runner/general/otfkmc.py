@@ -1,5 +1,6 @@
 """The steps for the on-the-fly KMC simulation."""
 
+import json
 from time import perf_counter
 from typing import override
 
@@ -15,6 +16,7 @@ from graphatoms.enterpoint.runner.common._helper import (
     helper_apply,
     helper_match,
 )
+from graphatoms.reaction import Adsorption, Desorption, Reaction
 
 from ._expl import ExplorationBase
 
@@ -25,6 +27,7 @@ class OTFKMCInfo(BaseModel):
     time: float = 0.0
     energy: float = 0
     energy_real: float = np.nan
+    env_pressure_dct: str = r"{}"
     select_rxn_key: str = "Initial"
     select_rxn_forward: bool = True
     cost_exploration: float = 0
@@ -40,19 +43,25 @@ class OTFKMC(ExplorationBase):
         super().__init__(config=config)
         self.__traj_path = self.path.joinpath("otfkmc.traj")
         self.__info_path = self.path.joinpath("info.csv")
-        if not self.config.restart:
-            self.__traj = TrajectoryWriter(self.__traj_path, mode="w")
-            self.__df_data: list[OTFKMCInfo] = [OTFKMCInfo()]
-            self.__atoms: Atoms | None = None
-        else:
-            self.__traj = TrajectoryWriter(self.__traj_path, mode="a")
-            self.__atoms = read(self.__traj_path, index=-1)  # type:ignore
-            assert isinstance(self.__atoms, Atoms)
+        if self.config.restart and self.__info_path.exists():
             self.__df_data = [
                 OTFKMCInfo(**row.to_dict())  # type: ignore
                 for _, row in pd.read_csv(self.__info_path).iterrows()
             ]
-        # Note: the `istep=len(self.__df_data) - 1` is the current step number
+            self.__traj = TrajectoryWriter(self.__traj_path, mode="a")
+            if len(self.__df_data) > 0:
+                self.__atoms = read(self.__traj_path, index=-1)  # type:ignore
+                assert isinstance(self.__atoms, Atoms)
+            else:
+                self.__atoms = None
+        else:
+            self.__traj = TrajectoryWriter(self.__traj_path, mode="w")
+            self.__df_data: list[OTFKMCInfo] = [OTFKMCInfo()]
+            self.__atoms: Atoms | None = None
+
+    @property
+    def istep(self) -> int:  #  the current step number
+        return len(self.__df_data) - 1
 
     @override
     def run(self) -> None:
@@ -60,7 +69,6 @@ class OTFKMC(ExplorationBase):
 
         atoms: Atoms | None = self.__atoms
         df_data: list[OTFKMCInfo] = self.__df_data
-        self.istep: int = len(df_data) - 1
 
         if self.istep == 0:
             system = self.get_system_for(None)
@@ -75,7 +83,6 @@ class OTFKMC(ExplorationBase):
 
         while True:
             otfkmc_info = OTFKMCInfo()
-            self.istep = len(df_data) - 1
             self.logger.info("=" * self._log_length)
             self.logger.info(f"Step {self.istep} Start")
             self.logger.info("-" * self._log_length)
@@ -111,12 +118,21 @@ class OTFKMC(ExplorationBase):
             # 1-2 step: analyze the system & exploration
             # -------------------------------------------
             start = perf_counter()
-            self.explore(system)
+            expl_success, energy_real = self.explore(system)
+            otfkmc_info.energy_real = energy_real
             end = perf_counter()
             otfkmc_info.cost_exploration = end - start
-            msg = f"Exploration finished by {end - start:.2f} s"
-            self.logger.info(self._reformat_message(msg))
-            self.logger.info(self._reformat_message("-" * self._log_length))
+            if expl_success:
+                msg = f"Exploration finished by {end - start:.2f} s "
+                msg += f"for system={system.get_key_for_metadata()}"
+                self.logger.info(self._reformat_message(msg))
+                msg = "-" * self._log_length
+                self.logger.info(self._reformat_message(msg))
+            else:
+                msg = f"Exploration failed by {end - start:.2f} s "
+                msg += f"for system={system.get_key_for_metadata()}"
+                self.logger.warning(self._reformat_message(msg))
+                continue
 
             # -------------------------------------------
             # 3 step: graph matching
@@ -132,7 +148,7 @@ class OTFKMC(ExplorationBase):
                             helper_match,
                             rxn_key=rxn_key,
                             system=system,
-                            ReactionNetwork=self.network,
+                            network=self.network,
                             rxn_is_forward=rxn_is_forward,
                         )
                     )
@@ -162,7 +178,10 @@ class OTFKMC(ExplorationBase):
             # 4 step: select a reaction (BKL)
             # -------------------------------------------
             start = perf_counter()
-            bkl_result = self.network.metadata.bkl_solver(matching_dct)
+            bkl_result = self.network.metadata.bkl_solver(
+                matching_dct=matching_dct,
+                env_pressure=self.gas_pressure_dct,
+            )
             df, selected_rxn_key, rxn_is_forward, dt, rate_tot = bkl_result
             otfkmc_info.select_rxn_key = selected_rxn_key
             otfkmc_info.select_rxn_forward = rxn_is_forward
@@ -171,9 +190,18 @@ class OTFKMC(ExplorationBase):
                 selected_rxn_key
             )
             match_mode = matching_dct[(selected_rxn_key, rxn_is_forward)]
+            assert isinstance(selected_rxn, Adsorption | Reaction), (
+                "The selected reaction must be Adsorption or Reaction."
+            )
             if not rxn_is_forward:
                 selected_rxn = selected_rxn.reversed
                 selected_info = selected_info.reversed
+            assert isinstance(
+                selected_rxn, Adsorption | Reaction | Desorption
+            ), (
+                "The selected reaction must be "
+                + "Adsorption, Reaction, or Desorption."
+            )
             if not isinstance(match_mode, np.ndarray):
                 msg = "The match_mode is not a numpy array."
                 self.logger.error(self._reformat_message(msg))
@@ -184,23 +212,48 @@ class OTFKMC(ExplorationBase):
             self.logger.info(f"Selected reaction is forward: {rxn_is_forward}")
             self.logger.info(f"Selected reaction: {selected_rxn_key}")
             self.logger.info(f"Selected reaction info: {selected_info}")
+            self.logger.info(f"Reaction match indexes: {match_mode}")
 
             # -------------------------------------------
             # 5. update the system
             # -------------------------------------------
-            (_, _, atoms, rmsd) = helper_apply(
+            (_, _, apply_result, rmsd) = helper_apply(
                 system=system,
                 match_mode=match_mode,
                 rxn_key=selected_rxn_key,
                 forward=rxn_is_forward,
-                ReactionNetwork=self.network,
+                network=self.network,
+                raise_when_fail=True,
             )
+            if isinstance(apply_result, Atoms):
+                atoms = apply_result
+            else:
+                msg = "Apply result is not a ase.Atoms object."
+                msg += f"Its type is {type(apply_result)}."
+                self.logger.error(self._reformat_message(msg))
+                raise AssertionError(msg)
+            if isinstance(selected_rxn, Adsorption | Desorption):
+                assert selected_rxn.G is not None, "The gas must be not None."
+                gas_key = selected_rxn.G.get_key_for_metadata()
+                if gas_key not in self.gas_number_dct:
+                    self.gas_number_dct[gas_key] = 0.0
+                    msg = f"Add gas {gas_key} to the gas number dct."
+                    self.logger.info(self._reformat_message(msg))
+                if isinstance(selected_rxn, Adsorption):
+                    self.gas_number_dct[gas_key] += 1.0
+                    msg = f"Add 1 gas({gas_key})."
+                    self.logger.info(self._reformat_message(msg))
+                else:
+                    self.gas_number_dct[gas_key] -= 1.0
+                    msg = f"Remove 1 gas({gas_key})."
+                    self.logger.info(self._reformat_message(msg))
             self.logger.info(
                 f"Apply Rxn {selected_rxn_key} "
                 + f"Successfully, RMSD: {rmsd:.4f}.\n {selected_info}"
             )
             otfkmc_info.cost_other = perf_counter() - start
             otfkmc_info.energy = df_data[-1].energy + selected_info.dE
+            otfkmc_info.env_pressure_dct = json.dumps(self.gas_pressure_dct)
             df_data.append(otfkmc_info)  # `istep += 1`
             self.logger.info(f"Step {self.istep} End")
             self.logger.info("=" * 50)

@@ -1,5 +1,5 @@
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from ase import Atoms
@@ -8,7 +8,8 @@ from ase.calculators.calculator import Calculator
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.reaction import Adsorption, Desorption, Reaction
-from graphatoms.system import Cluster, Gas, SysGraph, System  # type: ignore
+from graphatoms.system import Cluster, Gas, SysGraph, System
+from graphatoms.system.atoms import Structure
 from graphatoms.utils import asetools
 from graphatoms.utils.adsorption import Helper
 from graphatoms.utils.parser import hydra_parse
@@ -148,11 +149,19 @@ def helper_optimization(
     # ---------------------------------------------
     #       check graph hash changed or not
     # ---------------------------------------------
-    result = graph.update_geometry(
-        new_positions=lst[-1].get_positions(),
-        parse_bonds=config.bonds,  # type: ignore
-        deep=deep_copy,
-    )
+    try:
+        result = graph.update_geometry(
+            new_positions=lst[-1].get_positions(),
+            parse_bonds=config.bonds,  # type: ignore
+            deep=deep_copy,
+        )
+    except Exception as e:
+        lst[0].write(f"debug-{graph_label}.xyz", format="extxyz", append=False)
+        for i in range(1, len(lst)):
+            lst[i].write(
+                f"debug-{graph_label}.xyz", format="extxyz", append=True
+            )
+        raise e
     if (not allow_not_connected) and (not result.is_connected):
         e = HelperException(
             msg="graph is not connected after optimization",
@@ -172,7 +181,14 @@ def helper_optimization(
         else:
             return str(e), graph_label, perf_counter() - start
     if not run_vibration:
-        return result, graph_label, perf_counter() - start
+        f: np.ndarray = lst[-1].get_forces(apply_constraint=True)
+        result = result.update_energetics(
+            energy=lst[-1].get_potential_energy(),
+            fmax=np.linalg.norm(f, axis=1).max(),
+            frequencies=None,
+            deep=deep_copy,
+        )
+        return (result, graph_label, perf_counter() - start)
 
     # ---------------------------------------------
     #       call vibration & return result
@@ -202,7 +218,10 @@ def helper_dimer(
     *,
     graph_label: Any | None = None,
     allow_fixed_bonds_change: bool = False,
+    allow_desorption: bool | Literal["all", "input"] = "all",
+    allow_metal_element_in_gas: bool = False,
     displacement: np.ndarray | None = None,
+    network: ReactionNetwork | None = None,
     raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
@@ -214,7 +233,14 @@ def helper_dimer(
         graph_label: The label of the graph.
         allow_fixed_bonds_change: Whether to
             allow the fixed bonds change after dimer.
+        allow_desorption: Whether to
+            allow the desorption of the gas after dimer search.
+                If 'all', then allow the desorption
+                    of all the gas molecules.
+                If 'input', then allow the desorption of
+                    the gas molecules only in the input file.
         displacement: The displacement vector for dimer.
+        network: The network object for gas query.
         raise_when_fail: Whether to raise exception when failed.
         deep_copy: Whether to deep copy the optimized graph.
 
@@ -230,6 +256,10 @@ def helper_dimer(
         and the result type.
     """
     result_type: str = "dimer"
+    if str(allow_desorption).lower() == "input":
+        assert network is not None, (
+            "network is None, please provide the network object."
+        )
 
     start = perf_counter()
     if graph_label is None:
@@ -366,21 +396,124 @@ def helper_dimer(
             raise e
         else:
             return str(e), graph_label, cost_time, result_type
+    conn_comp = product_result.connected_components
+    assert len(conn_comp) >= 1, "Impossible !!!!"
+    gas = None
+
+    # ------------------------------------------------------------
+    #       return/check if the product is not connected
+    # ------------------------------------------------------------
+    if len(conn_comp) >= 3:
+        msg = f"The `product` is not connected ({len(conn_comp)} blocks)."
+        e = HelperException(msg, label=graph_label)
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start, result_type
+    elif len(conn_comp) == 2:
+        if not allow_desorption:
+            msg = "but desorption event is not allowed."
+            msg = f"The `product` is not connected ({msg})."
+            e = HelperException(msg, label=graph_label)
+            if raise_when_fail:
+                raise e
+            else:
+                return str(e), graph_label, perf_counter() - start, result_type
+        else:
+            gas_z = product_result.numbers[conn_comp[1]]
+            gas_r = product_result.positions[conn_comp[1]]
+            gas_structure = Structure(numbers=gas_z, positions=gas_r)
+            if allow_metal_element_in_gas or gas_structure.is_nonmetal:
+                pass  # go to next next block, ...
+            else:
+                k = gas_structure.symbols.get_chemical_formula("metal")
+                msg = f"The second block of {k} has metal atoms."
+                e = HelperException(msg, label=graph_label)
+                if raise_when_fail:
+                    raise e
+                else:
+                    cost = perf_counter() - start
+                    return (str(e), graph_label, cost, result_type)
+
+        # -----------------------------------------------------------
+        # split gas object from disconnected product, and optimize it
+        # -----------------------------------------------------------
+        gas_atoms = Atoms(numbers=gas_z, positions=gas_r)  # type: ignore
+        gas_init = Gas.from_ase(gas_atoms, parse_bonds=config.bonds)  # type: ignore
+        gas_key, _gas_complete = gas_init.get_key_for_metadata(), False
+        if network is not None:
+            if gas_key in network.db_gas:
+                _gas_complete = True
+                gas = Gas.from_ase(network.db_gas[gas_key])
+            elif str(allow_desorption).lower() == "input":
+                gas_name_set = set(config.event.gas_sticking.keys())
+                gas_name_set.update(config.initial_gas_pressure.keys())
+                if gas_init.smiles not in gas_name_set:
+                    msg = (
+                        f"The gas({gas_init.smiles}) is not in the input file."
+                    )
+                    e = HelperException(msg, label=graph_label)
+                    if raise_when_fail:
+                        raise e
+                    else:
+                        cost = perf_counter() - start
+                        return (str(e), graph_label, cost, result_type)
+            else:
+                pass  # go to next next block, ...
+        if not _gas_complete:
+            try:
+                gas, _, cost_time = helper_optimization(
+                    config=config,
+                    graph=gas_init,
+                    allow_hash_change=False,
+                    raise_when_fail=True,
+                    deep_copy=deep_copy,
+                    run_vibration=True,
+                    **kwargs,
+                )
+                assert isinstance(gas, Gas), "Impossible !!!!"
+                _gas_complete = True
+            except Exception as e:
+                msg = f"The gas({gas_init.smiles}) is not optimized. "
+                msg += f"Fail reason: {str(e)}"
+                e = HelperException(msg, label=graph_label)
+                if raise_when_fail:
+                    raise e
+                else:
+                    cost = perf_counter() - start
+                    return (str(e), graph_label, cost, result_type)
+        assert _gas_complete, "Impossible !!!!"
+
+        # ------------------------------------------------------------
+        # split biggest block from disconnected product as new product
+        # ------------------------------------------------------------
+        assert isinstance(product_result, Cluster), "Impossible !!!!"
+        try:
+            product, _, cost_time = helper_optimization(
+                config=config,
+                graph=Cluster.select(product_result, conn_comp[0]),
+                allow_hash_change=True,
+                raise_when_fail=True,
+                deep_copy=deep_copy,
+                run_vibration=False,
+                **kwargs,
+            )
+            assert isinstance(product, Cluster), "Impossible !!!!"
+        except Exception as e:
+            key = product_result.get_key_for_metadata(use_positions_uuid=True)
+            msg = f"The product({key}) is not optimized. Fail reason: {str(e)}"
+            e = HelperException(msg, label=graph_label)
+            if raise_when_fail:
+                raise e
+            else:
+                cost = perf_counter() - start
+                return (str(e), graph_label, cost, result_type)
+        product_atoms = product.to_ase()
+        product_result = product
 
     # ------------------------------------------------------------
     #       check the fixed bond change or not for product
     # ------------------------------------------------------------
-    cost_time = perf_counter() - start
-    if not product_result.is_connected:
-        # TODO: parse Desorption
-        e = HelperException(
-            msg="product is not connected",
-            label=graph_label,
-        )
-        if raise_when_fail:
-            raise e
-        else:
-            return str(e), graph_label, cost_time, result_type
     if product_result.hash == graph.hash:  # type: ignore
         key_r = graph.get_key_for_metadata(use_positions_uuid=True)
         key_p = product_result.get_key_for_metadata(use_positions_uuid=True)
@@ -392,13 +525,12 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time, result_type
+                return str(e), graph_label, perf_counter() - start, result_type
     if not allow_fixed_bonds_change:
         break_bonds, make_bonds = graph.bond_difference(product_result)
         diff_bonds = np.asarray(break_bonds + make_bonds)
         if np.any(np.isin(diff_bonds, product_result.idx_fix)):
             kp = product_result.get_key_for_metadata()
-            cost_time = perf_counter() - start
             e = HelperException(
                 msg="fixed bonds modified for product",
                 label=f"{graph_label}, {k}, P={kp}",
@@ -406,7 +538,7 @@ def helper_dimer(
             if raise_when_fail:
                 raise e
             else:
-                return str(e), graph_label, cost_time, result_type
+                return str(e), graph_label, perf_counter() - start, result_type
 
     # -----------------------------------------
     # call vibration for product
@@ -422,7 +554,10 @@ def helper_dimer(
             config=config,
             start=start,
         )
-        rxn = Reaction(R=graph, P=product_result, T=ts)
+        if gas is None:
+            rxn = Reaction(R=graph, P=product_result, T=ts)
+        else:
+            rxn = Desorption(R=graph, P=product_result, G=gas)
         return rxn, graph_label, perf_counter() - start, result_type
     except CheckVibrationFailed as e:
         if raise_when_fail:
@@ -453,7 +588,7 @@ def helper_adsorption(
     """
     if graph_label is None:
         graph_label = graph.get_key_for_metadata()
-        graph_label += f"_{gas.get_key_for_metadata(False)}"
+        graph_label += f"_{gas.get_key_for_metadata()}"
 
     # -----------------------------------------
     #       call adsorption initial positions
@@ -506,8 +641,8 @@ def helper_adsorption(
 
 
 def helper_match(
-    ReactionNetwork: ReactionNetwork,
     system: System,
+    network: ReactionNetwork,
     rxn_is_forward: bool,
     rxn_key: str,
 ) -> tuple[str, bool, np.ndarray | None]:
@@ -515,14 +650,14 @@ def helper_match(
 
     Returns:
         1. the reaction key
-        2. the forward or reversed
+        2. the reaction is forward or reversed
         3. the match result
 
     """
-    info = ReactionNetwork.metadata.read(rxn_key)
+    info = network.metadata.read(rxn_key)
     if rxn_is_forward:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_r]),
+            pattern=SysGraph.from_ase(network.db_minima[info.key_r]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -530,7 +665,7 @@ def helper_match(
         )
     else:
         result = system.get_match_mode(  # type: ignore
-            pattern=Cluster.from_ase(ReactionNetwork.db_minima[info.key_p]),
+            pattern=SysGraph.from_ase(network.db_minima[info.key_p]),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -541,14 +676,21 @@ def helper_match(
 
 
 def helper_apply(
-    ReactionNetwork: ReactionNetwork,
     rxn_key: str,
     system: System,
     match_mode: np.ndarray,
+    network: ReactionNetwork,
+    raise_when_fail: bool = True,
     forward: bool = True,
-) -> tuple[str, bool, Atoms, float]:
-    _, rxn = ReactionNetwork.read_event(rxn_key)
+) -> tuple[str, bool, Atoms | str, float]:
+    _, rxn = network.read_event(rxn_key)
     if not forward:
         rxn = rxn.reversed
-    atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
-    return rxn_key, forward, atoms, rmsd
+    try:
+        atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
+        return rxn_key, forward, atoms, rmsd
+    except Exception as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return rxn_key, forward, str(e), np.inf

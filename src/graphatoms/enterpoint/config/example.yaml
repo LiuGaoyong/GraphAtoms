@@ -64,7 +64,6 @@ event:
   gas_sticking:
     CO: 0.5
     CO2: 0.5
-  gas_pressure: {}
   temperature: 300.0
 optimizer:
   method: "lbfgs"

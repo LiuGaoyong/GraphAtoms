@@ -289,17 +289,25 @@ class BondGraph(Matter, OurFrozenModel):
 
     @cached_property
     def connected_components(self) -> list[np.ndarray]:
+        """Return the connected components sorted by size in descending order.
+
+        Each connected component is represented as a NumPy array containing the
+        indices where the corresponding component label appears. The labels are
+        taken from the internal connected-components result and range from ``0``
+        to ``self.connected_components_number - 1``.
+
+        Returns:
+            list[np.ndarray]: A list of unique index arrays, one for each
+                connected component, sorted from largest to smallest.
+        """
         labels = self.__get_connected_components[1]
         n: int = self.connected_components_number
-        result = [np.where(labels == i)[0] for i in range(n)]
+        result = [np.unique(np.where(labels == i)) for i in range(n)]
         return sorted(result, reverse=True, key=lambda x: len(x))
 
     @cached_property
     def connected_components_biggest(self) -> np.ndarray:
-        cc: list[np.ndarray] = self.connected_components
-        ccl: list[int] = [len(i) for i in cc]
-        i_biggest = ccl.index(max(ccl))
-        return cc[i_biggest]
+        return self.connected_components[0]
 
     @cached_property
     def is_connected(self) -> bool:

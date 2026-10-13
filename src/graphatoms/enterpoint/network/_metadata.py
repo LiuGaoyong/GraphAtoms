@@ -7,7 +7,6 @@ import pandas as pd
 from pydantic import (
     BaseModel,
     NonNegativeFloat,
-    computed_field,
     model_validator,
 )
 
@@ -19,35 +18,13 @@ from graphatoms.system.bonds import matchmode2nmatch
 __all__ = ["MetaData"]
 
 
-class _GasInfo(BaseModel):
-    name: str
-    sticking: float
-    pressure: float
-
-
 class _MetaDataBasic(OurBaseModel, EventConfig):
     gas_sticking: dict[str, NonNegativeFloat] = {}
-    gas_pressure: dict[str, NonNegativeFloat] = {}
     temperature: float = 300
 
     @override
     def _string(self) -> str:
         return ", ".join([f"{k}={v}" for k, v in self.model_dump().items()])
-
-    @computed_field
-    @property
-    def gas_info_lst(self) -> list[_GasInfo]:
-        result: list[_GasInfo] = []
-        for name, sticking in self.gas_sticking.items():
-            pressure = self.gas_pressure.get(name, self.default_pressure)
-            result.append(
-                _GasInfo(
-                    name=name,
-                    sticking=sticking,
-                    pressure=pressure,
-                )
-            )
-        return result
 
 
 class _MetaDataTable(BaseModel):
@@ -111,7 +88,7 @@ class _MetaDataTable(BaseModel):
         *,
         cluster_key: str | None = None,
         system_key: str | None = None,
-        exclude_gas: bool = False,
+        gas_key: str | None = None,
         **kwargs,
     ) -> int:
         if cluster_key is not None:
@@ -121,7 +98,7 @@ class _MetaDataTable(BaseModel):
                     for i, ck in enumerate(self.for_cluster)
                     if (
                         ck == cluster_key
-                        and ((not exclude_gas) or self.key_g[i] is None)
+                        and ((gas_key is None) or self.key_g[i] is gas_key)
                     )
                 ]
                 + [0]
@@ -133,7 +110,7 @@ class _MetaDataTable(BaseModel):
                     for i, sk in enumerate(self.for_system)
                     if (
                         sk == system_key
-                        and ((not exclude_gas) or self.key_g[i] is None)
+                        and ((gas_key is None) or self.key_g[i] is gas_key)
                     )
                 ]
                 + [0]
@@ -164,6 +141,9 @@ class MetaData(BaseModel):
     def bkl_solver(
         self,
         matching_dct: dict[tuple[str, bool], np.ndarray],
+        *args,
+        env_pressure: dict[str, float] = {},
+        **kwargs,
     ) -> tuple[pd.DataFrame, str, bool, float, float]:
         """Solve the BKL equation to select the reaction.
 
@@ -186,6 +166,9 @@ class MetaData(BaseModel):
             nmatched = matchmode2nmatch(single_match_res)
             if is_forward:
                 rate = self.table.rate_forword[i]
+                key_g = self.table.key_g[i]
+                if key_g is not None:
+                    rate *= env_pressure.get(key_g, 0.0)
             else:
                 rate = self.table.rate_reversed[i]
             lst.append((rxn_key, is_forward, nmatched, rate))

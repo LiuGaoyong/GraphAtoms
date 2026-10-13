@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ class ExplConfig:
     maxtry: int = 1000
     maxconfidence: float = 10
     max_ncore_for_surface: int = 3  # 4, 5, 6
+    optimization_for_system: bool = True
     surface_only_explore_single_core: bool = True
     allow_multiple_adsorption: bool = False
     allow_explore_bulk: bool = False
@@ -45,9 +47,6 @@ class EventConfig:
     min_frequency_for_ts: float = 20.0  # cm^-1
     simplified_threshold: float = 7.0  # the simplified threshold for event
     gas_sticking: dict[str, float] = field(default_factory=dict)
-    gas_pressure: dict[str, float] = field(default_factory=dict)
-    default_pressure: float = 101325
-    default_sticking: float = 1.0
     temperature: float = 300
 
 
@@ -70,6 +69,13 @@ class Config:
     max_steps: int = 100000
     max_times: float = 1000.0  # seconds
     run_type: str = "otfkmc"  # otfkmc, rxngen
+    gas_pressure_cache_box_length: float = 1e4  # in Angstrom
+    initial_gas_pressure: dict[str, float] = field(default_factory=dict)
+    # the initial gas pressure only effect for `OTFKMC`, and the key of
+    # `initial_gas_pressure` must be the same as the key of `gas_sticking`
+    # 2. if the key of `initial_gas_pressure` is not in `gas_sticking`, then the initial gas pressure is 0.0    # noqa: E501
+    # 1. if the key of `gas_sticking` is not in `initial_gas_pressure`, then the gas sticking is 1.0            # noqa: E501
+
     parallel_workers: int = 0  # 0 means use all cores
     parallel: str = "serial"  # serial, multiprocessing, ray, dask, executorlib
     loglevel: str = "info"  # Literal["debug", "info", "warning", "error"]

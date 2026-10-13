@@ -13,7 +13,14 @@ class DictDB(DatabaseABC):
     """The database class based on `dict`."""
 
     @override
-    def __init__(self, *, append: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        append: bool = True,
+        use_positions_uuid: bool = False,
+    ) -> None:
+        """Initialize the database."""
+        super().__init__(append=append, use_positions_uuid=use_positions_uuid)
         self.__data: dict[str, Atoms] = {}
 
     @override
