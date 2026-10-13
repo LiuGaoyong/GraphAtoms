@@ -76,6 +76,7 @@ dev = [
     "chemiscope",
     # "playwright>=1.52", # chemiscope [headless]
     "nglview",
+    "grpcio",
     "ray",
 ]
 
