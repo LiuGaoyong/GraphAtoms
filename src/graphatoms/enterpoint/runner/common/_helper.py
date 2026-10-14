@@ -227,7 +227,6 @@ def helper_dimer(
     allow_desorption: bool | Literal["all", "input"] = "all",
     allow_metal_element_in_gas: bool = False,
     displacement: np.ndarray | None = None,
-    network: ReactionNetwork | None = None,
     raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
@@ -246,7 +245,6 @@ def helper_dimer(
                 If 'input', then allow the desorption of
                     the gas molecules only in the input file.
         displacement: The displacement vector for dimer.
-        network: The network object for gas query.
         raise_when_fail: Whether to raise exception when failed.
         deep_copy: Whether to deep copy the optimized graph.
 
@@ -262,11 +260,6 @@ def helper_dimer(
         and the result type.
     """
     result_type: str = "dimer"
-    if str(allow_desorption).lower() == "input":
-        assert network is not None, (
-            "network is None, please provide the network object."
-        )
-
     start = perf_counter()
     if graph_label is None:
         graph_label = graph.get_key_for_metadata()
@@ -453,11 +446,13 @@ def helper_dimer(
         gas_atoms = Atoms(numbers=gas_z, positions=gas_r)  # type: ignore
         gas_init = Gas.from_ase(gas_atoms, parse_bonds=config.bonds)  # type: ignore
         gas_key, _gas_complete = gas_init.get_key_for_metadata(), False
-        if network is not None:
+        try:
+            network = ReactionNetwork.from_config(config, restart=True)
             if gas_key in network.db_gas:
                 _gas_complete = True
                 gas = Gas.from_ase(network.db_gas[gas_key])
             elif str(allow_desorption).lower() == "input":
+                raise NotImplementedError("Not implemented yet.")
                 gas_name_set = set(config.event.gas_sticking.keys())
                 gas_name_set.update(config.initial_gas_pressure.keys())
                 if gas_init.smiles not in gas_name_set:
@@ -470,8 +465,8 @@ def helper_dimer(
                     else:
                         cost = perf_counter() - start
                         return (str(e), graph_label, cost, result_type)
-            else:
-                pass  # go to next next block, ...
+        except Exception:
+            pass  # go to next next block, ...
         if not _gas_complete:
             try:
                 gas, _, cost_time = helper_optimization(

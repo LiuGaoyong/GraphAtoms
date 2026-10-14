@@ -3,7 +3,7 @@ import pickle
 from pathlib import Path
 from typing import Literal, Self
 
-from graphatoms.enterpoint.config import EventConfig
+from graphatoms.enterpoint.config import Config, EventConfig
 from graphatoms.reaction import (
     Adsorption,
     Desorption,
@@ -11,7 +11,7 @@ from graphatoms.reaction import (
     EventInfo,
     Reaction,
 )
-from graphatoms.system import Gas, SysGraph
+from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.system.database import DatabaseABC, get_db
 
 from ._metadata import MetaData
@@ -25,6 +25,7 @@ __all__ = [
     "Scheduler",
     "ReactionNetwork",
 ]
+NETWORK_PATH_PREFIX = "event"
 
 
 class ReactionNetwork:
@@ -125,6 +126,26 @@ class ReactionNetwork:
         assert isinstance(self.db_cluster, DatabaseABC)
         assert isinstance(self.db_system, DatabaseABC)
 
+    @property
+    def path(self) -> Path:
+        return self.__path
+
+    @classmethod
+    def from_config(
+        cls,
+        config: Config,
+        *args,
+        restart: bool | None = None,
+        **kwargs,
+    ) -> Self:
+        return cls(
+            path=Path(config.outputs) / NETWORK_PATH_PREFIX,
+            restart=restart if restart is not None else config.restart,
+            format=config.event.db_format,
+            config=config.event,
+            **kwargs,
+        )
+
     @classmethod
     def merge(
         cls,
@@ -158,6 +179,19 @@ class ReactionNetwork:
         self.recorder.write_json(self.__path / "recorder.json")
         self.scheduler.write_npz(self.__path / "scheduler.npz")
         self.metadata.persistence(self.__path)
+
+    def minima_has_been_optimized(self, graph: SysGraph) -> SysGraph | None:
+        v = None
+        for cls, db in [
+            (Gas, self.db_gas),
+            (Cluster, self.db_cluster),
+            (System, self.db_system),
+        ]:
+            key = graph.get_key_for_metadata(db.use_positions_uuid)
+            if isinstance(graph, cls) and graph in db:
+                v = cls.from_ase(db[key])
+                break
+        return v
 
     def read_event(self, key: str) -> tuple[EventInfo, EventBase]:
         """Read the event from the database."""
