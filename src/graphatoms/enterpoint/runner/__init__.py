@@ -1,6 +1,11 @@
 import os
 
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["HYDRA_FULL_ERROR"] = "1"
+os.environ["RAY_DEDUP_LOGS"] = "0"
 
 import hydra
 

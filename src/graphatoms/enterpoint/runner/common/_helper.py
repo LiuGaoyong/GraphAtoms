@@ -134,8 +134,14 @@ def helper_optimization(
         max_steps=int(config.optimizer.steps),
         fmax=float(config.optimizer.fmax),
     )
+    last_pos: np.ndarray = lst[-1].get_positions()
+    if np.any(np.isinf(last_pos)) or np.any(np.isnan(last_pos)):
+        e = ValueError("Optimization failed, positions contain inf/nan.")
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start
     if not coveraged:
-        cost_time = perf_counter() - start
         e = OptimizationFailed(
             type="minima",
             max_steps=max(int(config.optimizer.steps), len(lst)),
@@ -144,14 +150,14 @@ def helper_optimization(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time
+            return str(e), graph_label, perf_counter() - start
 
     # ---------------------------------------------
     #       check graph hash changed or not
     # ---------------------------------------------
     try:
         result = graph.update_geometry(
-            new_positions=lst[-1].get_positions(),
+            new_positions=last_pos,
             parse_bonds=config.bonds,  # type: ignore
             deep=deep_copy,
         )
@@ -295,8 +301,14 @@ def helper_dimer(
         mask=mask,
         **kwargs,
     )
+    last_pos: np.ndarray = dimer_lst[-1].get_positions()
+    if np.any(np.isinf(last_pos)) or np.any(np.isnan(last_pos)):
+        e = ValueError("Optimization failed, positions contain inf/nan.")
+        if raise_when_fail:
+            raise e
+        else:
+            return str(e), graph_label, perf_counter() - start, result_type
     if not coveraged:
-        cost_time = perf_counter() - start
         e = OptimizationFailed(
             type="dimer",
             label=graph_label,
@@ -305,13 +317,13 @@ def helper_dimer(
         if raise_when_fail:
             raise e
         else:
-            return str(e), graph_label, cost_time, result_type
+            return str(e), graph_label, perf_counter() - start, result_type
 
     # -----------------------------------------
     #       check the fixed bond change or not
     # -----------------------------------------
     ts = graph.update_geometry(
-        dimer_lst[-1].positions,
+        new_positions=last_pos,
         parse_bonds=config.bonds,  # type: ignore
         deep=deep_copy,
     )

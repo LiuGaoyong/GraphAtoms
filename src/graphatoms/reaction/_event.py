@@ -452,8 +452,13 @@ class EventBase(RTGP, MoveABC):
             rate = ------*exp(------)
                       h        kB*T
         """
-        Ea, kBT = self.get_Ea(temperature, fqmin=fqmin), kB * temperature
-        return self._get_kBT_h(temperature) * np.exp(-Ea / kBT)
+        Ea = self.get_Ea(temperature, *args, fqmin=fqmin, **kwargs)
+        if abs(Ea) > 80:
+            msg = f"The activation energy is too large. Ea={Ea:.2f}eV"
+            raise ValueError(msg)
+        z: float = -Ea / (kB * temperature)
+        z = np.clip(z, -np.inf, 80)  # avoid overflow
+        return self._get_kBT_h(temperature) * np.exp(z)
 
     @staticmethod
     def _get_kBT_h(temperature: PositiveFloat = 300.0) -> float:
@@ -572,6 +577,7 @@ class EventInfo(BaseModel):
             for_cluster=for_cluster,
             for_system=for_system,
         )
+
 
 if __name__ == "__main__":
     from scipy import constants

@@ -17,6 +17,7 @@ from ase.optimize.optimize import Dynamics, Optimizer
 from ase.units import invcm
 from ase.vibrations import Vibrations, VibrationsData
 
+_ERR_MSG = "Optimization failed because of infinite position."
 OPTIMIZE_METHODS: dict[str, type[Optimizer]] = {}
 for k in ase.optimize.__all__:
     v = getattr(ase.optimize, k)
@@ -119,10 +120,14 @@ def call_optimization(
         interval=1,
     )
     try:
-        converged = optimizer.run(
-            steps=max_steps,
-            fmax=fmax,
-        )
+        for _ in range(max_steps):
+            converged = optimizer.run(steps=1, fmax=fmax)
+            if np.any(np.isinf(atoms.positions)):
+                raise RuntimeError(_ERR_MSG)
+            if np.any(np.isnan(atoms.positions)):
+                raise RuntimeError(_ERR_MSG)
+            if converged:
+                break
     except RuntimeError as e:
         converged = False
         raise e
@@ -235,6 +240,10 @@ def call_dimer(
                 if traj is not None:
                     traj.write(atoms=data[-1])
                 converged = dim_rlx.run(fmax=fmax, steps=1)
+                if np.any(np.isinf(data[-1].positions)):
+                    raise RuntimeError(_ERR_MSG)
+                if np.any(np.isnan(atoms.positions)):
+                    raise RuntimeError(_ERR_MSG)
                 if converged:
                     _trajectory_record(container=data, object=dim_rlx)
                     if traj is not None:

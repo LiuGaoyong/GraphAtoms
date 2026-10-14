@@ -29,6 +29,19 @@ def _adsorption() -> EventBase:
     return Adsorption(R=r, G=gas, P=p)
 
 
+def test_basic() -> None:
+    rxn, ads = _rxn(), _adsorption()
+    assert isinstance(rxn, Reaction)
+    assert isinstance(ads, Adsorption)
+
+    des: Desorption = ads.reversed
+    assert isinstance(des, Desorption)
+
+    print(ads.get_dE(), ads.get_Ea())
+    print(des.get_dE(), des.get_Ea())
+    print(des.get_rate())
+
+
 @pytest.mark.parametrize(
     "event",
     [_rxn()] + sorted(data_dir_4simplify.glob("event-*")),
@@ -61,7 +74,6 @@ def test_simplify(event: EventBase | Path) -> None:
     event.reversed.reversed.simplify(env_radius=7.0)
 
 
-
 @pytest.mark.parametrize("n", [8, 9, 10])
 @pytest.mark.parametrize("simplify", [True, False])
 def test_apply(n: int, simplify: bool) -> None:
@@ -84,6 +96,7 @@ def test_apply(n: int, simplify: bool) -> None:
     # from ase.io import write
     # write(f"test_apply_{n}_{simplify}.xyz", sys.to_ase(), append=False)
     # write(f"test_apply_{n}_{simplify}.xyz", res, append=True)
+
 
 @pytest.mark.parametrize("n", [8, 9, 10])
 @pytest.mark.parametrize("simplify", [True, False])

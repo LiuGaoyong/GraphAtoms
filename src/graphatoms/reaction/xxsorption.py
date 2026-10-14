@@ -167,7 +167,7 @@ class Desorption(EventBase):
         Returns:
             np.inf
         """
-        return np.inf
+        return self.get_dE(*args, **kwargs)
 
     @override
     def get_dE(
@@ -205,5 +205,10 @@ class Desorption(EventBase):
                       h        kB*T
         """
         assert self.G is not None, "The gas must be not None."
-        dE = self.get_dE(temperature, pressure=pressure, fqmin=fqmin)
-        return self._get_kBT_h(temperature) * np.exp(-dE / (kB * temperature))
+        return super().get_rate(
+            temperature,
+            *args,
+            fqmin=fqmin,
+            pressure=pressure,
+            **kwargs,
+        )
