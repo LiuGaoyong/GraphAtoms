@@ -41,6 +41,7 @@ class _RayReactionNetwork(ReactionNetwork):
     def minima_has_been_optimized(self, graph: SysGraph) -> SysGraph | None:  # type: ignore
         return super().minima_has_been_optimized(graph)
 
+
 RayReactionNetwork: ActorClass[_RayReactionNetwork] = ray.remote(
     _RayReactionNetwork  # object: ActorProxy[_RayReactionNetwork]
 )
@@ -62,7 +63,7 @@ def helper_optimization(
     run_vibration: bool = True,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Cluster | Gas | System | SysGraph | str, Any, float, str]:
+) -> tuple[Cluster | Gas | System | SysGraph | str, Any, float, str]:  # type: ignore
     """Optimize the input graph, analyze its vibrations and check it.
 
     Parameters:
@@ -99,21 +100,21 @@ def helper_optimization(
     )
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
 
-    for cls, db in [
-                        (Gas, self.network.db_gas),
-                        (Cluster, self.network.db_cluster),
-                        (System, self.network.db_system),
-                    ]:
-                        if isinstance(sysgraph, cls) and sysgraph in db:
-                            atoms: Atoms = db[key]
-                            result[label] = v = cls.from_ase(atoms)
-                            msg = f"Read '{key}' from the DB for {v}."
-                            self.logger.info(self._reformat_message(msg))
-                            has_been_explored = True
-                            break
-                    if not has_been_explored:
+    # for cls, db in [
+    #                     (Gas, self.network.db_gas),
+    #                     (Cluster, self.network.db_cluster),
+    #                     (System, self.network.db_system),
+    #                 ]:
+    #                     if isinstance(sysgraph, cls) and sysgraph in db:
+    #                         atoms: Atoms = db[key]
+    #                         result[label] = v = cls.from_ase(atoms)
+    #                         msg = f"Read '{key}' from the DB for {v}."
+    #                         self.logger.info(self._reformat_message(msg))
+    #                         has_been_explored = True
+    #                         break
+    #                 if not has_been_explored:
 
-    return log_container.getvalue().strip()
+    # return log_container.getvalue().strip()
 
 
 def helper_dimer(
@@ -129,7 +130,7 @@ def helper_dimer(
     raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Reaction | Desorption | str, Any, float, str]:
+) -> tuple[Reaction | Desorption | str, Any, float, str]:  # type: ignore
     """Dimer search for transition state.
 
     Parameters:
@@ -171,7 +172,7 @@ def helper_adsorption(
     irun: int | None = None,
     deep_copy: bool = True,
     **kwargs,
-) -> tuple[Adsorption | str, Any, float, str]:
+) -> tuple[Adsorption | str, Any, float, str]:  # type: ignore
     """Helper function for adsorption process.
 
     Returns:
