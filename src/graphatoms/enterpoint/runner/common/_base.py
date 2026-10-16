@@ -149,10 +149,11 @@ class RunnerABC:
         self.network = ReactionNetwork.from_config(self.config, restart=None)
         gas_name_set = set(self.network.metadata.basic.gas_sticking.keys())
         gas_name_set.update(self.config.initial_gas_pressure.keys())
+        new_gas_sticking_dct: dict[str, float] = {}
         self.gas_number_dct: dict[str, float] = {}
         self.__gas_lst: list[Gas] = []
         for gas_name in gas_name_set:
-            s = self.network.metadata.basic.gas_sticking.get(gas_name, 1.0)
+            s = self.config.event.gas_sticking.get(gas_name, 1.0)
             gas, _, cost_time = helper_optimization(
                 config=self.config,
                 graph=Gas.from_name(
@@ -170,16 +171,28 @@ class RunnerABC:
                 msg = f"Optimized gas({gas_name}) in {cost_time:.2f} seconds."
                 self.logger.info(self._reformat_message(msg))
                 self.__gas_lst.append(gas)
-                self.network.db_gas.add(gas)
-                gas_positions_uuid = self.network.db_gas.use_positions_uuid
-                gas_k = gas.get_key_for_metadata(gas_positions_uuid)
+                gas_k = gas.get_key_for_metadata()
+                self.network.write_sysgraph(gas, type="gas")
                 p = self.config.initial_gas_pressure.get(gas_name, 0.0)
                 V, kBT = self.__gas_box_volume, self.__kBT_in_J
                 self.gas_number_dct[gas_k] = p * V / kBT
+                new_gas_sticking_dct[gas.smiles] = float(s)
             else:
                 msg = f"Failed to optimize gas({gas_name})."
                 self.logger.error(self._reformat_message(msg))
                 raise ValueError(msg)
+        self.network.metadata.basic.gas_sticking = new_gas_sticking_dct
+        self.config.event.gas_sticking = new_gas_sticking_dct
+        log.info("=" * self._log_length)
+        log.info(f"New gas sticking dict: {new_gas_sticking_dct}")
+        log.info("The Configuration:\n" + OmegaConf.to_yaml(self.config))
+        log.info("Update the Configuration of `gas_sticking`.")
+        log.info("=" * self._log_length)
+        log.info(
+            "The configuration of network-metadata:\n"
+            + OmegaConf.to_yaml(self.network.metadata.basic)
+        )
+        log.info("=" * self._log_length)
 
         msg = f"Gas number dict: {self.gas_number_dct}"
         self.logger.info(self._reformat_message(msg))
@@ -314,10 +327,9 @@ class RunnerABC:
             msg = f"Unknown type of input: {type(system)}"
             self.logger.error(self._reformat_message(msg))
             raise ValueError(msg)
-        use_pos_uuid = self.network.db_system.use_positions_uuid
-        sys_k = system.get_key_for_metadata(use_pos_uuid)
-        if sys_k in self.network.db_system:
-            atoms = self.network.db_system[sys_k]
+        sys_k = system.get_key_for_metadata(False)
+        if self.network.contain_sysgraph(sys_k, "system"):
+            atoms = self.network.read_atoms(sys_k, "system")
             system = System.from_ase(atoms)
             msg = f"Load system({sys_k}) from database."
             self.logger.info(self._reformat_message(msg))
@@ -347,7 +359,7 @@ class RunnerABC:
                     msg = f"Optimization system({sys_k}) "
                     msg += f"successfully. E={system.energy}"
                     self.logger.info(self._reformat_message(msg))
-                    self.network.db_system.add(system)
+                    self.network.write_sysgraph(system, "system")
 
         oesc = bool(self.config.exploration.surface_only_explore_single_core)
         if oesc and len(self.gas_lst) == 0:
@@ -402,7 +414,7 @@ class RunnerABC:
         )
         result = {keys[int(id)]: values[int(id)] for id in idxs}
         energy = np.nan if system.energy is None else system.energy
-        return result, system.get_key_for_metadata(use_pos_uuid), energy
+        return result, system.get_key_for_metadata(False), energy
 
 
 def wrap_line(

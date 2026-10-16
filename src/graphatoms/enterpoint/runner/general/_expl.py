@@ -87,7 +87,7 @@ class ExplorationBase(RunnerABC):
             # -------------------------------------------------
             for label, sysgraph in container.items():
                 key: str = sysgraph.get_key_for_metadata()
-                sysgraph_opt = self.network.minima_has_been_optimized(sysgraph)
+                sysgraph_opt = self.network.object_has_been_optimized(sysgraph)
                 if sysgraph_opt is not None:
                     result[label] = v = sysgraph_opt
                     msg = f"Read '{key}' from the DB for {v}."
@@ -118,11 +118,11 @@ class ExplorationBase(RunnerABC):
                 if isinstance(sysgraph_or_msg, Gas | Cluster | System):
                     msg: str = f"Optimization (success): {sysgraph_or_msg}."
                     if isinstance(sysgraph_or_msg, Gas):
-                        self.network.db_gas.add(sysgraph_or_msg)
+                        self.network.write_sysgraph(sysgraph_or_msg, "gas")
                     elif isinstance(sysgraph_or_msg, Cluster):
-                        self.network.db_cluster.add(sysgraph_or_msg)
+                        self.network.write_sysgraph(sysgraph_or_msg, "cluster")
                     else:
-                        self.network.db_system.add(sysgraph_or_msg)
+                        self.network.write_sysgraph(sysgraph_or_msg, "system")
                     result[label] = sysgraph_or_msg
                 elif isinstance(sysgraph_or_msg, str):
                     msg = str(sysgraph_or_msg)

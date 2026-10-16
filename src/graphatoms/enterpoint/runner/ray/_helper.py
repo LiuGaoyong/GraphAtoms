@@ -38,8 +38,8 @@ class _RayReactionNetwork(ReactionNetwork):
 
     @ray.method(num_returns=1)
     @override
-    def minima_has_been_optimized(self, graph: SysGraph) -> SysGraph | None:  # type: ignore
-        return super().minima_has_been_optimized(graph)
+    def object_has_been_optimized(self, graph: SysGraph) -> SysGraph | None:  # type: ignore
+        return super().object_has_been_optimized(graph)
 
 
 RayReactionNetwork: ActorClass[_RayReactionNetwork] = ray.remote(

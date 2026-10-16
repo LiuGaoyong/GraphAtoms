@@ -1,5 +1,4 @@
 import os
-from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -46,7 +45,7 @@ class EventConfig:
     min_frequency: float = 10.0  # cm^-1
     min_frequency_for_ts: float = 20.0  # cm^-1
     simplified_threshold: float = 7.0  # the simplified threshold for event
-    gas_sticking: dict[str, float] = field(default_factory=dict)
+    gas_sticking: dict[str, float] = field(default_factory=dict)  # MISSING
     temperature: float = 300
 
 

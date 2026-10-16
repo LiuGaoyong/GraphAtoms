@@ -48,7 +48,6 @@ class ReactionNetworkGenerator(ExplorationBase):
             data = self.__path.read_text()
             obj = MatchApplyRecorder.model_validate_json(data)
             self.__match_apply_recorder: MatchApplyRecorder = obj
-            assert self.network.db_system.use_positions_uuid is False
             self.__system_dct: dict[str, System] = {
                 k: System.from_ase(
                     v,
@@ -112,7 +111,7 @@ class ReactionNetworkGenerator(ExplorationBase):
                                 system=system,
                                 rxn_key=rxn_key,
                                 forward=is_forward,
-                                network=self.network,
+                                config=self.config,
                                 raise_when_fail=False,
                                 match_mode=None,
                             )

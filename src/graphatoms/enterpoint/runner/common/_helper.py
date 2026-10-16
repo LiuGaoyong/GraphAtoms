@@ -447,10 +447,14 @@ def helper_dimer(
         gas_init = Gas.from_ase(gas_atoms, parse_bonds=config.bonds)  # type: ignore
         gas_key, _gas_complete = gas_init.get_key_for_metadata(), False
         try:
-            network = ReactionNetwork.from_config(config, restart=True)
-            if gas_key in network.db_gas:
+            network = ReactionNetwork.from_config(
+                config=config,
+                remote_mode=True,
+                restart=True,
+            )
+            if network.contain_sysgraph(gas_key, "gas"):
                 _gas_complete = True
-                gas = Gas.from_ase(network.db_gas[gas_key])
+                gas = network.read_sysgraph(gas_key, "gas")
             elif str(allow_desorption).lower() == "input":
                 raise NotImplementedError("Not implemented yet.")
                 gas_name_set = set(config.event.gas_sticking.keys())
@@ -478,7 +482,6 @@ def helper_dimer(
                     run_vibration=True,
                     **kwargs,
                 )
-                assert isinstance(gas, Gas), "Impossible !!!!"
                 _gas_complete = True
             except Exception as e:
                 msg = f"The gas({gas_init.smiles}) is not optimized. "
@@ -489,6 +492,7 @@ def helper_dimer(
                 else:
                     cost = perf_counter() - start
                     return (str(e), graph_label, cost, result_type)
+        assert isinstance(gas, Gas), "Impossible !!!!"
         assert _gas_complete, "Impossible !!!!"
 
         # ------------------------------------------------------------
@@ -648,8 +652,8 @@ def helper_adsorption(
 
 
 def helper_match(
+    config: Config,
     system: System,
-    network: ReactionNetwork,
     rxn_is_forward: bool,
     rxn_key: str,
 ) -> tuple[str, bool, np.ndarray | None]:
@@ -661,10 +665,15 @@ def helper_match(
         3. the match result
 
     """
-    info = network.metadata.read(rxn_key)
+    network = ReactionNetwork.from_config(
+        config=config,
+        restart=True,
+        remote_mode=True,
+    )
+    info = network.read_event_info(rxn_key)
     if rxn_is_forward:
         result = system.get_match_mode(  # type: ignore
-            pattern=SysGraph.from_ase(network.db_minima[info.key_r]),
+            pattern=network.read_sysgraph(info.key_r, "minima", True),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -672,7 +681,7 @@ def helper_match(
         )
     else:
         result = system.get_match_mode(  # type: ignore
-            pattern=SysGraph.from_ase(network.db_minima[info.key_p]),
+            pattern=network.read_sysgraph(info.key_p, "minima", True),
             algorithm="lad",
             return_match_target=True,
             only_number_color=False,
@@ -684,12 +693,17 @@ def helper_match(
 
 def helper_apply(
     rxn_key: str,
-    system: System,
+    config: Config,
+    system: System | Atoms,
     match_mode: np.ndarray,
-    network: ReactionNetwork,
     raise_when_fail: bool = True,
     forward: bool = True,
 ) -> tuple[str, bool, Atoms | str, float]:
+    network = ReactionNetwork.from_config(
+        config=config,
+        restart=True,
+        remote_mode=True,
+    )
     _, rxn = network.read_event(rxn_key)
     if not forward:
         rxn = rxn.reversed
