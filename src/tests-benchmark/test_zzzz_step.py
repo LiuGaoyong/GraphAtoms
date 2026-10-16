@@ -29,8 +29,8 @@ this_dir = Path(__file__).parent
 @pytest.mark.parametrize(
     "Mock",
     [
-        # OnTheFlyKMC,
-        ReactionNetworkGenerator,
+        OnTheFlyKMC,
+        # ReactionNetworkGenerator,
     ],
 )
 def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
