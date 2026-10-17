@@ -1,31 +1,47 @@
-import os
-
-from graphatoms.enterpoint.runner.common._base import RunnerABC
-
-os.environ["RAY_"] = "ray_task_id"
 import ray
+from ase import Atoms
 
 from graphatoms.enterpoint.config import Config
-from graphatoms.enterpoint.runner.common import _helper as funcs
+from graphatoms.enterpoint.network import ReactionNetwork
+from graphatoms.enterpoint.runner.common._base import RunnerABC
 from graphatoms.system import System
 
-
-@ray.remote
-def optimize_system(system: System, config: Config) -> System | str:
-    result, _, _ = funcs.helper_optimization(
-        config=config,
-        graph=system,
-    )
-    raise NotImplementedError("optimize_system is not implemented yet.")
-
-
-@ray.remote
-def analysis_system(system: System, config: Config) -> System | str:
-    raise NotImplementedError("run_system is not implemented yet.")
+from ._helper import (
+    RayReactionNetwork,
+    helper_adsorption,
+    helper_dimer,
+    helper_optimization,
+)
 
 
 class ExplorationRayBase(RunnerABC):
-    """The class for the ray simulation."""
+    """The exploration class based on Ray cluster."""
+
+    def __init__(self, *, config: Config) -> None:
+        super().__init__(config=config)
+        self.config_ray = ray.put(config)
+        self.sync_network_to_ray()
+
+    def sync_network_to_ray(self) -> None:
+        self.network.persistence()
+        self.network_ray = RayReactionNetwork.remote(
+            format=self.config.event.db_format,
+            config=self.config.event,
+            path=self.network.path,
+            restart=True,
+        )
+
+    def sync_network_to_local(self) -> None:
+        ray.get(self.network_ray.persistence.remote())
+        self.network = ReactionNetwork.from_config(self.config, restart=True)
+
+    def explore(self, lst: list[System | Atoms] | None = None) -> None:
+        # ---------------------------------------------
+        #       analyze the system list
+        # ---------------------------------------------
+        if lst is None:
+            lst = [self.get_system_for(None)]
+        helper_optimization.remote, helper_adsorption, helper_dimer
 
     def submit(self) -> None:
         """Submit the task to the ray cluster."""

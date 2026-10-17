@@ -4,14 +4,10 @@ from typing import Any, Self, override
 
 import numpy as np
 import pandas as pd
-from pydantic import (
-    BaseModel,
-    NonNegativeFloat,
-    model_validator,
-)
+from pydantic import BaseModel, NonNegativeFloat, model_validator
 
 from graphatoms.dataclasses import OurBaseModel
-from graphatoms.enterpoint.config import EventConfig
+from graphatoms.enterpoint.config import Config, EventConfig
 from graphatoms.reaction import EventBase, EventInfo
 from graphatoms.system.bonds import matchmode2nmatch
 
@@ -20,7 +16,27 @@ __all__ = ["MetaData"]
 
 class _MetaDataBasic(OurBaseModel, EventConfig):
     gas_sticking: dict[str, NonNegativeFloat] = {}
-    temperature: float = 300
+
+    @classmethod
+    def from_config(cls, config: Config | EventConfig) -> Self:
+        if isinstance(config, Config):
+            config = config.event
+        return cls(**config)  # type: ignore
+
+    def check_consistency(self, config: EventConfig | Self) -> None:
+        msg = r"The keys of {} must be the same as input, "
+        msg += r"but we got {}(from self) and {}(from input)"
+        for k in self.__pydantic_fields__:
+            v1 = getattr(self, k)
+            v2 = getattr(config, k)
+            if not isinstance(v1, dict):
+                assert v1 == v2 or np.isclose(v1, v2), msg.format(k, v1, v2)
+            else:
+                for kk, vv1 in v1.items():
+                    assert kk in v2.keys(), msg.format(k + "." + kk, vv1, None)
+                    assert vv1 == v2[kk] or np.isclose(vv1, v2[kk]), msg.format(
+                        k + "." + kk, vv1, v2[kk]
+                    )
 
     @override
     def _string(self) -> str:

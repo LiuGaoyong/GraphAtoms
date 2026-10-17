@@ -21,7 +21,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
         self.use_positions_uuid = bool(use_positions_uuid)
 
     @override
-    def __contains__(self, key: object) -> bool:
+    def __contains__(self, key: str | SysGraph) -> bool:  # type: ignore
         if not isinstance(key, str):
             if isinstance(key, SysGraph):
                 key = key.get_key_for_metadata(self.use_positions_uuid)
