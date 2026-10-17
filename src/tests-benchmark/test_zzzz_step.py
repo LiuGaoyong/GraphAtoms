@@ -30,7 +30,7 @@ this_dir = Path(__file__).parent
     "Mock",
     [
         OnTheFlyKMC,
-        # ReactionNetworkGenerator,
+        ReactionNetworkGenerator,
     ],
 )
 def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
@@ -62,7 +62,7 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             cfg.parallel_workers = 2
             cfg.exploration.maxtry = maxtry
             cfg.run_type = "rxngen"
-            cfg.max_steps = 200
+            cfg.max_steps = 3
             cfg.max_times = float("inf")
             cfg.exploration.surface_only_explore_single_core = True
             cfg.exploration.max_ncore_for_surface = 1

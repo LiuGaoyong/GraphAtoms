@@ -31,6 +31,8 @@ from graphatoms.utils.parser import hydra_parse
 from ._helper import helper_optimization
 
 _kB_in_JperK = _boltzmann_constant * _electron_charge
+LOGURU_FORMAT = os.environ["LOGURU_FORMAT"]
+LOGURU_FORMAT_LENGTH = 37
 
 
 class RunnerABC:
@@ -40,16 +42,6 @@ class RunnerABC:
         1. basic configuration (omegaconf.DictConfig)
         2. output directory (pathlib.Path)
     """
-
-    __LOGURU_FORMAT_LENGTH: int = 37
-    __LOGURU_TOTAL_LENGTH: int = 120
-
-    @classmethod
-    def _reformat_message(cls, msg: str) -> str:
-        return msg
-        len_msg = cls.__LOGURU_TOTAL_LENGTH - cls.__LOGURU_FORMAT_LENGTH
-        lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
-        return ("\n" + " " * cls.__LOGURU_FORMAT_LENGTH).join(lst)
 
     def __init__(self, *, config: Config) -> None:
         assert isinstance(config, DictConfig | Config)
@@ -93,10 +85,7 @@ class RunnerABC:
         else:
             output_dir = config.outputs
         output_dir = Path(output_dir).absolute()
-        self._log_length = int(  # the maximum length of the line in loguru
-            self.__LOGURU_TOTAL_LENGTH  # 80
-            - self.__LOGURU_FORMAT_LENGTH
-        )
+        self._log_length = 80  # the maximum length of the line in loguru
         log.info("=" * self._log_length)
         log.info("The Configuration:\n" + OmegaConf.to_yaml(config))
         log.info(f"Working floder   : {os.getcwd()}")
@@ -146,7 +135,9 @@ class RunnerABC:
         self.__kBT_in_J = T * _kB_in_JperK
         gas_box_length = self.config.gas_pressure_cache_box_length
         self.__gas_box_volume: float = (gas_box_length * 1e-10) ** 3  # m^3
-        self.network = ReactionNetwork.from_config(self.config, restart=None)
+        self.network = ReactionNetwork.from_config(
+            self.config, restart=None, remote_mode=False
+        )
         gas_name_set = set(self.network.metadata.basic.gas_sticking.keys())
         gas_name_set.update(self.config.initial_gas_pressure.keys())
         new_gas_sticking_dct: dict[str, float] = {}
@@ -211,6 +202,9 @@ class RunnerABC:
 
         # persist the network for restart. [gas list]
         self.network.persistence()
+
+    def _reformat_message(self, msg: str) -> str:
+        return self.network.reformat_message(msg)
 
     @property
     def gas_lst(self) -> list[Gas]:
@@ -415,44 +409,3 @@ class RunnerABC:
         result = {keys[int(id)]: values[int(id)] for id in idxs}
         energy = np.nan if system.energy is None else system.energy
         return result, system.get_key_for_metadata(False), energy
-
-
-def wrap_line(
-    text: str,
-    width_min: int = 80,
-    width_max: int = 100,
-) -> list[str]:
-    """Make a line of text fit in a given width.
-
-    Args:
-        text: The text to wrap.
-        width_min: The minimum width of the line.
-        width_max: The maximum width of the line.
-
-    Returns:
-        The wrapped lines.
-    """
-    words = text.split()
-    if not words:
-        return [""]
-
-    lines = []
-    cur = ""
-    for w in words:
-        if not cur:
-            cur = w
-        elif len(cur) + 1 + len(w) <= width_max:
-            cur += " " + w
-        else:
-            lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-
-    if len(lines) >= 2 and len(lines[-1]) < width_min:
-        merged = lines[-2] + " " + lines[-1]
-        if len(merged) <= width_max:
-            lines[-2] = merged
-            lines.pop()
-
-    return lines

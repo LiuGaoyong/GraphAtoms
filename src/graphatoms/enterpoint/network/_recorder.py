@@ -165,7 +165,7 @@ class RecorderInfo(_RecorderBase):
 
 
 class Recorder(OurBaseModel):
-    system: set[str] = set()
+    system: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
     cluster: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
     adsorption: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
     bulk: set[str] = set()
@@ -184,8 +184,9 @@ if __name__ == "__main__":
     from pathlib import Path
 
     import pandas as pd
+
     obj = Recorder()
-    obj.system.add("fdsafs")
+    obj.system["fdsafs"].new += 1
     obj.cluster["fdsafs"].new += 1
     obj.cluster["fdsafs"].new += 1
     print(obj)

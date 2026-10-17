@@ -2,6 +2,7 @@ import pickle
 from pathlib import Path
 from typing import Literal, Self
 
+import numpy as np
 from ase import Atoms
 
 from graphatoms.enterpoint.config import Config, EventConfig
@@ -30,6 +31,14 @@ NETWORK_PATH_PREFIX = "event"
 
 
 class ReactionNetwork:
+    DB_USE_POSITION_UUID_DICT: dict[str, bool] = {
+        "ts": True,
+        "minima": True,
+        "cluster": False,
+        "system": False,
+        "gas": False,
+    }
+
     def __init__(
         self,
         path: Path | str,
@@ -88,25 +97,19 @@ class ReactionNetwork:
         # initialize the databases
         (
             self.__db_ts,
-            self.__db_gas,
             self.__db_minima,
             self.__db_cluster,
             self.__db_system,
+            self.__db_gas,
         ) = [
             get_db(
                 path=path,
                 format=format,
                 prefix=prefix,
                 append=restart,
-                use_positions_uuid=use_positions_uuid,
+                use_positions_uuid=use_pos_uuid,
             )
-            for prefix, use_positions_uuid in [
-                ("ts", True),
-                ("gas", False),
-                ("minima", True),
-                ("cluster", False),
-                ("system", False),
-            ]
+            for prefix, use_pos_uuid in self.DB_USE_POSITION_UUID_DICT.items()
         ]
         assert isinstance(self.__db_ts, DatabaseABC)
         assert isinstance(self.__db_gas, DatabaseABC)
@@ -217,6 +220,65 @@ class ReactionNetwork:
             format=networks[0].__format,
         )
 
+    @classmethod
+    def reformat_message(cls, msg: str) -> str:
+        return msg
+        __LOGURU_FORMAT_LENGTH: int = 37
+        __LOGURU_TOTAL_LENGTH: int = 120
+        len_msg = __LOGURU_TOTAL_LENGTH - __LOGURU_FORMAT_LENGTH
+        lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
+        return ("\n" + " " * __LOGURU_FORMAT_LENGTH).join(lst)
+
+    def exploration_can_be_finished(
+        self,
+        confidence: float,
+        *args,
+        cluster_key: str | None,
+        system_key: str | None = None,
+        **kwargs,
+    ) -> bool:
+        """Check whether the exploration (dimer) can be finished."""
+        if cluster_key is not None:
+            oldnew = self.recorder.cluster[cluster_key]
+            return oldnew.exploration_can_be_finished(
+                confidence=confidence,
+                min_found=self.metadata.table.get_minconut_for(
+                    cluster_key=cluster_key,
+                    **kwargs,
+                ),
+            )
+        else:
+            raise NotImplementedError("`cluster_key=None` is not supported.")
+            assert system_key is not None
+            oldnew = self.recorder.system[system_key]
+            return oldnew.exploration_can_be_finished(
+                confidence=confidence,
+                min_found=self.metadata.table.get_minconut_for(
+                    system_key=system_key,
+                    **kwargs,
+                ),
+            )
+
+    def exploration_can_be_skipped(
+        self,
+        thetacutoff: float,
+        diffpositions: np.ndarray,
+        *args,
+        cluster_key: str | None,
+        **kwargs,
+    ) -> tuple[bool, float]:
+        """Check whether the exploration (dimer) can be skipped."""
+        if cluster_key is not None:
+            return self.scheduler.can_be_skip(
+                cluster_key,
+                diffpositions=diffpositions,
+                thetacutoff=thetacutoff,
+            )
+        else:
+            raise NotImplementedError(
+                "`cluster_key=None` is not supported now."
+            )
+
     def summary(self) -> str:
         """Return the summary of the network."""
         msg = f"ReactionNetwork: {self.__path} (format={self.__format})\n"
@@ -235,6 +297,16 @@ class ReactionNetwork:
         self.__recorder.write_json(self.__path / "recorder.json")
         self.__scheduler.write_npz(self.__path / "scheduler.npz")
         self.__metadata.persistence(self.__path)
+
+    def get_use_position_uuid(self, k: str | System | Gas | Cluster) -> bool:
+        """Return the `use_positions_uuid` of the database."""
+        if not isinstance(k, str):
+            k = k.__class__.__name__
+        k = str(k).lower()
+        if k in self.DB_USE_POSITION_UUID_DICT:
+            return self.DB_USE_POSITION_UUID_DICT[k]
+        else:
+            raise ValueError(f"{k} is not in the database.")
 
     def object_has_been_optimized(self, graph: SysGraph) -> SysGraph | None:
         """Check if the object has been optimized.
@@ -530,3 +602,44 @@ class ReactionNetwork:
             return self.__db_cluster.add(sysgraph, check_positions=False)
         else:
             raise ValueError(f"Unknown type: {type}")
+
+
+def wrap_line(
+    text: str,
+    width_min: int = 80,
+    width_max: int = 100,
+) -> list[str]:
+    """Make a line of text fit in a given width.
+
+    Args:
+        text: The text to wrap.
+        width_min: The minimum width of the line.
+        width_max: The maximum width of the line.
+
+    Returns:
+        The wrapped lines.
+    """
+    words = text.split()
+    if not words:
+        return [""]
+
+    lines = []
+    cur = ""
+    for w in words:
+        if not cur:
+            cur = w
+        elif len(cur) + 1 + len(w) <= width_max:
+            cur += " " + w
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+
+    if len(lines) >= 2 and len(lines[-1]) < width_min:
+        merged = lines[-2] + " " + lines[-1]
+        if len(merged) <= width_max:
+            lines[-2] = merged
+            lines.pop()
+
+    return lines

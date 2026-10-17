@@ -200,7 +200,7 @@ class ExplorationBase(RunnerABC):
                     cluster=cluster,
                     system_key=system_key,
                 )
-        self.network.recorder.system.add(system_key)
+        self.network.recorder.system[system_key].new += 1
         self.network.persistence()
         return True, energy
 
@@ -213,13 +213,9 @@ class ExplorationBase(RunnerABC):
         # check if the cluster has been explored
         # -----------------------------------------------------------
         cluster_key = cluster.get_key_for_metadata(False)
-        confidence = self.config.exploration.maxconfidence
-        oldnew = self.network.recorder.cluster[cluster_key]
-        if oldnew.exploration_can_be_finished(
-            confidence=confidence,
-            min_found=self.network.metadata.table.get_minconut_for(
-                cluster_key=cluster_key,
-            ),
+        if self.network.exploration_can_be_finished(
+            confidence=self.config.exploration.maxconfidence,
+            cluster_key=cluster_key,
         ):
             msg = f"the cluster {cluster_key} has been explored."
             self.logger.info(self._reformat_message(msg))
@@ -267,13 +263,13 @@ class ExplorationBase(RunnerABC):
                     parse_mask_from_atoms=True,
                     start=start,
                 )
-                can_be_skip, cosine = self.network.scheduler.can_be_skip(
-                    cluster_key,
+                can_be_skip, cosine = self.network.exploration_can_be_skipped(
+                    cluster_key=cluster_key,
                     diffpositions=disp,
-                    thetacutoff=float(self.config.exploration.thetacutoff),
+                    thetacutoff=thetacutoff,
                 )
                 if can_be_skip:
-                    oldnew.found_skip()
+                    self.network.recorder.cluster[cluster_key].found_skip()
                     msg = "Skip to submit dimer task for "
                 else:
                     msg = "Submit dimer task for "
@@ -322,16 +318,15 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-            if oldnew.exploration_can_be_finished(
-                confidence=confidence,
-                min_found=self.network.metadata.table.get_minconut_for(
-                    cluster_key=cluster_key,
-                    exclude_gas=True,
-                ),
+            if self.network.exploration_can_be_finished(
+                confidence=self.config.exploration.maxconfidence,
+                cluster_key=cluster_key,
             ):
-                msg = f"Finish exploration for {cluster_key} with "
-                msg += f"confidence {confidence:.2f}. {len(futures)}"
-                msg += " dimer tasks left. They will be canceled."
+                msg = "Finish exploration for "
+                msg += f"{cluster_key} with confidence "
+                msg += f"{self.config.exploration.maxconfidence:.2f}."
+                msg += f" {len(futures)} dimer tasks left."
+                msg += " They will be canceled."
                 self.logger.info(self._reformat_message(msg))
                 for future in futures:
                     self.executor.cancel(future)
