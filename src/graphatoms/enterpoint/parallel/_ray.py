@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 from graphatoms.enterpoint.parallel._base import ParallelExecutorABC
 
@@ -13,6 +13,8 @@ try:
 except ImportError:  # pragma: no cover - exercised when ray absent
     ray = None  # type: ignore[assignment]
     _RAY_AVAILABLE = False
+if TYPE_CHECKING:
+    import ray  # type: ignore
 
 
 class RayExecutor(ParallelExecutorABC):

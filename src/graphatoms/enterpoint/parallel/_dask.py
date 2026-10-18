@@ -25,9 +25,8 @@ except ImportError:  # pragma: no cover - exercised when dask absent
 class DaskExecutor(ParallelExecutorABC):
     """An executor backed by :class:`dask.distributed.Client`."""
 
-    raise NotImplementedError("DaskExecutor is not implemented.")
-
     def __init__(self, *, nworkers: int | None = None, **kwargs) -> None:
+        raise NotImplementedError("DaskExecutor is not implemented.")
         if not _DASK_AVAILABLE:
             raise ImportError(
                 "dask is not installed. Install it with: "
