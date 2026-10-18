@@ -7,8 +7,10 @@ import hydra
 
 from graphatoms.enterpoint.config import CONFIG_DIR, Config
 
-from .general.otfkmc import OTFKMC as OnTheFlyKMC
-from .general.rxngen import ReactionNetworkGenerator
+# from .general.otfkmc import OTFKMC as OnTheFlyKMC
+# from .general.rxngen import ReactionNetworkGenerator
+from .v2.general.otfkmc import OTFKMC as OnTheFlyKMC
+from .v2.general.rxngen import ReactionNetworkGenerator
 from .v2.ray.otfkmc import RayOTFKMC as RayOnTheFlyKMC
 from .v2.ray.rxngen import RayReactionNetworkGenerator
 
