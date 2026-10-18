@@ -5,20 +5,24 @@ They also check whether the calculation is necessary and output logger.
 """
 
 from io import StringIO
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 from ase.calculators.calculator import Calculator
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
-from graphatoms.reaction import Adsorption, Desorption, Reaction
-from graphatoms.system import Cluster, Gas, SysGraph, System
+from graphatoms.enterpoint.runner.common import _helper as funcs
+from graphatoms.enterpoint.runner.common._base import (
+    LOGURU_FORMAT,
+    LOGURU_FORMAT_LENGTH,
+    Core,
+    Logger,
+)
+from graphatoms.reaction import Desorption, Reaction
+from graphatoms.system import Cluster, Gas, System
 from graphatoms.utils.asetools import call_dimer_displace
 from graphatoms.utils.parser import hydra_parse
-
-from . import _helper as funcs
-from ._base import LOGURU_FORMAT, LOGURU_FORMAT_LENGTH, Core, Logger
 
 
 def helper_optimization(
@@ -251,23 +255,23 @@ def helper_dimer(
         return rxn_or_msg, msg, is_finished, is_skipped, is_failed, arr
 
 
-def helper_adsorption(
-    gas: Gas,
-    config: Config,
-    graph: Cluster | System | SysGraph,
-    *,
-    graph_label: Any | None = None,
-    allow_hash_change: bool = True,
-    raise_when_fail: bool = True,
-    irun: int | None = None,
-    deep_copy: bool = True,
-    **kwargs,
-) -> tuple[Adsorption | str, Any, float, str]:
-    """Helper function for adsorption process.
+# def helper_adsorption(
+#     gas: Gas,
+#     config: Config,
+#     graph: Cluster | System | SysGraph,
+#     *,
+#     graph_label: Any | None = None,
+#     allow_hash_change: bool = True,
+#     raise_when_fail: bool = True,
+#     irun: int | None = None,
+#     deep_copy: bool = True,
+#     **kwargs,
+# ) -> tuple[Adsorption | str, Any, float, str]:
+#     """Helper function for adsorption process.
 
-    Returns:
-        1. the adsorption object
-        2. the graph label
-        3. the cost time
-        4. the result type
-    """
+#     Returns:
+#         1. the adsorption object
+#         2. the graph label
+#         3. the cost time
+#         4. the result type
+#     """
