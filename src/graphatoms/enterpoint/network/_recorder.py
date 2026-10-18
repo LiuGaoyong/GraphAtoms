@@ -165,16 +165,16 @@ class RecorderInfo(_RecorderBase):
 
 
 class Recorder(OurBaseModel):
-    system: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
     cluster: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
-    adsorption: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
+    adsorption: set[str] = set()
     bulk: set[str] = set()
 
     @override
     def _string(self) -> str:  # type: ignore
         return (
-            f"{len(self.cluster)} cluster "
-            + f"& {len(self.system)} system "
+            f"{len(self.cluster)} cluster(dimer) "
+            + f"& {len(self.adsorption)} adsorption "
+            + f"& {len(self.bulk)} bulk "
             + "have been explored"
         )
 
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     import pandas as pd
 
     obj = Recorder()
-    obj.system["fdsafs"].new += 1
+    obj.adsorption.add("fdsafs")
     obj.cluster["fdsafs"].new += 1
     obj.cluster["fdsafs"].new += 1
     print(obj)

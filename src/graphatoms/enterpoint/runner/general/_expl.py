@@ -1,20 +1,5 @@
-import os
 from time import perf_counter
 from typing import Any
-
-os.environ["LOGURU_FORMAT"] = LOGURU_FORMAT = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-    + " | <level>{level: ^8}</level> | "
-    + "<level>{message}</level>"
-)  # the length of the line is 37 characters in loguru
-# LOGURU_FORMAT = env(
-#     "LOGURU_FORMAT",
-#     str,
-#     "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-#     "<level>{level: <8}</level> | "
-#     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>"
-#     "{line}</cyan> - <level>{message}</level>",
-# )
 
 import numpy as np
 from ase import Atoms
@@ -52,7 +37,6 @@ class ExplorationBase(RunnerABC):
             )
         )
         self.network.persistence()
-        self.logger
         return result, system_key, energy
 
     def __batch_optimization_parallel(
@@ -152,7 +136,6 @@ class ExplorationBase(RunnerABC):
         system: System | Atoms | None = None,
     ) -> tuple[bool, float]:
         """Explore the system, and return whether it is explored successfully and the final energy."""  # noqa: E501
-
         # 1 step: analyze the system
         dct, system_key, energy = self._first_step(system)
         if system_key == "":
@@ -182,6 +165,9 @@ class ExplorationBase(RunnerABC):
         self.logger.info(self._reformat_message(msg))
         # 2.2 exploration for each cluster ... ...
         if len(lst_4bulk) > 0:
+            raise NotImplementedError(
+                "Bulk exploration is not implemented yet."
+            )
             self.__second_step_bulk(
                 lst_4bulk,
                 system_key=system_key,
@@ -200,7 +186,6 @@ class ExplorationBase(RunnerABC):
                     cluster=cluster,
                     system_key=system_key,
                 )
-        self.network.recorder.system[system_key].new += 1
         self.network.persistence()
         return True, energy
 
@@ -333,32 +318,24 @@ class ExplorationBase(RunnerABC):
                 break
         self.network.persistence()
 
-    def __second_step_adsorption(
-        self,
-        gas: Gas,
-        cluster: Cluster,
-        system_key: str = "",
-    ) -> None:
+    def _2step_ads_submit(self, gas: Gas, cluster: Cluster) -> list[Any]:
         """The second step for the on-the-fly KMC simulation."""
         cluster_key = cluster.get_key_for_metadata(False)
         gas_key = gas.get_key_for_metadata(False)
+        graph_label = f"{cluster_key}_{gas_key}"
 
         # ---------------------------------------------
         # check if the adsorption has been explored
         # ---------------------------------------------
-        graph_label = f"{cluster_key}_{gas_key}"
-        oldnew = self.network.recorder.adsorption[graph_label]
-        if oldnew.exploration_can_be_finished(
+        if self.network.exploration_can_be_finished(
             confidence=self.config.exploration.maxconfidence,
-            min_found=self.network.metadata.table.get_minconut_for(
-                cluster_key=cluster_key,
-                exclude_gas=False,
-            ),
+            cluster_key=cluster_key,
+            gas_key=gas_key,
         ):
             msg = f"The adsorption for {cluster_key} with "
             msg += f"{gas_key} has been explored."
             self.logger.info(self._reformat_message(msg))
-            return
+            return []
 
         # ---------------------------------------------
         # build helper for adsorption
@@ -381,8 +358,8 @@ class ExplorationBase(RunnerABC):
         # ---------------------------------------------
         futures: list = []
         start: float = perf_counter()
-        lst = np.arange(1, adsorption_helper.nrun)
         maxtry = int(self.config.exploration.maxtry)
+        lst = np.arange(1, adsorption_helper.nrun).astype(int)
         if adsorption_helper.nrun > maxtry:
             lst = np.random.choice(lst, size=maxtry - 1, replace=False)
         np.random.shuffle(lst)
@@ -394,7 +371,7 @@ class ExplorationBase(RunnerABC):
                     config=self.config,
                     graph=cluster,
                     gas=gas,
-                    irun=irun,
+                    initial_atoms=adsorption_helper.__call__(irun=irun).copy(),
                     graph_label=graph_label,
                     allow_hash_change=True,
                     raise_when_fail=False,
@@ -408,7 +385,19 @@ class ExplorationBase(RunnerABC):
                 f" for {cluster_key} with {gas_key}"
             )
         )
+        self.network.recorder.adsorption.add(graph_label)
+        self.network.persistence()
+        return futures
 
+    def __second_step_adsorption(
+        self,
+        gas: Gas,
+        cluster: Cluster,
+        system_key: str = "",
+    ) -> None:
+        gas_key = gas.get_key_for_metadata(False)
+        cluster_key = cluster.get_key_for_metadata(False)
+        futures = self._2step_ads_submit(gas, cluster)
         # -----------------------------------------------------------
         # wait for the adsorption tasks to finish
         # -----------------------------------------------------------
@@ -434,12 +423,10 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-            if oldnew.exploration_can_be_finished(
+            if self.network.exploration_can_be_finished(
                 confidence=confidence,
-                min_found=self.network.metadata.table.get_minconut_for(
-                    cluster_key=cluster_key,
-                    exclude_gas=False,
-                ),
+                cluster_key=cluster_key,
+                gas_key=gas_key,
             ):
                 msg = f"Finish exploration for {cluster_key} and {gas_key}"
                 msg += f"with confidence {confidence:.2f}. {len(futures)}"

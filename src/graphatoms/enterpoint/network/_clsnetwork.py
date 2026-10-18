@@ -233,28 +233,21 @@ class ReactionNetwork:
         self,
         confidence: float,
         *args,
-        cluster_key: str | None,
-        system_key: str | None = None,
+        cluster_key: str,
+        gas_key: str | None = None,
         **kwargs,
     ) -> bool:
         """Check whether the exploration (dimer) can be finished."""
-        if cluster_key is not None:
+        if gas_key is not None:
+            graph_label = f"{cluster_key}_{gas_key}"
+            return graph_label in self.recorder.adsorption
+        else:
             oldnew = self.recorder.cluster[cluster_key]
             return oldnew.exploration_can_be_finished(
                 confidence=confidence,
                 min_found=self.metadata.table.get_minconut_for(
                     cluster_key=cluster_key,
-                    **kwargs,
-                ),
-            )
-        else:
-            raise NotImplementedError("`cluster_key=None` is not supported.")
-            assert system_key is not None
-            oldnew = self.recorder.system[system_key]
-            return oldnew.exploration_can_be_finished(
-                confidence=confidence,
-                min_found=self.metadata.table.get_minconut_for(
-                    system_key=system_key,
+                    gas_key=gas_key,
                     **kwargs,
                 ),
             )
@@ -388,20 +381,12 @@ class ReactionNetwork:
             for_system = ""
         if for_gas is None:
             for_gas = ""
-            old_new = self.__recorder.cluster[for_cluster]
-            min_found = self.__metadata.table.get_minconut_for(
-                cluster_key=for_cluster,
-                system_key=for_system,
-                gas_key=None,
-            )
-        else:
-            old_new = self.__recorder.adsorption[f"{for_cluster}_{for_gas}"]
-            min_found = self.__metadata.table.get_minconut_for(
-                cluster_key=for_cluster,
-                system_key=for_system,
-                gas_key=for_gas,
-            )
-
+        old_new = self.__recorder.cluster[for_cluster]
+        min_found = self.__metadata.table.get_minconut_for(
+            cluster_key=for_cluster,
+            system_key=for_system,
+            gas_key=None,
+        )
         if isinstance(event, str):
             old_new.found_fail()
             result = "fail"

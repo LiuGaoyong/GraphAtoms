@@ -34,7 +34,7 @@ class ExplConfig:
     allow_multiple_adsorption: bool = False
     allow_explore_bulk: bool = False
     thetacutoff: float = -1  # 0-180, -1 means no cutoff
-    nfibonacci: int = 200
+    nfibonacci: int = 100
 
 
 @dataclass

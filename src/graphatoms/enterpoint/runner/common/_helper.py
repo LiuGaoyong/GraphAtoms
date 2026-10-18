@@ -631,7 +631,7 @@ def helper_dimer(
             kp = product_result.get_key_for_metadata()
             e = HelperException(
                 msg="fixed bonds modified for product",
-                label=f"{graph_label}, {k}, P={kp}",
+                label=f"{graph_label}, P={kp}",
             )
             if raise_when_fail:
                 raise e
@@ -684,10 +684,11 @@ def helper_adsorption(
     config: Config,
     graph: Cluster | System | SysGraph,
     *,
-    graph_label: Any | None = None,
-    allow_hash_change: bool = True,
-    raise_when_fail: bool = True,
     irun: int | None = None,
+    initial_atoms: Atoms | None = None,
+    allow_fixed_atoms_adsorption: bool = False,
+    graph_label: Any | None = None,
+    raise_when_fail: bool = True,
     deep_copy: bool = True,
     **kwargs,
 ) -> tuple[Adsorption | str, tuple[Any, list[Atoms]], float, str]:
@@ -707,24 +708,26 @@ def helper_adsorption(
     #       call adsorption initial positions
     # -----------------------------------------
     assert graph.ncore > 0, "graph must have core"
-    adsorption_helper = Helper(
-        atoms=graph.to_ase(
-            exclude_bond_attibutes=True,
-            exclude_energetics=True,
-        ).copy(),
-        adsorbate=gas,
-        core=np.unique(graph.idx_core),
-        nfibonacci=int(config.exploration.nfibonacci),
-        use_direct=True,
-        use_raw=True,
-    )
-    if irun is None:
-        irun = np.random.randint(0, adsorption_helper.nrun)
-    init_atoms: Atoms = adsorption_helper.__call__(irun=irun)
+    if initial_atoms is None:
+        adsorption_helper = Helper(
+            atoms=graph.to_ase(
+                exclude_bond_attibutes=True,
+                exclude_energetics=True,
+            ).copy(),
+            adsorbate=gas,
+            core=np.unique(graph.idx_core),
+            nfibonacci=int(config.exploration.nfibonacci),
+            use_direct=True,
+            use_raw=True,
+        )
+        if irun is None:
+            irun = np.random.randint(0, adsorption_helper.nrun)
+        initial_atoms = adsorption_helper.__call__(irun=irun)
+    assert isinstance(initial_atoms, Atoms), "Impossible !"
     init_graph = graph.update_adsorption(
         Atoms(
-            numbers=init_atoms.numbers[graph.natoms :],
-            positions=init_atoms.positions[graph.natoms :],
+            numbers=initial_atoms.numbers[graph.natoms :],
+            positions=initial_atoms.positions[graph.natoms :],
         ),
         parse_bonds=config.bonds,  # type: ignore
         **kwargs,
@@ -736,7 +739,7 @@ def helper_adsorption(
     product_result, (_, lst), cost_time = helper_optimization(
         config=config,
         graph=init_graph,
-        allow_hash_change=allow_hash_change,
+        allow_hash_change=True,
         raise_when_fail=False,
         deep_copy=deep_copy,
         run_vibration=True,
@@ -748,6 +751,28 @@ def helper_adsorption(
             raise e
         else:
             return str(e), (graph_label, lst), cost_time, "adsorption"
+
+    # ------------------------------------------------------------
+    #       check the fixed bond change or not for product
+    # ------------------------------------------------------------
+    if not allow_fixed_atoms_adsorption:
+        break_bonds, make_bonds = graph.bond_difference(product_result)
+        diff_bonds = np.asarray(break_bonds + make_bonds)
+        if np.any(np.isin(diff_bonds, product_result.idx_fix)):
+            kp = product_result.get_key_for_metadata()
+            e = HelperException(
+                msg="fixed bonds modified for product",
+                label=f"{graph_label}, P={kp}",
+            )
+            if raise_when_fail:
+                raise e
+            else:
+                return (
+                    str(e),
+                    (graph_label, lst),
+                    cost_time,
+                    "adsorption",
+                )
 
     rxn = Adsorption(R=graph, P=product_result, G=gas)
     return rxn, (graph_label, lst), cost_time, "adsorption"
