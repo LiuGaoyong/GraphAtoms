@@ -9,7 +9,7 @@ from graphatoms.enterpoint.runner.v2.general._expl import ExplorationBase
 from graphatoms.system.system import System
 
 
-class Rxngen(ExplorationBase, _Rxngen):
+class ReactionNetworkGenerator(ExplorationBase, _Rxngen):
     @override
     def explore(
         self,

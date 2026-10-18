@@ -243,7 +243,7 @@ def helper_optimization(
             (graph_label, lst),
             perf_counter() - start,
         )
-    except CheckVibrationFailed as e:
+    except Exception as e:
         if raise_when_fail:
             raise e
         else:
@@ -399,7 +399,7 @@ def helper_dimer(
             start=start,
             result=ts,
         )
-    except CheckVibrationFailed as e:
+    except Exception as e:
         if raise_when_fail:
             raise e
         else:
@@ -667,7 +667,7 @@ def helper_dimer(
             perf_counter() - start,
             result_type,
         )
-    except CheckVibrationFailed as e:
+    except Exception as e:
         if raise_when_fail:
             raise e
         else:
@@ -688,7 +688,7 @@ def helper_adsorption(
     initial_atoms: Atoms | None = None,
     allow_fixed_atoms_adsorption: bool = False,
     graph_label: Any | None = None,
-    raise_when_fail: bool = True,
+    raise_when_fail: bool = False,
     deep_copy: bool = True,
     **kwargs,
 ) -> tuple[Adsorption | str, tuple[Any, list[Atoms]], float, str]:

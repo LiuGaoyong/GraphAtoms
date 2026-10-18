@@ -109,7 +109,7 @@ class Gas(System):
         kwargs["parse_atoms_is_outer_or_not"] = parse_atoms_is_outer_or_not
         try:
             return cls.from_molecule(name_or_smiles, **kwargs)
-        except ValueError:
+        except KeyError:
             return cls.new_from_smiles(name_or_smiles, **kwargs)
 
     @classmethod

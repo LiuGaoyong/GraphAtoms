@@ -27,35 +27,27 @@ class ExplorationBase(_Base):
             future_result, futures = self.executor.wait(futures)  # type: ignore
             if isinstance(future_result, HelperResult):
                 msg = future_result.message
-                self.logger.info(self._reformat_message(msg))
                 if isinstance(future_result, HelperAdsorptionResult):
                     if future_result.result is not None:
                         event = future_result.result
-                        cost_time = future_result.cost_time
                         event_label = self.network.found(
                             for_cluster=future_result.for_cluster,
                             for_gas=future_result.for_gas,
                             persist=True,
                             event=event,
                         )
-                        msg = "Adsorption search successfully, and got "
-                        msg += f"{event_label} by {cost_time:.2f} seconds."
                         if str(event) not in event_label:
                             msg += f" Simplify original {event} by "
                             msg += f"threshold {threshold_str}"
-                        self.logger.info(self._reformat_message(msg))
                 elif isinstance(future_result, HelperDimerResult):
                     if future_result.result is not None:
                         event = future_result.result
-                        cost_time = future_result.cost_time
                         event_label = self.network.found(
                             event=event,
                             for_cluster=future_result.for_cluster,
                             for_gas=None,
                             persist=True,
                         )
-                        msg = "Dimer search successfully, and got "
-                        msg += f"{event_label} by {cost_time:.2f} seconds."
                         if str(event) not in event_label:
                             msg += f" Simplify original {event} by threshold "
                             msg += (
@@ -65,6 +57,7 @@ class ExplorationBase(_Base):
                     raise NotImplementedError(
                         f"Unknown type {type(future_result)}"  #
                     )
+                self.logger.info(self._reformat_message(msg))
             else:
                 raise NotImplementedError(
                     f"Unknown type {type(future_result)}"  #

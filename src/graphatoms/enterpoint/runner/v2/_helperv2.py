@@ -288,23 +288,25 @@ def helper_dimer(
     )
     arr = np.array([a.positions for a in lst])
     if isinstance(rxn_or_msg, str):
-        msg = f"Dimer search {cluster_key} by {cost_time:.2f}"
-        msg += f" seconds because of {rxn_or_msg}"
+        msg = f"Dimer search for {cluster_key} failed by "
+        msg += f"{cost_time:.2f} seconds because of {rxn_or_msg}"
         return HelperDimerResult(
             result=None,
             message=msg,
             is_failed=True,
             displacement_trajectory=arr,
             for_cluster=cluster_key,
+            cost_time=cost_time,
         )
     else:
-        msg = "Dimer search successfully, and got "
-        msg += f"{cluster_key} by {cost_time:.2f} seconds."
+        msg = f"Dimer search for {cluster_key} successfully, and"
+        msg += f" got {rxn_or_msg} by {cost_time:.2f} seconds."
         return HelperDimerResult(
             result=rxn_or_msg,
             message=msg,
             displacement_trajectory=arr,
             for_cluster=cluster_key,
+            cost_time=cost_time,
         )
 
 

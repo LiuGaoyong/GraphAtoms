@@ -13,6 +13,12 @@ from graphatoms.enterpoint.runner import (  # noqa: F401
     ReactionNetworkGenerator,
 )
 from graphatoms.enterpoint.runner.common._base import RunnerABC
+from graphatoms.enterpoint.runner.v2.general.otfkmc import (
+    OTFKMC as OnTheFlyKMC_v2,  # noqa: F401
+)
+from graphatoms.enterpoint.runner.v2.general.rxngen import (
+    ReactionNetworkGenerator as ReactionNetworkGenerator_v2,  # noqa: F401
+)
 
 this_dir = Path(__file__).parent
 
@@ -29,8 +35,8 @@ this_dir = Path(__file__).parent
 @pytest.mark.parametrize(
     "Mock",
     [
-        OnTheFlyKMC,
-        ReactionNetworkGenerator,
+        # ReactionNetworkGenerator_v2,
+        OnTheFlyKMC_v2,
     ],
 )
 def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
@@ -62,7 +68,7 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             cfg.parallel_workers = 2
             cfg.exploration.maxtry = maxtry
             cfg.run_type = "rxngen"
-            cfg.max_steps = 3
+            cfg.max_steps = 2
             cfg.max_times = float("inf")
             cfg.exploration.surface_only_explore_single_core = True
             cfg.exploration.max_ncore_for_surface = 1

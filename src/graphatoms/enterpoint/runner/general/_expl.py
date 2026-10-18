@@ -98,7 +98,8 @@ class ExplorationBase(RunnerABC):
             # -------------------------------------------------
             while len(futures) > 0:
                 future_result, futures = self.executor.wait(futures)  # type: ignore
-                sysgraph_or_msg, label, cost_time = future_result
+                # split result from the function of `helper_optimization`
+                sysgraph_or_msg, (label, _), cost_time = future_result
                 if isinstance(sysgraph_or_msg, Gas | Cluster | System):
                     msg: str = f"Optimization (success): {sysgraph_or_msg}."
                     if isinstance(sysgraph_or_msg, Gas):
@@ -373,7 +374,6 @@ class ExplorationBase(RunnerABC):
                     gas=gas,
                     initial_atoms=adsorption_helper.__call__(irun=irun).copy(),
                     graph_label=graph_label,
-                    allow_hash_change=True,
                     raise_when_fail=False,
                     deep_copy=True,
                 )

@@ -145,24 +145,32 @@ class RunnerABC:
         self.__gas_lst: list[Gas] = []
         for gas_name in gas_name_set:
             s = self.config.event.gas_sticking.get(gas_name, 1.0)
-            gas, _, cost_time = helper_optimization(
-                config=self.config,
-                graph=Gas.from_name(
-                    name_or_smiles=gas_name,
-                    sticking=float(s) if s is not None else 1.0,
-                    parse_bonds=self.config.bonds,  # type: ignore
-                ),
-                raise_when_fail=True,
-                allow_hash_change=False,
-                allow_not_connected=False,
-                run_vibration=True,
-                deep_copy=True,
+            gas = Gas.from_name(
+                name_or_smiles=gas_name,
+                sticking=float(s) if s is not None else 1.0,
+                parse_bonds=self.config.bonds,  # type: ignore
             )
-            if isinstance(gas, Gas):
+            gas_k = gas.get_key_for_metadata()
+            if gas_k in self.network.db_gas:
+                gas = Gas.from_ase(self.network.db_gas[gas_k])
+            else:
+                gas, _, cost_time = helper_optimization(
+                    config=self.config,
+                    graph=Gas.from_name(
+                        name_or_smiles=gas_name,
+                        sticking=float(s) if s is not None else 1.0,
+                        parse_bonds=self.config.bonds,  # type: ignore
+                    ),
+                    raise_when_fail=True,
+                    allow_hash_change=False,
+                    allow_not_connected=False,
+                    run_vibration=True,
+                    deep_copy=True,
+                )
                 msg = f"Optimized gas({gas_name}) in {cost_time:.2f} seconds."
                 self.logger.info(self._reformat_message(msg))
+            if isinstance(gas, Gas):
                 self.__gas_lst.append(gas)
-                gas_k = gas.get_key_for_metadata()
                 self.network.write_sysgraph(gas, type="gas")
                 p = self.config.initial_gas_pressure.get(gas_name, 0.0)
                 V, kBT = self.__gas_box_volume, self.__kBT_in_J

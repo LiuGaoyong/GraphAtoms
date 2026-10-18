@@ -1,4 +1,5 @@
 import pickle
+import time
 from pathlib import Path
 from typing import Literal, Self
 
@@ -18,7 +19,7 @@ from graphatoms.system.database import DatabaseABC, get_db
 
 from ._metadata import MetaData
 from ._metadata import _MetaDataBasic as MetaDataBasic
-from ._recorder import Recorder, RecorderInfo
+from ._recorder import Recorder, RecorderInfo, _OldNewRecorder
 from ._scheduler import Scheduler
 
 __all__ = [
@@ -193,15 +194,41 @@ class ReactionNetwork:
         restart: bool | None = None,
         remote_mode: bool = False,
         **kwargs,
-    ) -> Self:
-        return cls(
-            path=Path(config.outputs) / NETWORK_PATH_PREFIX,
-            restart=restart if restart is not None else config.restart,
-            format=config.event.db_format,
-            remote_mode=remote_mode,
-            config=config.event,
-            **kwargs,
-        )
+    ) -> Self:  # type: ignore
+        """Create a network from a config file."""
+        if remote_mode is True:
+            # When remote_mode is True, some files may not exist or in write.
+            # We need to try to create the network again.
+            err = None
+            for _ in range(10):
+                try:
+                    return cls(
+                        path=Path(config.outputs) / NETWORK_PATH_PREFIX,
+                        restart=restart
+                        if restart is not None
+                        else config.restart,
+                        format=config.event.db_format,
+                        remote_mode=remote_mode,
+                        config=config.event,
+                        **kwargs,
+                    )
+                    break
+                except Exception as e:
+                    time.sleep(0.5)
+                    err = e
+            if err is not None:
+                raise RuntimeError(
+                    f"Failed to create the network in remote mode. {err}"
+                )
+        else:
+            return cls(
+                path=Path(config.outputs) / NETWORK_PATH_PREFIX,
+                restart=restart if restart is not None else config.restart,
+                format=config.event.db_format,
+                remote_mode=remote_mode,
+                config=config.event,
+                **kwargs,
+            )
 
     @classmethod
     def merge(
@@ -240,12 +267,14 @@ class ReactionNetwork:
         """Check whether the exploration (dimer) can be finished."""
         if gas_key is not None:
             graph_label = f"{cluster_key}_{gas_key}"
-            return graph_label in self.recorder.adsorption
+            return graph_label in self.__recorder.adsorption
         else:
-            oldnew = self.recorder.cluster[cluster_key]
+            if cluster_key not in self.__recorder.cluster:
+                self.__recorder.cluster[cluster_key] = _OldNewRecorder()
+            oldnew = self.__recorder.cluster[cluster_key]
             return oldnew.exploration_can_be_finished(
                 confidence=confidence,
-                min_found=self.metadata.table.get_minconut_for(
+                min_found=self.__metadata.table.get_minconut_for(
                     cluster_key=cluster_key,
                     gas_key=gas_key,
                     **kwargs,
@@ -262,7 +291,7 @@ class ReactionNetwork:
     ) -> tuple[bool, float]:
         """Check whether the exploration (dimer) can be skipped."""
         if cluster_key is not None:
-            return self.scheduler.can_be_skip(
+            return self.__scheduler.can_be_skip(
                 cluster_key,
                 diffpositions=diffpositions,
                 thetacutoff=thetacutoff,
