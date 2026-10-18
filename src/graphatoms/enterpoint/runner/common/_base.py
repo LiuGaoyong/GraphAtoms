@@ -122,7 +122,11 @@ class RunnerABC:
             raise ValueError(msg)
         pworkers = int(self.config.parallel_workers)
         pworkers: int | None = None if pworkers <= 0 else pworkers
-        self.executor = get_executor(parallel, pworkers)
+        self.executor = get_executor(
+            backend=parallel,
+            nworkers=pworkers,
+            ncpus_for_tasks=self.config.parallel_ncpus_for_tasks,
+        )
 
         # check run_type
         if self.config.run_type not in ["otfkmc", "rxngen"]:

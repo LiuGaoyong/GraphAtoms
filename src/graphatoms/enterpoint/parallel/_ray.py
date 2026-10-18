@@ -21,7 +21,14 @@ class RayExecutor(ParallelExecutorABC):
     """An executor backed by :mod:`ray`."""
 
     @override
-    def __init__(self, *, nworkers: int | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        nworkers: int | None = None,
+        ncpus_for_tasks: int = 1,
+        **kwargs,
+    ) -> None:
+        self.ncpus_for_tasks = ncpus_for_tasks
         if not _RAY_AVAILABLE:
             raise ImportError(
                 "ray is not installed. Install it with: pip install ray"
@@ -44,7 +51,7 @@ class RayExecutor(ParallelExecutorABC):
         **kwargs: Any,
     ) -> ray.ObjectRef:  # type: ignore
         remote_fn = ray.remote(func)  # type: ignore
-        remote_fn = remote_fn.options(num_cpus=1)
+        remote_fn = remote_fn.options(num_cpus=self.ncpus_for_tasks)
         obj_ref = remote_fn.remote(*args, **kwargs)
         return obj_ref
 

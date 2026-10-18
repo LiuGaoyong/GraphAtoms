@@ -65,7 +65,8 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
-            cfg.parallel_workers = 2
+            if parallel == "ray":
+                cfg.parallel_ncpus_for_tasks = 2
             cfg.exploration.maxtry = maxtry
             cfg.run_type = "rxngen"
             cfg.max_steps = 2

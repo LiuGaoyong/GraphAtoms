@@ -76,6 +76,7 @@ class Config:
     # 1. if the key of `gas_sticking` is not in `initial_gas_pressure`, then the gas sticking is 1.0            # noqa: E501
 
     parallel_workers: int = 0  # 0 means use all cores
+    parallel_ncpus_for_tasks: int = 1  # the number of cpus for tasks, only effect for `parallel=ray` # noqa: E501
     parallel: str = "serial"  # serial, multiprocessing, ray, dask, executorlib
     loglevel: str = "info"  # Literal["debug", "info", "warning", "error"]
     logfile: str = "log.txt"
