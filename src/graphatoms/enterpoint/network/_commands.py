@@ -67,7 +67,7 @@ def show_reaction(arg: str, path: Path = ".") -> tuple[int, Net]:
     try:
         i = int(arg)
     except ValueError:
-        i = net.metadata.table.key_r.index(arg)
+        i = net.metadata.table.key_rxn.index(arg)
     print(df.iloc[i])
     return i, net
 
@@ -89,8 +89,8 @@ view = typer.Typer(no_args_is_help=True)
 main.add_typer(view, name="view")
 
 
-@view.command()
-def reaction(
+@view.command(name="reaction")
+def view_reaction(
     name: str,
     path: Path = ".",
     forward: bool = True,
@@ -100,47 +100,11 @@ def reaction(
     _, rxn = net.read_event(key_rxn)
     if not forward:
         rxn = rxn.reversed
-    names, lst = [], []
-    for k in rxn.__pydantic_fields__:
-        v: SysGraph = getattr(rxn, k)
-        if v is not None:
-            names.append(k)
-            lst.append(v)
-
-    return _ase_view([i.to_ase() for i in lst])
-    try:
-        from tempfile import TemporaryDirectory
-
-        import chemiscope
-
-        with TemporaryDirectory() as tmpdir:
-            ppp = pathlib.Path(tmpdir) / "input.json"
-            chemiscope.write_input(
-                # ppp.as_posix(),
-                "input.json",
-                structures=[i.to_ase() for i in lst],
-                properties={
-                    "names": {
-                        "target": "structure",
-                        "values": names,
-                        "units": "eV",
-                        "description": "DFT total energy",
-                    },
-                    "energy": {
-                        "target": "structure",
-                        "values": [i.energy for i in lst],
-                        "units": "eV",
-                        "description": "DFT total energy",
-                    },
-                },
-            )
-            return chemiscope.show_input(ppp)
-    except ImportError:
-        return _ase_view([i.to_ase() for i in lst])
+    return rxn.view()
 
 
-@view.command()
-def structure(
+@view.command(name="structure")
+def view_structure(
     name_or_path: str,
     path: Path = ".",
 ) -> None:

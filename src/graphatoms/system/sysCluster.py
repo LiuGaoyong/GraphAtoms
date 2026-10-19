@@ -143,18 +143,14 @@ class Cluster(SysGraph):
         return cls.select(system, sub_idxs=idxs, movefixtag=tag)
 
     @classmethod
-    def select(
+    def select2dct(
         cls,
         sys: SysGraph,
         sub_idxs: np.ndarray,
         movefixtag: np.ndarray | None = None,
         *,
         exclude_energetics: bool = True,
-    ) -> Self:
-        """Select a Cluster object from a System object.
-
-        The `sub_idxs` is induced subgraph index of select cluster.
-        """
+    ) -> dict:
         idxs = cls.get_index(sub_idxs, sys.natoms)
         dct: dict[str, np.ndarray] = sys.to_dict(
             exclude_energetics=False,
@@ -194,4 +190,46 @@ class Cluster(SysGraph):
             if "is_fix" in dct:
                 is_fix = np.logical_not(is_fix, dct["is_fix"])
             dct.update({"is_core": is_core, "is_fix": is_fix})
+        return dct
+
+    @classmethod
+    def select2sysgraph(
+        cls,
+        sys: SysGraph,
+        sub_idxs: np.ndarray,
+        movefixtag: np.ndarray | None = None,
+        *,
+        exclude_energetics: bool = True,
+    ) -> SysGraph:
+        """Select a SysGraph object from a System object.
+
+        The `sub_idxs` is induced subgraph index of select subgraph.
+        """
+        dct = cls.select2dct(
+            sys=sys,
+            sub_idxs=sub_idxs,
+            movefixtag=movefixtag,
+            exclude_energetics=exclude_energetics,
+        )
+        return SysGraph.model_validate(dct)
+
+    @classmethod
+    def select(
+        cls,
+        sys: SysGraph,
+        sub_idxs: np.ndarray,
+        movefixtag: np.ndarray | None = None,
+        *,
+        exclude_energetics: bool = True,
+    ) -> Self:
+        """Select a Cluster object from a System object.
+
+        The `sub_idxs` is induced subgraph index of select cluster.
+        """
+        dct = cls.select2dct(
+            sys=sys,
+            sub_idxs=sub_idxs,
+            movefixtag=movefixtag,
+            exclude_energetics=exclude_energetics,
+        )
         return cls.model_validate(dct)

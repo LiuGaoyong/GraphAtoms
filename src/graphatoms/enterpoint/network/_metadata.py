@@ -141,7 +141,8 @@ class _MetaDataTable(BaseModel):
                     f"  key_r:(old={self.key_r[idx]},new={other.key_r[i]})\n"
                     f"  key_g:(old={self.key_g[idx]},new={other.key_g[i]})\n"
                     f"  key_t:(old={self.key_t[idx]},new={other.key_t[i]})\n"
-                    f"  key_p:(old={self.key_p[idx]},new={other.key_p[i]})\n"
+                    f"  key_p:(old={self.key_p[idx]},new={other.key_p[i]})\n",
+                    flush=True,
                 )
 
     def get_minconut_for(

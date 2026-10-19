@@ -248,12 +248,18 @@ class BondGraph(Matter, OurFrozenModel):
         idx2 = self.target[self.source == i]
         return np.unique(np.append(idx1, idx2))
 
-    def _get_neighbor_igraph(self, i: int | list[int]) -> np.ndarray:
+    def _get_neighbor_igraph(
+        self,
+        i: int | list[int] | np.ndarray,
+        *args,
+        hop: int = 1,
+        **kwargs,
+    ) -> np.ndarray:
         if isinstance(i, int):
             i = [i]
         result: list[list[int]] = self.__IGRAPH.neighborhood(
             i,
-            order=1,
+            order=int(hop),
             mode="all",
             mindist=0,
         )
@@ -270,7 +276,7 @@ class BondGraph(Matter, OurFrozenModel):
         """Get the first neighbors of index `i`."""
         if isinstance(i, np.ndarray):
             i = i.astype(int).tolist()
-        nbrs = self._get_neighbor_igraph(i)  # type: ignore
+        nbrs = self._get_neighbor_igraph(i, hop=1)  # type: ignore
         if exclude_i:
             nbrs = np.setdiff1d(nbrs, np.array(i))
         return nbrs
@@ -612,5 +618,3 @@ def matchmode2nmatch(matchmode: np.ndarray) -> int:
     if np.issubdtype(s.dtype, np.floating):
         eq |= np.isnan(s[1:]) & np.isnan(s[:-1])
     return int((1 + (~eq).sum(axis=0)).max())
-
-

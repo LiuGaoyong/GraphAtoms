@@ -1,7 +1,8 @@
 import pickle
 import time
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -36,7 +37,7 @@ __all__ = [
 NETWORK_PATH_PREFIX = "event"
 
 
-class ReactionNetwork:
+class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
     DB_USE_POSITION_UUID_DICT: dict[str, bool] = {
         "ts": True,
         "minima": True,
@@ -227,32 +228,36 @@ class ReactionNetwork:
                     if key_r not in result.db_minima:
                         print(
                             f"Find invalid key: {rxn}\n"
-                            f"  Missing key of reactant: {key_r}\n"
+                            f"  Missing key of reactant: {key_r}\n",
+                            flush=True,
                         )
                         continue
                     elif key_g is not None and key_g not in result.db_gas:
                         print(
                             f"Find invalid key: {rxn}\n"
-                            f"  Missing key of gas: {key_g}\n"
+                            f"  Missing key of gas: {key_g}\n",
+                            flush=True,
                         )
                         continue
                     elif key_ts is not None and key_ts not in result.db_ts:
                         print(
                             f"Find invalid key: {rxn}\n"
-                            f"  Missing key of transition state: {key_ts}\n"
+                            f"  Missing key of transition state: {key_ts}\n",
+                            flush=True,
                         )
                         continue
                     elif key_p is not None and key_p not in result.db_minima:
                         print(
                             f"Find invalid key: {rxn}\n"
-                            f"  Missing key of product: {key_p}\n"
+                            f"  Missing key of product: {key_p}\n",
+                            flush=True,
                         )
                         continue
                 result.metadata.table.merge(  # Output duplicate info
                     network.metadata.table, idxs=[i]
                 )
         n = len(result.metadata.table.key_rxn)
-        print(f"Merge networks({n} events) done.")
+        print(f"Merge networks({n} events) done.", flush=True)
         result.scheduler.clear()
         result.recorder.clear()
         result.persistence()
@@ -266,6 +271,22 @@ class ReactionNetwork:
         len_msg = __LOGURU_TOTAL_LENGTH - __LOGURU_FORMAT_LENGTH
         lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
         return ("\n" + " " * __LOGURU_FORMAT_LENGTH).join(lst)
+
+    @override
+    def __len__(self) -> int:
+        return len(self.metadata.table.key_rxn)
+
+    @override
+    def __contains__(self, key: str) -> bool:  # type: ignore
+        return key in self.metadata.table.key_rxn
+
+    @override
+    def __getitem__(self, key: str) -> tuple[EventInfo, EventBase]:
+        return self.read_event(key)
+
+    @override
+    def __iter__(self) -> Iterator[str]:
+        yield from self.metadata.table.key_rxn
 
     @property
     def path(self) -> Path:
@@ -477,6 +498,7 @@ class ReactionNetwork:
         *,
         for_system: str | None = None,
         persist: bool = True,
+        env_hop: int = 1,  # TODO: make this into whole configuration
         **kwargs,
     ) -> Literal["new", "old", "fail"] | str:
         """Record the event as found.
@@ -505,13 +527,22 @@ class ReactionNetwork:
             simplified_threshold = self.__metadata.basic.simplified_threshold
             if simplified_threshold > 0:
                 try:
-                    event = event.simplify(simplified_threshold)
+                    event = event.simplify(
+                        env_radius=simplified_threshold,
+                        env_hop=env_hop,
+                    )
                 except Exception as e:
                     msg = f"Event {event._string()} failed "
                     msg += f"to simplify. because of {e}"
                     fname = self.__path / "event-simplify-fail.pkl"
-                    fname.write_bytes(pickle.dumps(event))
                     fname.with_suffix(".err").write_text(msg)
+                    fname.write_bytes(pickle.dumps(event))
+                    event.R.write_npz(fname.with_suffix(".R.npz"))
+                    event.P.write_npz(fname.with_suffix(".P.npz"))
+                    if event.G is not None:
+                        event.G.write_npz(fname.with_suffix(".G.npz"))
+                    if event.T is not None:
+                        event.T.write_npz(fname.with_suffix(".T.npz"))
                     raise ValueError(msg)
             if self.write_event(
                 event,

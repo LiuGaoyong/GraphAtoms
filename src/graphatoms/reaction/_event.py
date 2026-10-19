@@ -6,7 +6,8 @@ import igraph
 import numpy as np
 from ase import Atoms
 from ase.units import _e, _hplanck, kB
-from pydantic import BaseModel, PositiveFloat, model_validator
+from ase.visualize import view as _ase_view
+from pydantic import BaseModel, PositiveFloat, PositiveInt, model_validator
 
 from graphatoms.dataclasses import OurFrozenModel
 from graphatoms.geometry.rotation import kabsch
@@ -200,8 +201,23 @@ class RTGP(OurFrozenModel):
         v = ",".join([*sorted([self.R.hash, self.P.hash]), t, g])
         return hash_string(v)
 
-    def simplify(self, env_radius: PositiveFloat = 5.0) -> Self:
-        """Simplify the event by removing the atoms that are not involved."""
+    def analysis_moved_atoms_by_geometry(
+        self,
+        min_distance: PositiveFloat = 0.05,
+    ) -> set[int]:
+        """Analysis the moved atoms by geometry distance."""
+        n = min(len(i) for i in [self.R, self.P, self.T] if i is not None)
+        r_geom, p_geom = self.R.positions[:n, :], self.P.positions[:n, :]
+        rp_var = np.linalg.norm(r_geom - p_geom, axis=1) < min_distance  # A
+        if self.T is not None:
+            t_geom = self.T.positions[:n, :]
+            rt_var = np.linalg.norm(r_geom - t_geom, axis=1) < min_distance
+            tp_var = np.linalg.norm(t_geom - p_geom, axis=1) < min_distance
+            rp_var = rp_var | rt_var | tp_var  # logical or
+        return set(i for i in range(n) if not rp_var[i])
+
+    def analysis_moved_atoms_by_graph(self) -> set[int]:
+        """Analysis the moved atoms by graph theory."""
         graph_node_moved: set[int] = set()
         g0: igraph.Graph = self.R.get_igraph()
         for g1 in [i.get_igraph() for i in [self.P, self.T] if i is not None]:
@@ -209,30 +225,42 @@ class RTGP(OurFrozenModel):
                 for e in g2.es:
                     for vid in e.tuple:
                         graph_node_moved.add(vid)
-        # print(f"graph_node_moved: {graph_node_moved}")
+        return graph_node_moved
 
-        # Got geometry-based simplification, but it is not used for now.
-        # n = min(len(i) for i in [self.R, self.P, self.T] if i is not None)
-        # r_geom, p_geom = self.R.positions[:n, :], self.P.positions[:n, :]
-        # rp_var = np.linalg.norm(r_geom - p_geom, axis=1) < 0.05  # Angstrom
-        # if self.T is not None:
-        #     t_geom = self.T.positions[:n, :]
-        #     rt_var = np.linalg.norm(r_geom - t_geom, axis=1) < 0.05
-        #     tp_var = np.linalg.norm(t_geom - p_geom, axis=1) < 0.05
-        #     rp_var = rp_var | rt_var | tp_var
-        # geom_moved = set(np.argwhere(np.logical_not(rp_var)).flatten())
-        # print(f"geom_moved: {geom_moved}")
+    def simplify(
+        self,
+        *args,
+        env_hop: PositiveInt = 1,
+        env_radius: PositiveFloat = 5.0,
+        **kwargs,
+    ) -> Self:
+        """Simplify the event by removing the atoms that are not involved.
 
+        Note: the union set of the moved atoms by the geometry distance
+            and the graph theory distance is used to simplify the event.
+        """
+        graph_node_moved = self.analysis_moved_atoms_by_graph()
         moved: np.ndarray = np.asarray(list(graph_node_moved), dtype=int)
         nmax = max(len(self.R), len(self.P))
         nmin = min(len(self.R), len(self.P))
         gas_moved = list(range(nmin, nmax))
         moved = np.setdiff1d(moved, gas_moved)
+
+        # get the neighbors of the moved atoms by graph theory
+        sub1_r = self.R._get_neighbor_igraph(moved, hop=env_hop)
+        sub1_p = self.P._get_neighbor_igraph(moved, hop=env_hop)
+        sub1 = np.setdiff1d(np.append(sub1_r, sub1_p), gas_moved)
+        if self.T is not None:
+            sub1_t = self.T._get_neighbor_igraph(moved, hop=env_hop)
+            sub1 = np.setdiff1d(np.append(sub1, sub1_t), gas_moved)
+
+        # get the neighbors of the moved atoms by geometry distance
         pos = self.R.positions[moved, :].reshape(-1, len(moved), 3)
+        env_radius = 1e-6 if env_radius < 1e-6 else env_radius
         v = self.R.positions[:, np.newaxis, :] - pos
         d = np.linalg.norm(v, axis=-1).min(-1)
         sub = np.argwhere(d < env_radius).flatten()
-        sub = np.unique(sub.astype(int))
+        sub = np.unique(np.append(sub1, sub))
 
         # while True:
         for _ in range(10):
@@ -268,7 +296,7 @@ class RTGP(OurFrozenModel):
                     sub = np.append(sub, gas_moved)
                 else:
                     sub = np.setdiff1d(sub, gas_moved)
-                item = Cluster.select(
+                item = Cluster.select2sysgraph(
                     i,
                     sub_idxs=sub,
                     exclude_energetics=False,
@@ -291,6 +319,16 @@ class RTGP(OurFrozenModel):
             return False
         else:
             return self.hash == other.hash
+
+    def view(self) -> None:
+        """View the event."""
+        names, lst = [], []
+        for k in self.__pydantic_fields__:
+            v: SysGraph = getattr(self, k)
+            if v is not None:
+                names.append(k)
+                lst.append(v)
+        return _ase_view([i.to_ase() for i in lst])
 
 
 class EventBase(RTGP, MoveABC):
