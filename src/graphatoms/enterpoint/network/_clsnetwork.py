@@ -19,7 +19,7 @@ from graphatoms.system.database import DatabaseABC, get_db
 
 from ._metadata import MetaData
 from ._metadata import _MetaDataBasic as MetaDataBasic
-from ._recorder import Recorder, RecorderInfo, _OldNewRecorder
+from ._recorder import OldNewRecorder4Confidence, Recorder, RecorderInfo
 from ._scheduler import Scheduler
 
 __all__ = [
@@ -270,7 +270,9 @@ class ReactionNetwork:
             return graph_label in self.__recorder.adsorption
         else:
             if cluster_key not in self.__recorder.cluster:
-                self.__recorder.cluster[cluster_key] = _OldNewRecorder()
+                self.__recorder.cluster[cluster_key] = (
+                    OldNewRecorder4Confidence()
+                )
             oldnew = self.__recorder.cluster[cluster_key]
             return oldnew.exploration_can_be_finished(
                 confidence=confidence,

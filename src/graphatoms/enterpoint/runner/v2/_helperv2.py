@@ -118,13 +118,17 @@ def helper_optimization(
     result, label, cost_time = funcs.helper_optimization(
         graph=graph,
         config=config,
-        graph_label=graph_label,
-        allow_hash_change=allow_hash_change,
-        allow_not_connected=allow_not_connected,
-        run_vibration=run_vibration,
-        raise_when_fail=False,
-        deep_copy=deep_copy,
-        **kwargs,
+        **(
+            kwargs
+            | dict(
+                graph_label=graph_label,
+                allow_hash_change=allow_hash_change,
+                allow_not_connected=allow_not_connected,
+                run_vibration=run_vibration,
+                raise_when_fail=False,
+                deep_copy=deep_copy,
+            )
+        ),
     )
     msg = f"CostTime={cost_time:.2f} for "
     if isinstance(result, Gas | Cluster | System):
@@ -276,15 +280,19 @@ def helper_dimer(
     # -----------------------------------------------------------
     rxn_or_msg, (_, lst), cost_time, _ = funcs.helper_dimer(
         config=config,
-        graph_label=cluster_key,
-        allow_fixed_bonds_change=allow_fixed_bonds_change,
-        allow_metal_element_in_gas=allow_metal_element_in_gas,
-        allow_desorption=allow_desorption,
-        displacement=displacement,
-        raise_when_fail=False,
-        deep_copy=deep_copy,
         graph=cluster,
-        **kwargs,
+        **(
+            kwargs
+            | dict(
+                graph_label=cluster_key,
+                allow_fixed_bonds_change=allow_fixed_bonds_change,
+                allow_metal_element_in_gas=allow_metal_element_in_gas,
+                allow_desorption=allow_desorption,
+                displacement=displacement,
+                raise_when_fail=False,
+                deep_copy=deep_copy,
+            )
+        ),
     )
     arr = np.array([a.positions for a in lst])
     if isinstance(rxn_or_msg, str):
@@ -386,13 +394,17 @@ def helper_adsorption(
         gas=gas,
         graph=graph,
         config=config,
-        initial_atoms=initial_atoms,
-        graph_label=f"{cluster_key}_{gas_key}",
-        allow_fixed_atoms_adsorption=allow_fixed_atoms_adsorption,
-        allow_hash_change=True,
-        raise_when_fail=False,
-        deep_copy=deep_copy,
-        **kwargs,
+        **(
+            kwargs
+            | dict(
+                initial_atoms=initial_atoms,
+                graph_label=f"{cluster_key}_{gas_key}",
+                allow_fixed_atoms_adsorption=allow_fixed_atoms_adsorption,
+                allow_hash_change=True,
+                raise_when_fail=False,
+                deep_copy=deep_copy,
+            )
+        ),
     )
     msg = f"Adsorption search {cluster_key} with {gas_key} " + r"{}"
     msg += f" by {cost_time:.2f} seconds because of {rxn_or_msg}"

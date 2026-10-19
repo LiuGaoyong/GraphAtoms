@@ -739,11 +739,16 @@ def helper_adsorption(
     product_result, (_, lst), cost_time = helper_optimization(
         config=config,
         graph=init_graph,
-        allow_hash_change=True,
-        raise_when_fail=False,
-        deep_copy=deep_copy,
-        run_vibration=True,
-        **kwargs,
+        **(
+            kwargs
+            | dict(
+                graph_label=graph_label,
+                allow_hash_change=True,
+                raise_when_fail=False,
+                deep_copy=deep_copy,
+                run_vibration=True,
+            )
+        ),
     )
     if isinstance(product_result, str):
         e = HelperException(msg=product_result, label=graph_label)

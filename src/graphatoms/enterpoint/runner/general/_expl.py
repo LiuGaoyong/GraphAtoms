@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from time import perf_counter
 from typing import Any
 
@@ -319,7 +320,14 @@ class ExplorationBase(RunnerABC):
                 break
         self.network.persistence()
 
-    def _2step_ads_submit(self, gas: Gas, cluster: Cluster) -> list[Any]:
+    def _2step_ads_submit(
+        self,
+        gas: Gas,
+        cluster: Cluster,
+        *args,
+        helper_adsorption_func: Callable = helper_adsorption,
+        **kwargs,
+    ) -> list[Any]:
         """The second step for the on-the-fly KMC simulation."""
         cluster_key = cluster.get_key_for_metadata(False)
         gas_key = gas.get_key_for_metadata(False)
@@ -350,6 +358,11 @@ class ExplorationBase(RunnerABC):
             adsorbate=gas,
             core=np.unique(cluster.idx_core),
             nfibonacci=int(self.config.exploration.nfibonacci),
+            distance_lst=np.arange(
+                self.config.exploration.min_distance,
+                self.config.exploration.max_distance,
+                self.config.exploration.step_distance,
+            ),
             use_direct=True,
             use_raw=True,
         )
@@ -368,7 +381,7 @@ class ExplorationBase(RunnerABC):
         for irun in lst:
             futures.append(
                 self.executor.submit(
-                    helper_adsorption,
+                    helper_adsorption_func,
                     config=self.config,
                     graph=cluster,
                     gas=gas,
@@ -380,13 +393,11 @@ class ExplorationBase(RunnerABC):
             )
         self.logger.info(
             self._reformat_message(
-                f"Submit {len(lst)} adsorption tasks by "
-                f"{perf_counter() - start:.2f} seconds"
-                f" for {cluster_key} with {gas_key}"
+                f"Submit {len(lst)}(nrun={adsorption_helper.nrun})"
+                f" adsorption tasks by {perf_counter() - start:.2f}"
+                f" seconds for {cluster_key} with {gas_key}"
             )
         )
-        self.network.recorder.adsorption.add(graph_label)
-        self.network.persistence()
         return futures
 
     def __second_step_adsorption(
@@ -398,6 +409,8 @@ class ExplorationBase(RunnerABC):
         gas_key = gas.get_key_for_metadata(False)
         cluster_key = cluster.get_key_for_metadata(False)
         futures = self._2step_ads_submit(gas, cluster)
+        graph_label = f"{cluster_key}_{gas_key}"
+
         # -----------------------------------------------------------
         # wait for the adsorption tasks to finish
         # -----------------------------------------------------------
@@ -435,6 +448,7 @@ class ExplorationBase(RunnerABC):
                 for future in futures:
                     self.executor.cancel(future)
                 break
+        self.network.recorder.adsorption.add(graph_label)
         self.network.persistence()
 
     def __second_step_bulk(

@@ -6,6 +6,7 @@ from graphatoms.enterpoint.runner.v2._helperv2 import (
     HelperAdsorptionResult,
     HelperDimerResult,
     HelperResult,
+    helper_adsorption,
     helper_dimer,
 )
 from graphatoms.system import Cluster, System
@@ -23,6 +24,7 @@ class ExplorationBase(_Base):
     def collect(self, futures: list) -> None:
         """Collect the results from the futures."""
         threshold_str = f"{self.config.event.simplified_threshold:.2f}"
+        graph_label_seq: set[str] = set()
         while len(futures) > 0:
             future_result, futures = self.executor.wait(futures)  # type: ignore
             if isinstance(future_result, HelperResult):
@@ -39,6 +41,10 @@ class ExplorationBase(_Base):
                         if str(event) not in event_label:
                             msg += f" Simplify original {event} by "
                             msg += f"threshold {threshold_str}"
+                    gas_key = future_result.for_gas
+                    cluster_key = future_result.for_cluster
+                    graph_label = f"{cluster_key}_{gas_key}"
+                    graph_label_seq.add(graph_label)
                 elif isinstance(future_result, HelperDimerResult):
                     if future_result.result is not None:
                         event = future_result.result
@@ -60,8 +66,12 @@ class ExplorationBase(_Base):
                 self.logger.info(self._reformat_message(msg))
             else:
                 raise NotImplementedError(
-                    f"Unknown type {type(future_result)}"  #
+                    f"Unknown type {type(future_result)}, "  #
+                    f"and the value is {future_result}."
                 )
+        for graph_label in graph_label_seq:
+            self.network.recorder.adsorption.add(graph_label)
+        self.network.persistence()
 
     def submit(
         self,
@@ -109,9 +119,12 @@ class ExplorationBase(_Base):
         if len(lst_4adsorption) > 0:
             for cluster in lst_4adsorption:
                 for gas in self.gas_lst:
-                    self._2step_ads_submit(
-                        cluster=cluster,
-                        gas=gas,
+                    futures.extend(
+                        self._2step_ads_submit(
+                            helper_adsorption_func=helper_adsorption,
+                            cluster=cluster,
+                            gas=gas,
+                        )
                     )
         if len(lst_4surface) > 0:
             for cluster in lst_4surface:

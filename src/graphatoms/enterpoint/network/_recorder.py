@@ -24,14 +24,14 @@ Ref:
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Annotated, Self, override
+from typing import Annotated, Any, Self, override
 
 import pydantic
 
 from graphatoms.dataclasses import OurBaseModel
 
 
-class _RecorderBase(pydantic.BaseModel):
+class RecorderItemBase(pydantic.BaseModel):
     old: pydantic.NonNegativeInt = 0
     new: pydantic.NonNegativeInt = 0
     fail: pydantic.NonNegativeInt = 0
@@ -49,7 +49,7 @@ class _RecorderBase(pydantic.BaseModel):
         return sum([self.old, self.new, self.fail])
 
 
-class _OldNewRecorder(OurBaseModel, _RecorderBase):
+class OldNewRecorder4Confidence(OurBaseModel, RecorderItemBase):
     @pydantic.validate_call
     def get_williams_confidence(
         self, min_found: pydantic.NonNegativeInt
@@ -121,7 +121,7 @@ class _OldNewRecorder(OurBaseModel, _RecorderBase):
         self.fail += 1
 
 
-class RecorderInfo(_RecorderBase):
+class RecorderInfo(RecorderItemBase):
     create_at: datetime = pydantic.Field(default_factory=lambda: datetime.now())
     confidence: Annotated[float, pydantic.Field(ge=0.5, lt=1.0)]
     for_cluster: str = pydantic.Field(default="")
@@ -131,7 +131,7 @@ class RecorderInfo(_RecorderBase):
     @classmethod
     def from_oldnew(
         cls,
-        oldnew: _OldNewRecorder,
+        oldnew: OldNewRecorder4Confidence,
         min_found: pydantic.NonNegativeInt,
         *,
         for_cluster: str = "",
@@ -164,10 +164,12 @@ class RecorderInfo(_RecorderBase):
         return f"{msg},{self.for_gas},{create_at}"
 
 
-class Recorder(OurBaseModel):
-    cluster: dict[str, _OldNewRecorder] = defaultdict(_OldNewRecorder)
-    adsorption: set[str] = set()
-    bulk: set[str] = set()
+class RecorderBase(OurBaseModel):
+    cluster: dict[str, OldNewRecorder4Confidence] = defaultdict(
+        OldNewRecorder4Confidence
+    )
+    adsorption: Any
+    bulk: Any
 
     @override
     def _string(self) -> str:  # type: ignore
@@ -176,6 +178,80 @@ class Recorder(OurBaseModel):
             + f"& {len(self.adsorption)} adsorption "
             + f"& {len(self.bulk)} bulk "
             + "have been explored"
+        )
+
+
+class Recorder(RecorderBase):
+    adsorption: set[str] = set()
+    bulk: set[str] = set()
+
+
+class RecorderV2(RecorderBase):
+    adsorption: dict[tuple[str, str], set[str]] = defaultdict(set)
+    bulk: dict[str, set[str]] = defaultdict(set)
+
+    def exploration_can_be_finished(
+        self,
+        cluster_key: str,
+        *args,
+        other_cluster_key: str | None = None,
+        adsorption_gas_key: str | None = None,
+        confidence: pydantic.PositiveFloat = 5.0,
+        min_found: pydantic.NonNegativeInt | None = None,
+        **kwargs,
+    ) -> bool:
+        if adsorption_gas_key is not None:
+            assert other_cluster_key is not None, (
+                "The `other_cluster_key` must be not None"  #
+                " when `adsorption_gas_key` is provided."
+            )
+            return self.__explore_adsorption_can_be_finished(
+                cluster_key=cluster_key,
+                gas_key=adsorption_gas_key,
+                initial_try_key=other_cluster_key,
+            )
+        elif other_cluster_key is not None:
+            return self.__explore_bulk_can_be_finished(
+                cluster_key=cluster_key,
+                other_cluster_key=other_cluster_key,
+            )
+        else:
+            return self.__explore_cluster_can_be_finished(
+                cluster_key=cluster_key,
+                confidence=confidence,
+                min_found=min_found,
+            )
+
+    def __explore_adsorption_can_be_finished(
+        self,
+        gas_key: str,
+        cluster_key: str,
+        initial_try_key: str,
+    ) -> bool:
+        if (cluster_key, gas_key) not in self.adsorption:
+            self.adsorption[(cluster_key, gas_key)] = set()
+        return initial_try_key in self.adsorption[(cluster_key, gas_key)]
+
+    def __explore_bulk_can_be_finished(
+        self,
+        cluster_key: str,
+        other_cluster_key: str,
+    ) -> bool:
+        if cluster_key not in self.bulk:
+            self.bulk[cluster_key] = set()
+        return other_cluster_key in self.bulk[cluster_key]
+
+    def __explore_cluster_can_be_finished(
+        self,
+        cluster_key: str,
+        confidence: pydantic.PositiveFloat,
+        min_found: pydantic.NonNegativeInt | None = None,
+    ) -> bool:
+        if cluster_key not in self.cluster:
+            self.cluster[cluster_key] = OldNewRecorder4Confidence()
+        return self.cluster[cluster_key].exploration_can_be_finished(
+            confidence=confidence,
+            min_found=min_found,
         )
 
 
