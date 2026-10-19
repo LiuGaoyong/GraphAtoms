@@ -11,21 +11,72 @@ from graphatoms.system import SysGraph
 __p_help__ = "Path to the network directory."
 Path = Annotated[str, typer.Option("--path", "-p", help=__p_help__)]
 
-
+# --------------
+# Main command
+# --------------
 main = typer.Typer(no_args_is_help=True)
-view = typer.Typer(no_args_is_help=True)
-show = typer.Typer(no_args_is_help=True)
 
-main.add_typer(view, name="view")
+
+@main.command()
+def summary(path: Path = ".") -> None:
+    assert pathlib.Path(path).exists()
+    net = ReactionNetwork(path, restart=True, format="dir")
+    print(net.summary())
+
+
+@main.command()
+def table(path: Path = ".") -> None:
+    assert pathlib.Path(path).exists()
+    net = ReactionNetwork(path, restart=True, format="dir")
+    df = net.metadata.table.dataframe
+    col = [0, 5, 6, 7, 8, 11, 12]
+    print(df[df.columns[col]])
+
+
+@main.command(no_args_is_help=True)
+def merge(
+    args: Annotated[
+        list[str],
+        typer.Argument(
+            help="ReactionNetwork directories to merge (one or more)"
+        ),
+    ],
+    path: Path = "./event",
+    db_format: Annotated[
+        str,
+        typer.Option(
+            "--db-format",
+            "-f",
+            help="Database format in the network.",
+        ),
+    ] = "dir",
+) -> None:
+    assert db_format == "dir", "Only `dir` format is supported now."
+    lst = [ReactionNetwork(p, restart=True, format=db_format) for p in args]
+    ReactionNetwork.merge(*lst, new_path=path)
+
+
+# ----------------
+# Table subcommand
+# ----------------
+show = typer.Typer(no_args_is_help=True)
 main.add_typer(show, name="show")
 
 
-@show.command(no_args_is_help=True)
-def show_rxn(path: Path) -> None:
-    print(f"Show reaction {path}")
+@show.command()
+def show_rxn(path: Path = ".") -> None:
+    raise NotImplementedError()
 
 
-@view.command(no_args_is_help=True)
+# ----------------
+# View subcommand
+# ----------------
+view = typer.Typer(no_args_is_help=True)
+
+main.add_typer(view, name="view")
+
+
+@view.command()
 def reaction(
     name: str,
     path: Path = ".",
@@ -75,7 +126,7 @@ def reaction(
         return _ase_view([i.to_ase() for i in lst])
 
 
-@view.command(no_args_is_help=True)
+@view.command()
 def structure(
     name_or_path: str,
     path: Path = ".",
@@ -105,13 +156,6 @@ def structure(
     if atoms is None:
         raise ValueError(f"structure {name} is not in the database.")
     return _ase_view(atoms)
-
-
-@main.command(no_args_is_help=True)
-def summary(path: Path = ".") -> None:
-    assert pathlib.Path(path).exists()
-    net = ReactionNetwork(path, restart=True, format="dir")
-    print(net.summary())
 
 
 if __name__ == "__main__":

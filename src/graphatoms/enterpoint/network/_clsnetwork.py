@@ -7,6 +7,16 @@ import numpy as np
 from ase import Atoms
 
 from graphatoms.enterpoint.config import Config, EventConfig
+from graphatoms.enterpoint.network._metadata import MetaData
+from graphatoms.enterpoint.network._metadata import (
+    _MetaDataBasic as MetaDataBasic,
+)
+from graphatoms.enterpoint.network._recorder import (
+    OldNewRecorder4Confidence,
+    Recorder,
+    RecorderInfo,
+)
+from graphatoms.enterpoint.network._scheduler import Scheduler
 from graphatoms.reaction import (
     Adsorption,
     Desorption,
@@ -16,11 +26,6 @@ from graphatoms.reaction import (
 )
 from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.system.database import DatabaseABC, get_db
-
-from ._metadata import MetaData
-from ._metadata import _MetaDataBasic as MetaDataBasic
-from ._recorder import OldNewRecorder4Confidence, Recorder, RecorderInfo
-from ._scheduler import Scheduler
 
 __all__ = [
     "MetaData",
@@ -57,8 +62,8 @@ class ReactionNetwork:
             assert format in (
                 "sqlite",
                 "directory",
-                "dir",
                 "folder",
+                "dir",
                 "h5",
                 "hdf5",
             ), f"The format of `{format}` is not supported for restart."
@@ -117,6 +122,150 @@ class ReactionNetwork:
         assert isinstance(self.__db_minima, DatabaseABC)
         assert isinstance(self.__db_cluster, DatabaseABC)
         assert isinstance(self.__db_system, DatabaseABC)
+
+    @classmethod
+    def from_config(
+        cls,
+        config: Config,
+        *args,
+        restart: bool | None = None,
+        remote_mode: bool = False,
+        **kwargs,
+    ) -> Self:  # type: ignore
+        """Create a network from a config file."""
+        if remote_mode is True:
+            # When remote_mode is True, some files may not exist or in write.
+            # We need to try to create the network again.
+            err = None
+            for _ in range(10):
+                try:
+                    return cls(
+                        path=Path(config.outputs) / NETWORK_PATH_PREFIX,
+                        restart=restart
+                        if restart is not None
+                        else config.restart,
+                        format=config.event.db_format,
+                        remote_mode=remote_mode,
+                        config=config.event,
+                        **kwargs,
+                    )
+                    break
+                except Exception as e:
+                    time.sleep(0.5)
+                    err = e
+            if err is not None:
+                raise RuntimeError(
+                    f"Failed to create the network in remote mode. {err}"
+                )
+        else:
+            return cls(
+                path=Path(config.outputs) / NETWORK_PATH_PREFIX,
+                restart=restart if restart is not None else config.restart,
+                format=config.event.db_format,
+                remote_mode=remote_mode,
+                config=config.event,
+                **kwargs,
+            )
+
+    @classmethod
+    def merge(
+        cls,
+        *networks: Self,
+        new_path: Path | str,
+        new_format: str | Literal["dir", "h5", "sqlite"] = "dir",
+        **kwargs,
+    ) -> Self:
+        """Merge the networks.
+
+        Note: the recorder will be set empty.
+        """
+        if len(networks) <= 1:
+            raise ValueError("At least two network is required.")
+        result = cls(
+            path=Path(new_path),
+            restart=False,
+            config=networks[0].metadata.basic,
+            format=new_format,
+        )
+        result.metadata.basic.db_format = new_format
+        for network in networks[1:]:
+            try:
+                network.metadata.basic.check_consistency(
+                    result.metadata.basic,
+                    exclude_keys={"db_format", "gas_sticking"},
+                )
+                for k, v in network.metadata.basic.gas_sticking.items():
+                    if k not in result.metadata.basic.gas_sticking:
+                        result.metadata.basic.gas_sticking[k] = v
+                    else:
+                        v0 = result.metadata.basic.gas_sticking[k]
+                        assert v0 == v, (
+                            f"Failed to merge the networks because the "
+                            f"gas sticking of {k} is not the same as "
+                            f"input. self={v0}, input={v}"
+                        )
+                    result.metadata.basic.gas_sticking[k] = v
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to merge the networks because "
+                    f"of check consistency failed: {e}"
+                )
+            for k, use_pos_uuid in cls.DB_USE_POSITION_UUID_DICT.items():
+                db_res: DatabaseABC = getattr(result, f"db_{k}")
+                db: DatabaseABC = getattr(network, f"db_{k}")
+                for _, v in db.items():
+                    graph = SysGraph.from_ase(v)
+                    graph_key = graph.get_key_for_metadata(use_pos_uuid)
+                    if graph_key not in db_res:
+                        db_res._save(graph_key, graph)
+            for i, rxn in enumerate(network.metadata.table.key_rxn):
+                if rxn not in result.metadata.table.key_rxn:
+                    key_r = network.metadata.table.key_r[i]
+                    key_p = network.metadata.table.key_p[i]
+                    key_g = network.metadata.table.key_g[i]
+                    key_ts = network.metadata.table.key_t[i]
+                    if key_r not in result.db_minima:
+                        print(
+                            f"Find invalid key: {rxn}\n"
+                            f"  Missing key of reactant: {key_r}\n"
+                        )
+                        continue
+                    elif key_g is not None and key_g not in result.db_gas:
+                        print(
+                            f"Find invalid key: {rxn}\n"
+                            f"  Missing key of gas: {key_g}\n"
+                        )
+                        continue
+                    elif key_ts is not None and key_ts not in result.db_ts:
+                        print(
+                            f"Find invalid key: {rxn}\n"
+                            f"  Missing key of transition state: {key_ts}\n"
+                        )
+                        continue
+                    elif key_p is not None and key_p not in result.db_minima:
+                        print(
+                            f"Find invalid key: {rxn}\n"
+                            f"  Missing key of product: {key_p}\n"
+                        )
+                        continue
+                result.metadata.table.merge(  # Output duplicate info
+                    network.metadata.table, idxs=[i]
+                )
+        n = len(result.metadata.table.key_rxn)
+        print(f"Merge networks({n} events) done.")
+        result.scheduler.clear()
+        result.recorder.clear()
+        result.persistence()
+        return result
+
+    @classmethod
+    def reformat_message(cls, msg: str) -> str:
+        return msg
+        __LOGURU_FORMAT_LENGTH: int = 37
+        __LOGURU_TOTAL_LENGTH: int = 120
+        len_msg = __LOGURU_TOTAL_LENGTH - __LOGURU_FORMAT_LENGTH
+        lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
+        return ("\n" + " " * __LOGURU_FORMAT_LENGTH).join(lst)
 
     @property
     def path(self) -> Path:
@@ -186,76 +335,6 @@ class ReactionNetwork:
             )
         return self.__db_ts
 
-    @classmethod
-    def from_config(
-        cls,
-        config: Config,
-        *args,
-        restart: bool | None = None,
-        remote_mode: bool = False,
-        **kwargs,
-    ) -> Self:  # type: ignore
-        """Create a network from a config file."""
-        if remote_mode is True:
-            # When remote_mode is True, some files may not exist or in write.
-            # We need to try to create the network again.
-            err = None
-            for _ in range(10):
-                try:
-                    return cls(
-                        path=Path(config.outputs) / NETWORK_PATH_PREFIX,
-                        restart=restart
-                        if restart is not None
-                        else config.restart,
-                        format=config.event.db_format,
-                        remote_mode=remote_mode,
-                        config=config.event,
-                        **kwargs,
-                    )
-                    break
-                except Exception as e:
-                    time.sleep(0.5)
-                    err = e
-            if err is not None:
-                raise RuntimeError(
-                    f"Failed to create the network in remote mode. {err}"
-                )
-        else:
-            return cls(
-                path=Path(config.outputs) / NETWORK_PATH_PREFIX,
-                restart=restart if restart is not None else config.restart,
-                format=config.event.db_format,
-                remote_mode=remote_mode,
-                config=config.event,
-                **kwargs,
-            )
-
-    @classmethod
-    def merge(
-        cls,
-        *networks: Self,
-        new_path: Path | str,
-        new_format: str | Literal["dir", "h5", "sqlite"] = "dir",
-        **kwargs,
-    ) -> Self:
-        """Merge the networks."""
-        raise NotImplementedError("Merge the networks.")
-        cls(
-            path=new_path,
-            restart=False,
-            config=networks[0].metadata.basic,
-            format=networks[0].__format,
-        )
-
-    @classmethod
-    def reformat_message(cls, msg: str) -> str:
-        return msg
-        __LOGURU_FORMAT_LENGTH: int = 37
-        __LOGURU_TOTAL_LENGTH: int = 120
-        len_msg = __LOGURU_TOTAL_LENGTH - __LOGURU_FORMAT_LENGTH
-        lst = wrap_line(msg, width_min=len_msg, width_max=len_msg + 20)
-        return ("\n" + " " * __LOGURU_FORMAT_LENGTH).join(lst)
-
     def exploration_can_be_finished(
         self,
         confidence: float,
@@ -311,7 +390,8 @@ class ReactionNetwork:
         msg += f"    #Minima    :{len(self.__db_minima)}\n"
         msg += f"    #Gas       :{len(self.__db_gas)}\n"
         msg += f"    #TS        :{len(self.__db_ts)}\n"
-        msg += f"#Event     :{len(self.__metadata.table)}\n"
+        msg += f"#Event         :{len(self.__metadata.table)}\n"
+        msg += f"Configuration  :{self.__metadata.basic.to_str(indent=4)}\n"
         return msg
 
     def persistence(self) -> None:
@@ -659,3 +739,31 @@ def wrap_line(
             lines.pop()
 
     return lines
+
+
+if __name__ == "__main__":
+    import json
+    import shutil
+    from pathlib import Path
+
+    this_dir = Path(__file__).parent
+    root_path = this_dir.parent.parent.parent.parent
+    print(root_path)
+
+    new_path = root_path / "zzzz-merged" / "event"
+    shutil.rmtree(new_path.parent, ignore_errors=True)
+
+    network_lst: list[ReactionNetwork] = []
+    for zzzz_path in root_path.glob("zzzz-*"):
+        if "merge" not in zzzz_path.name:
+            p = zzzz_path / "event"
+            (p / "recorder.json").unlink(missing_ok=True)
+            with open(p / "recorder.json", "w") as f:
+                json.dump({}, f, indent=4)
+            network_lst.append(
+                ReactionNetwork(
+                    zzzz_path / "event",
+                    restart=True,
+                )
+            )
+    new_network = ReactionNetwork.merge(*network_lst, new_path=new_path)

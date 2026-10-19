@@ -22,6 +22,7 @@ Ref:
     Fe-H system. PhD thesis, University of Cambridge, 2024.
 """
 
+from abc import abstractmethod
 from collections import defaultdict
 from datetime import datetime
 from typing import Annotated, Any, Self, override
@@ -180,15 +181,31 @@ class RecorderBase(OurBaseModel):
             + "have been explored"
         )
 
+    @abstractmethod
+    def clear(self) -> None:
+        self.cluster.clear()
+
 
 class Recorder(RecorderBase):
     adsorption: set[str] = set()
     bulk: set[str] = set()
 
+    @override
+    def clear(self) -> None:
+        self.adsorption.clear()
+        self.bulk.clear()
+        super().clear()
+
 
 class RecorderV2(RecorderBase):
     adsorption: dict[tuple[str, str], set[str]] = defaultdict(set)
     bulk: dict[str, set[str]] = defaultdict(set)
+
+    @override
+    def clear(self) -> None:
+        self.adsorption.clear()
+        self.bulk.clear()
+        super().clear()
 
     def exploration_can_be_finished(
         self,

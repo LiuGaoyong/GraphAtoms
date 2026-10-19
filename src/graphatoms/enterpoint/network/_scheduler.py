@@ -20,6 +20,10 @@ class Scheduler(BaseModel):
         msg = " ".join(f"{k}:{len(v)}dR" for k, v in self.dR.items())
         return f"{self.__class__.__name__}({msg})"
 
+    def clear(self) -> None:
+        self.is_fixed.clear()
+        self.dR.clear()
+
     @validate_call
     def write_npz(
         self,

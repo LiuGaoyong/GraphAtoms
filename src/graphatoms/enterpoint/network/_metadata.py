@@ -21,12 +21,23 @@ class _MetaDataBasic(OurBaseModel, EventConfig):
     def from_config(cls, config: Config | EventConfig) -> Self:
         if isinstance(config, Config):
             config = config.event
+        if not isinstance(config, dict):
+            if isinstance(config, EventConfig):
+                config = dc.asdict(config)  # type: ignore
+            elif isinstance(config, Self):
+                config = config.to_dict()
         return cls(**config)  # type: ignore
 
-    def check_consistency(self, config: EventConfig | Self) -> None:
+    def check_consistency(
+        self,
+        config: EventConfig | Self,
+        exclude_keys: set[str] = {"db_format"},
+    ) -> None:
         msg = r"The keys of {} must be the same as input, "
         msg += r"but we got {}(from self) and {}(from input)"
         for k in self.__pydantic_fields__:
+            if k in exclude_keys:
+                continue
             v1 = getattr(self, k)
             v2 = getattr(config, k)
             if not isinstance(v1, dict):
@@ -98,6 +109,40 @@ class _MetaDataTable(BaseModel):
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame) -> Self:
         return cls(**{k: df[k].to_list() for k in df.columns})
+
+    def merge(self, other: Self, idxs: list[int] | None = None) -> None:
+        if idxs is None:
+            idxs = list(range(len(other)))
+        for i in idxs:
+            k = other.key_rxn[i]
+            if k not in self.key_rxn:
+                self.key_rxn.append(k)
+                self.key_r.append(other.key_r[i])
+                self.key_g.append(other.key_g[i])
+                self.key_t.append(other.key_t[i])
+                self.key_p.append(other.key_p[i])
+                self.Ea_forword.append(other.Ea_forword[i])
+                self.rate_forword.append(other.rate_forword[i])
+                self.rate_reversed.append(other.rate_reversed[i])
+                self.Ea_reversed.append(other.Ea_reversed[i])
+                self.for_cluster.append(other.for_cluster[i])
+                self.for_system.append(other.for_system[i])
+                self.count.append(other.count[i])
+                self.dE.append(other.dE[i])
+            else:
+                idx = self.key_rxn.index(k)
+                self.count[idx] += other.count[i]
+                len(self.key_r[idx])
+                print(
+                    f"Find duplicate key: {k}\n"
+                    f"  dE:   (old={self.dE[idx]},new={other.dE[i]})\n"
+                    f"  Ea:   (old={self.Ea_forword[idx]},"
+                    f"new={other.Ea_forword[i]})\n"
+                    f"  key_r:(old={self.key_r[idx]},new={other.key_r[i]})\n"
+                    f"  key_g:(old={self.key_g[idx]},new={other.key_g[i]})\n"
+                    f"  key_t:(old={self.key_t[idx]},new={other.key_t[i]})\n"
+                    f"  key_p:(old={self.key_p[idx]},new={other.key_p[i]})\n"
+                )
 
     def get_minconut_for(
         self,

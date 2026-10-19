@@ -1,4 +1,5 @@
 from ._clsnetwork import ReactionNetwork
+from ._commands import main
 from ._metadata import MetaData
 from ._recorder import Recorder
 from ._scheduler import Scheduler
@@ -8,4 +9,5 @@ __all__ = [
     "Recorder",
     "Scheduler",
     "ReactionNetwork",
+    "main",
 ]

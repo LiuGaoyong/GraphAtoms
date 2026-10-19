@@ -28,6 +28,7 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
             else:
                 raise TypeError(
                     "The key must be a string or a SysGraph object."
+                    f" But got {type(key)}."
                 )
         return self._contains(key)
 
