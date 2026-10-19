@@ -59,6 +59,17 @@ class ExplorationBase(_Base):
                             msg += (
                                 f"{self.config.event.simplified_threshold:.2f}"
                             )
+                    elif future_result.is_failed:
+                        self.network.found(
+                            future_result.message,
+                            for_cluster=future_result.for_cluster,
+                            for_gas=None,
+                            persist=True,
+                        )
+                    elif future_result.is_skipped:
+                        self.network.recorder.cluster[
+                            future_result.for_cluster
+                        ].found_skip()
                 else:
                     raise NotImplementedError(
                         f"Unknown type {type(future_result)}"  #

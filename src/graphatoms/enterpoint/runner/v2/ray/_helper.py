@@ -3,7 +3,7 @@ from typing import Any, Literal, override
 
 import numpy as np
 import ray
-from ray.actor import ActorClass, ActorProxy
+from ray.actor import ActorProxy
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
@@ -42,9 +42,9 @@ class _RayReactionNetwork(ReactionNetwork):
         return super().object_has_been_optimized(graph)
 
 
-RayReactionNetwork: ActorClass[_RayReactionNetwork] = ray.remote(
-    _RayReactionNetwork  # object: ActorProxy[_RayReactionNetwork]
-)
+# RayReactionNetwork: ActorClass[_RayReactionNetwork] = ray.remote(
+#     _RayReactionNetwork  # object: ActorProxy[_RayReactionNetwork]
+# )
 
 
 # =============================================

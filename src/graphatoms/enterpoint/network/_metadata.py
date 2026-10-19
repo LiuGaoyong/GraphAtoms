@@ -24,7 +24,7 @@ class _MetaDataBasic(OurBaseModel, EventConfig):
         if not isinstance(config, dict):
             if isinstance(config, EventConfig):
                 config = dc.asdict(config)  # type: ignore
-            elif isinstance(config, Self):
+            elif isinstance(config, _MetaDataBasic):
                 config = config.to_dict()
         return cls(**config)  # type: ignore
 
