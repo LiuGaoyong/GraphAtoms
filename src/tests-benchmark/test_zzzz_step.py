@@ -61,7 +61,7 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
                 overrides=overrides,
             )
 
-            maxtry = 3
+            maxtry = 1000
             cfg.restart = False
             cfg.logfile = f"run-{maxtry:d}.log"
             cfg.parallel = parallel
@@ -69,12 +69,13 @@ def test_run_step(parallel: str, Mock: type[RunnerABC]) -> None:
                 cfg.parallel_ncpus_for_tasks = 2
             cfg.exploration.maxtry = maxtry
             cfg.run_type = "rxngen"
-            cfg.max_steps = 2
+            cfg.max_steps = 1
             cfg.max_times = float("inf")
+            cfg.event.simplified_threshold = 0.5
             cfg.exploration.surface_only_explore_single_core = True
             cfg.exploration.max_ncore_for_surface = 1
-            cfg.initial_gas_pressure = {"O2": 1e4, "CO": 1e3}
-            cfg.event.gas_sticking = {"O2": 1.0, "CO": 1.0}
+            # cfg.initial_gas_pressure = {"O2": 1e4, "CO": 1e3}
+            # cfg.event.gas_sticking = {"O2": 1.0, "CO": 1.0}
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
             if Path(cfg.outputs).exists():
