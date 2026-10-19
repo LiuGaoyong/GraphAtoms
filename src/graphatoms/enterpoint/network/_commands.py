@@ -1,15 +1,21 @@
 import pathlib
 from typing import Annotated
 
+import pandas as pd
 import typer
 from ase import Atoms
 from ase.visualize import view as _ase_view
 
-from graphatoms.enterpoint.network import ReactionNetwork
+from graphatoms.enterpoint.network import ReactionNetwork as Net
 from graphatoms.system import SysGraph
 
 __p_help__ = "Path to the network directory."
 Path = Annotated[str, typer.Option("--path", "-p", help=__p_help__)]
+pd.set_option("display.max_colwidth", None)  # don't truncate cell contents
+pd.set_option("display.max_columns", None)  # show all columns
+pd.set_option("display.max_rows", None)  # show all rows
+pd.set_option("display.width", None)  # don't wrap lines
+
 
 # --------------
 # Main command
@@ -20,17 +26,8 @@ main = typer.Typer(no_args_is_help=True)
 @main.command()
 def summary(path: Path = ".") -> None:
     assert pathlib.Path(path).exists()
-    net = ReactionNetwork(path, restart=True, format="dir")
+    net = Net(path, restart=True, format="dir")
     print(net.summary())
-
-
-@main.command()
-def table(path: Path = ".") -> None:
-    assert pathlib.Path(path).exists()
-    net = ReactionNetwork(path, restart=True, format="dir")
-    df = net.metadata.table.dataframe
-    col = [0, 5, 6, 7, 8, 11, 12]
-    print(df[df.columns[col]])
 
 
 @main.command(no_args_is_help=True)
@@ -38,7 +35,7 @@ def merge(
     args: Annotated[
         list[str],
         typer.Argument(
-            help="ReactionNetwork directories to merge (one or more)"
+            help=f"{Net.__name__} directories to merge (one or more)"
         ),
     ],
     path: Path = "./event",
@@ -52,8 +49,8 @@ def merge(
     ] = "dir",
 ) -> None:
     assert db_format == "dir", "Only `dir` format is supported now."
-    lst = [ReactionNetwork(p, restart=True, format=db_format) for p in args]
-    ReactionNetwork.merge(*lst, new_path=path)
+    lst = [Net(p, restart=True, format=db_format) for p in args]
+    Net.merge(*lst, new_path=path)
 
 
 # ----------------
@@ -63,9 +60,25 @@ show = typer.Typer(no_args_is_help=True)
 main.add_typer(show, name="show")
 
 
+@show.command(name="reaction")
+def show_reaction(arg: str, path: Path = ".") -> tuple[int, Net]:
+    net = Net(path, restart=True, format="dir")
+    df = net.metadata.table.dataframe
+    try:
+        i = int(arg)
+    except ValueError:
+        i = net.metadata.table.key_r.index(arg)
+    print(df.iloc[i])
+    return i, net
+
+
 @show.command()
-def show_rxn(path: Path = ".") -> None:
-    raise NotImplementedError()
+def table(path: Path = ".") -> None:
+    assert pathlib.Path(path).exists()
+    net = Net(path, restart=True, format="dir")
+    df = net.metadata.table.dataframe
+    col = [0, 5, 6, 7, 8, 11, 12]
+    print(df[df.columns[col]])
 
 
 # ----------------
@@ -82,9 +95,9 @@ def reaction(
     path: Path = ".",
     forward: bool = True,
 ) -> None:
-    assert pathlib.Path(path).exists()
-    net = ReactionNetwork(path, restart=True, format="dir")
-    _, rxn = net.read_event(name)
+    idx, net = show_reaction(name, path)
+    key_rxn = net.metadata.table.key_rxn[idx]
+    _, rxn = net.read_event(key_rxn)
     if not forward:
         rxn = rxn.reversed
     names, lst = [], []
@@ -147,7 +160,7 @@ def structure(
         name = name_or_path
 
     assert pathlib.Path(path).exists()
-    net = ReactionNetwork(path, restart=True, format="dir")
+    net = Net(path, restart=True, format="dir")
     atoms: Atoms | None = None
     for type in ("gas", "ts", "minima", "cluster", "system"):
         if net.contain_sysgraph(name, type=type):
