@@ -26,9 +26,8 @@ except ImportError:  # pragma: no cover - exercised when executorlib absent
 class ExecutorLibExecutor(ParallelExecutorABC):
     """An executor backed by :class:`executorlib.Executor`."""
 
-    raise NotImplementedError("ExecutorLibExecutor is not implemented.")
-
     def __init__(self, *, nworkers: int | None = None, **kwargs) -> None:
+        raise NotImplementedError("ExecutorLibExecutor is not implemented.")
         if not _EXECUTORLIB_AVAILABLE:
             raise ImportError(
                 "executorlib is not installed. Install it with: "

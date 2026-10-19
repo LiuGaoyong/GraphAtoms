@@ -846,7 +846,7 @@ wheels = [
 
 [[package]]
 name = "graphatoms"
-version = "2.2.0"
+version = "2.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "array-api-compat" },
@@ -856,6 +856,7 @@ dependencies = [
     { name = "h5py" },
     { name = "hydra-core" },
     { name = "igraph" },
+    { name = "joblib" },
     { name = "loguru" },
     { name = "numpy" },
     { name = "numpydantic" },
@@ -896,6 +897,7 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.16" },
     { name = "hydra-core" },
     { name = "igraph", specifier = ">=0.11" },
+    { name = "joblib" },
     { name = "loguru" },
     { name = "numpy", specifier = ">=2,<3" },
     { name = "numpydantic" },

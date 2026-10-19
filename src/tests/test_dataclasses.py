@@ -3,7 +3,7 @@ from functools import cached_property
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Annotated, override
-
+import weakref
 import numpy as np
 import pytest
 
@@ -37,6 +37,8 @@ def mock_object() -> Mock:
 
 @pytest.mark.parametrize("format", OurBaseModel.SUPPORTED_IO_FORMATS())
 def test_io_for_OurBaseModel(mock_object: Mock, format) -> None:
+    print(mock_object.__slots__)
+    print(weakref.ref(mock_object))
     with TemporaryDirectory() as tmp:
         p = Path(tmp) / f"mock.{format}"
         p = mock_object.write(p)

@@ -12,7 +12,7 @@ graphatoms-network = "graphatoms.enterpoint.view:main"
 graphatoms-run = "graphatoms.enterpoint.runner:run"
 [project]
 name = "graphatoms"
-version = "2.2.0"
+version = "2.3.0"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -60,6 +60,7 @@ dependencies = [
     "typing-extensions",
 
     # Other
+    "joblib",
     "executorlib",
     "hydra-core",
     "typer",
@@ -164,6 +165,7 @@ hydra-core = ">=1.3.2,<2"
 tomli-w = ">=1.2.0,<2"
 loguru = ">=0.7.3,<0.8"
 jupyterlab = ">=4.5.8,<5"
+joblib = ">=1.1.0,<2"
 ovld = ">=0.5.15,<0.6"
 pytest-xdist = ">=3.8.0,<4"
 executorlib = ">=1.8,<2"

@@ -116,6 +116,7 @@ class MultiprocessingExecutor(ParallelExecutorABC):
 
     @override
     def map(self, fn, *iterables, timeout=None, chunksize=1) -> list[Any]:
+        print(iterables)
         return list(
             self.__executor.map(
                 fn,

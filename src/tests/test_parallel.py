@@ -26,7 +26,10 @@ sys.path.append(this_dir)
 import pytest  # noqa: E402
 from conftest import return_big_object  # type: ignore  # noqa: E402
 
-from graphatoms.enterpoint.parallel import get_executor  # noqa: E402
+from graphatoms.enterpoint.parallel import (  # noqa: E402
+    get_executor,
+    get_executor_map,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -115,10 +118,36 @@ def test_parallel_call(
         executor.cancel(r)
     print(f"Time: {time.perf_counter() - start_time:.5f}s")
 
-    print("-" * 54)
-    print(executor.map(return_big_object, range(20)))
-    print(f"Time: {time.perf_counter() - start_time:.5f}s")
-    print("=" * 54)
+    # print("-" * 54)
+    # print(executor.map(return_big_object, range(20)))
+    # print(f"Time: {time.perf_counter() - start_time:.5f}s")
+    # print("=" * 54)
+
+
+@pytest.mark.parametrize("backend", lst + ["joblib"])
+def test_parallel_map(backend: str, set_ray_env: None) -> None:
+    if backend == "ray" and not HAS_RAY:
+        return
+    if backend == "dask" and not HAS_DASK:
+        return
+    if backend == "executorlib" and not HAS_EXECUTORLIB:
+        return
+
+    for i in range(4):
+        start_time = time.perf_counter()
+        result = get_executor_map(
+            backend,
+            return_big_object,
+            [dict(i=i) for i in range(4)],
+            nworkers=4,
+        )
+        end_time = time.perf_counter()
+        print(
+            result,
+            end_time - start_time,
+        )
+        print("=" * 50)
+    print("#" * 60)
 
 
 if __name__ == "__main__":

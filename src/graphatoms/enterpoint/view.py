@@ -84,9 +84,7 @@ def structure(
         fname = pathlib.Path(name_or_path)
         if fname.name.count("*") == 0:
             assert fname.exists() and fname.is_file()
-            sys = SysGraph.read_npz(fname)
-            atoms: Atoms = sys.to_ase()
-            return _ase_view(atoms)
+            return _ase_view(SysGraph.read_npz(fname).to_ase())
         else:
             return _ase_view(
                 [
@@ -99,15 +97,12 @@ def structure(
 
     assert pathlib.Path(path).exists()
     net = ReactionNetwork(path, restart=True, format="dir")
-    if name in net.metadata.table.key_g:
-        atoms: Atoms = net.db_gas[name]
-    elif name in net.metadata.table.key_t:
-        atoms: Atoms = net.db_ts[name]
-    elif name in net.metadata.table.key_r:
-        atoms: Atoms = net.db_minima[name]
-    elif name in net.metadata.table.key_p:
-        atoms: Atoms = net.db_minima[name]
-    else:
+    atoms: Atoms | None = None
+    for type in ("gas", "ts", "minima", "cluster", "system"):
+        if net.contain_sysgraph(name, type=type):
+            atoms = net.read_atoms(name, type=type)
+            break
+    if atoms is None:
         raise ValueError(f"structure {name} is not in the database.")
     return _ase_view(atoms)
 

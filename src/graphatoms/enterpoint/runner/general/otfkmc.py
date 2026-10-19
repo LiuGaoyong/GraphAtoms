@@ -146,9 +146,9 @@ class OTFKMC(ExplorationBase):
                     futures.append(
                         self.executor.submit(
                             helper_match,
-                            rxn_key=rxn_key,
                             system=system,
-                            network=self.network,
+                            rxn_key=rxn_key,
+                            config=self.config,
                             rxn_is_forward=rxn_is_forward,
                         )
                     )
@@ -219,10 +219,10 @@ class OTFKMC(ExplorationBase):
             # -------------------------------------------
             (_, _, apply_result, rmsd) = helper_apply(
                 system=system,
+                config=self.config,
                 match_mode=match_mode,
                 rxn_key=selected_rxn_key,
                 forward=rxn_is_forward,
-                network=self.network,
                 raise_when_fail=True,
             )
             if isinstance(apply_result, Atoms):

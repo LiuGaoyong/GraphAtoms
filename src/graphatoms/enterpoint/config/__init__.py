@@ -1,5 +1,4 @@
 import os
-from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -35,7 +34,10 @@ class ExplConfig:
     allow_multiple_adsorption: bool = False
     allow_explore_bulk: bool = False
     thetacutoff: float = -1  # 0-180, -1 means no cutoff
-    nfibonacci: int = 200
+    step_distance: float = 0.4  # the step distance for adsorption
+    min_distance: float = 1.0  # the minimum distance for adsorption
+    max_distance: float = 3.0  # the maximum distance for adsorption
+    nfibonacci: int = 10  # the number of fibonacci points for adsorption
 
 
 @dataclass
@@ -46,7 +48,7 @@ class EventConfig:
     min_frequency: float = 10.0  # cm^-1
     min_frequency_for_ts: float = 20.0  # cm^-1
     simplified_threshold: float = 7.0  # the simplified threshold for event
-    gas_sticking: dict[str, float] = field(default_factory=dict)
+    gas_sticking: dict[str, float] = field(default_factory=dict)  # MISSING
     temperature: float = 300
 
 
@@ -77,6 +79,7 @@ class Config:
     # 1. if the key of `gas_sticking` is not in `initial_gas_pressure`, then the gas sticking is 1.0            # noqa: E501
 
     parallel_workers: int = 0  # 0 means use all cores
+    parallel_ncpus_for_tasks: int = 1  # the number of cpus for tasks, only effect for `parallel=ray` # noqa: E501
     parallel: str = "serial"  # serial, multiprocessing, ray, dask, executorlib
     loglevel: str = "info"  # Literal["debug", "info", "warning", "error"]
     logfile: str = "log.txt"

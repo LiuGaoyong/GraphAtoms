@@ -1,20 +1,6 @@
-import os
+from collections.abc import Callable
 from time import perf_counter
 from typing import Any
-
-os.environ["LOGURU_FORMAT"] = LOGURU_FORMAT = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-    + " | <level>{level: ^8}</level> | "
-    + "<level>{message}</level>"
-)  # the length of the line is 37 characters in loguru
-# LOGURU_FORMAT = env(
-#     "LOGURU_FORMAT",
-#     str,
-#     "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-#     "<level>{level: <8}</level> | "
-#     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>"
-#     "{line}</cyan> - <level>{message}</level>",
-# )
 
 import numpy as np
 from ase import Atoms
@@ -44,111 +30,15 @@ class ExplorationBase(RunnerABC):
             system_key (str): the system key.
             energy_opt (float): the optimized energy.
         """
-        if not isinstance(system, System):
-            system = self.get_system_for(system)
-        if not isinstance(system, System):
-            msg = f"Unknown type of input: {type(system)}"
-            self.logger.error(self._reformat_message(msg))
-            raise ValueError(msg)
-        use_pos_uuid = self.network.db_system.use_positions_uuid
-        sys_k = system.get_key_for_metadata(use_pos_uuid)
-        if sys_k in self.network.db_system:
-            atoms = self.network.db_system[sys_k]
-            system = System.from_ase(atoms)
-            msg = f"Load system({sys_k}) from database."
-            self.logger.info(self._reformat_message(msg))
-        else:
-            if bool(self.config.exploration.optimization_for_system):
-                system_or_msg, _, _ = helper_optimization(
-                    graph=system,
-                    config=self.config,
-                    allow_hash_change=True,
-                    allow_not_connected=False,
-                    raise_when_fail=False,
-                    run_vibration=False,
-                    graph_label=None,
-                    deep_copy=True,
-                )
-                if isinstance(system_or_msg, str):
-                    self.logger.warning(self._reformat_message(system_or_msg))
-                    msg = f"Optimization system({sys_k}) failed. skip it."
-                    self.logger.info(self._reformat_message(msg))
-                    return {}, "", np.nan
-                elif not isinstance(system_or_msg, System):
-                    msg = f"Unknown type of output: {type(system_or_msg)}"
-                    self.logger.error(self._reformat_message(msg))
-                    raise ValueError(msg)
-                else:
-                    system = system_or_msg
-                    msg = f"Optimization system({sys_k}) "
-                    msg += f"successfully. E={system.energy}"
-                    self.logger.info(self._reformat_message(msg))
-                    self.network.db_system.add(system)
-
-        oesc = bool(self.config.exploration.surface_only_explore_single_core)
-        if oesc and len(self.gas_lst) == 0:
-            max_ncore = 1
-        else:
-            max_ncore = int(self.config.exploration.max_ncore_for_surface)
-
-        values: list[Cluster] = []
-        keys: list[tuple[bool, int, str]] = []
-        for core in system.get_site_core(max_ncore=max_ncore):  # type: ignore
-            idx_core = np.unique(np.where(core)).astype(int)
-            values.append(
-                Cluster.from_select(
-                    system,
-                    idx_core,
-                    env_threshold=self.config.site.env_threshold,
-                    max_moved_threshold=self.config.site.max_moved_threshold,
-                    method=self.config.site.method,
-                )
-            )
-            keys.append((True, len(idx_core), values[-1].hash))
-        if bool(self.config.exploration.allow_explore_bulk):
-            if system.is_outer is None:
-                msg = "System.is_outer is None."
-                self.logger.error(self._reformat_message(msg))
-                raise ValueError(msg)
-            if system.is_fix is None:
-                is_moved = np.ones_like(system.is_outer, dtype=bool)
-            else:
-                is_moved = np.logical_not(system.is_fix)
-            is_inner = np.logical_not(system.is_outer)
-            mask = np.logical_and(is_inner, is_moved)
-            for idx in np.unique(np.where(mask)).astype(int):
-                values.append(
-                    Cluster.from_select(
-                        system,
-                        np.array([idx]),
-                        env_threshold=self.config.site.env_threshold,
-                        max_moved_threshold=self.config.site.max_moved_threshold,
-                        method=self.config.site.method,
-                    )
-                )
-                keys.append((False, 1, values[-1].hash))
-
-        # remove duplicate cluster
-        _, idxs = np.unique([i.hash for i in values], return_index=True)
-        self.logger.info(
-            self._reformat_message(
-                f"Find {len(values)} cluster for system="
-                f"{system.hash}. And {len(idxs)} unique cluster."
-            )
-        )
-
-        # optimize the cluster in parallel mode
+        dct, system_key, energy = self.analysis(system=system)
         result: dict[tuple[bool, int, str], Cluster] = (  # type: ignore
             self.__batch_optimization_parallel(
-                container={keys[int(id)]: values[int(id)] for id in idxs},
+                container=dct,  # type: ignore
                 raise_on_failed=False,
             )
         )
-
-        # persist the network for restart. [minima list]
         self.network.persistence()
-        energy = np.nan if system.energy is None else system.energy
-        return result, system.get_key_for_metadata(), energy
+        return result, system_key, energy
 
     def __batch_optimization_parallel(
         self,
@@ -182,20 +72,13 @@ class ExplorationBase(RunnerABC):
             # -------------------------------------------------
             for label, sysgraph in container.items():
                 key: str = sysgraph.get_key_for_metadata()
-                has_been_explored = False
-                for cls, db in [
-                    (Gas, self.network.db_gas),
-                    (Cluster, self.network.db_cluster),
-                    (System, self.network.db_system),
-                ]:
-                    if isinstance(sysgraph, cls) and sysgraph in db:
-                        atoms: Atoms = db[key]
-                        result[label] = v = cls.from_ase(atoms)
-                        msg = f"Read '{key}' from the DB for {v}."
-                        self.logger.info(self._reformat_message(msg))
-                        has_been_explored = True
-                        continue
-                if not has_been_explored:
+                sysgraph_opt = self.network.object_has_been_optimized(sysgraph)
+                if sysgraph_opt is not None:
+                    result[label] = v = sysgraph_opt
+                    msg = f"Read '{key}' from the DB for {v}."
+                    self.logger.info(self._reformat_message(msg))
+                    continue
+                else:
                     futures.append(
                         self.executor.submit(
                             helper_optimization,
@@ -216,15 +99,16 @@ class ExplorationBase(RunnerABC):
             # -------------------------------------------------
             while len(futures) > 0:
                 future_result, futures = self.executor.wait(futures)  # type: ignore
-                sysgraph_or_msg, label, cost_time = future_result
+                # split result from the function of `helper_optimization`
+                sysgraph_or_msg, (label, _), cost_time = future_result
                 if isinstance(sysgraph_or_msg, Gas | Cluster | System):
                     msg: str = f"Optimization (success): {sysgraph_or_msg}."
                     if isinstance(sysgraph_or_msg, Gas):
-                        self.network.db_gas.add(sysgraph_or_msg)
+                        self.network.write_sysgraph(sysgraph_or_msg, "gas")
                     elif isinstance(sysgraph_or_msg, Cluster):
-                        self.network.db_cluster.add(sysgraph_or_msg)
+                        self.network.write_sysgraph(sysgraph_or_msg, "cluster")
                     else:
-                        self.network.db_system.add(sysgraph_or_msg)
+                        self.network.write_sysgraph(sysgraph_or_msg, "system")
                     result[label] = sysgraph_or_msg
                 elif isinstance(sysgraph_or_msg, str):
                     msg = str(sysgraph_or_msg)
@@ -254,7 +138,6 @@ class ExplorationBase(RunnerABC):
         system: System | Atoms | None = None,
     ) -> tuple[bool, float]:
         """Explore the system, and return whether it is explored successfully and the final energy."""  # noqa: E501
-
         # 1 step: analyze the system
         dct, system_key, energy = self._first_step(system)
         if system_key == "":
@@ -284,29 +167,31 @@ class ExplorationBase(RunnerABC):
         self.logger.info(self._reformat_message(msg))
         # 2.2 exploration for each cluster ... ...
         if len(lst_4bulk) > 0:
-            self._second_step_bulk(
+            raise NotImplementedError(
+                "Bulk exploration is not implemented yet."
+            )
+            self.__second_step_bulk(
                 lst_4bulk,
                 system_key=system_key,
             )
         if len(lst_4adsorption) > 0:
             for cluster in lst_4adsorption:
                 for gas in self.gas_lst:
-                    self._second_step_adsorption(
+                    self.__second_step_adsorption(
                         gas=gas,
                         cluster=cluster,
                         system_key=system_key,
                     )
         if len(lst_4surface) > 0:
             for cluster in lst_4surface:
-                self._second_step_surface(
+                self.__second_step_surface(
                     cluster=cluster,
                     system_key=system_key,
                 )
-        self.network.recorder.system.add(system_key)
         self.network.persistence()
         return True, energy
 
-    def _second_step_surface(
+    def __second_step_surface(
         self,
         cluster: Cluster,
         system_key: str = "",
@@ -315,13 +200,9 @@ class ExplorationBase(RunnerABC):
         # check if the cluster has been explored
         # -----------------------------------------------------------
         cluster_key = cluster.get_key_for_metadata(False)
-        confidence = self.config.exploration.maxconfidence
-        oldnew = self.network.recorder.cluster[cluster_key]
-        if oldnew.exploration_can_be_finished(
-            confidence=confidence,
-            min_found=self.network.metadata.table.get_minconut_for(
-                cluster_key=cluster_key,
-            ),
+        if self.network.exploration_can_be_finished(
+            confidence=self.config.exploration.maxconfidence,
+            cluster_key=cluster_key,
         ):
             msg = f"the cluster {cluster_key} has been explored."
             self.logger.info(self._reformat_message(msg))
@@ -354,7 +235,6 @@ class ExplorationBase(RunnerABC):
                     self.executor.submit(
                         helper_dimer,
                         config=self.config,
-                        network=self.network,
                         graph_label=cluster_key,
                         allow_fixed_bonds_change=False,
                         graph=cluster.model_copy(deep=True),
@@ -370,13 +250,13 @@ class ExplorationBase(RunnerABC):
                     parse_mask_from_atoms=True,
                     start=start,
                 )
-                can_be_skip, cosine = self.network.scheduler.can_be_skip(
-                    cluster_key,
+                can_be_skip, cosine = self.network.exploration_can_be_skipped(
+                    cluster_key=cluster_key,
                     diffpositions=disp,
-                    thetacutoff=float(self.config.exploration.thetacutoff),
+                    thetacutoff=thetacutoff,
                 )
                 if can_be_skip:
-                    oldnew.found_skip()
+                    self.network.recorder.cluster[cluster_key].found_skip()
                     msg = "Skip to submit dimer task for "
                 else:
                     msg = "Submit dimer task for "
@@ -425,48 +305,46 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-            if oldnew.exploration_can_be_finished(
-                confidence=confidence,
-                min_found=self.network.metadata.table.get_minconut_for(
-                    cluster_key=cluster_key,
-                    exclude_gas=True,
-                ),
+            if self.network.exploration_can_be_finished(
+                confidence=self.config.exploration.maxconfidence,
+                cluster_key=cluster_key,
             ):
-                msg = f"Finish exploration for {cluster_key} with "
-                msg += f"confidence {confidence:.2f}. {len(futures)}"
-                msg += " dimer tasks left. They will be canceled."
+                msg = "Finish exploration for "
+                msg += f"{cluster_key} with confidence "
+                msg += f"{self.config.exploration.maxconfidence:.2f}."
+                msg += f" {len(futures)} dimer tasks left."
+                msg += " They will be canceled."
                 self.logger.info(self._reformat_message(msg))
                 for future in futures:
                     self.executor.cancel(future)
                 break
         self.network.persistence()
 
-    def _second_step_adsorption(
+    def _2step_ads_submit(
         self,
         gas: Gas,
         cluster: Cluster,
-        system_key: str = "",
-    ) -> None:
+        *args,
+        helper_adsorption_func: Callable = helper_adsorption,
+        **kwargs,
+    ) -> list[Any]:
         """The second step for the on-the-fly KMC simulation."""
         cluster_key = cluster.get_key_for_metadata(False)
         gas_key = gas.get_key_for_metadata(False)
+        graph_label = f"{cluster_key}_{gas_key}"
 
         # ---------------------------------------------
         # check if the adsorption has been explored
         # ---------------------------------------------
-        graph_label = f"{cluster_key}_{gas_key}"
-        oldnew = self.network.recorder.adsorption[graph_label]
-        if oldnew.exploration_can_be_finished(
+        if self.network.exploration_can_be_finished(
             confidence=self.config.exploration.maxconfidence,
-            min_found=self.network.metadata.table.get_minconut_for(
-                cluster_key=cluster_key,
-                exclude_gas=False,
-            ),
+            cluster_key=cluster_key,
+            gas_key=gas_key,
         ):
             msg = f"The adsorption for {cluster_key} with "
             msg += f"{gas_key} has been explored."
             self.logger.info(self._reformat_message(msg))
-            return
+            return []
 
         # ---------------------------------------------
         # build helper for adsorption
@@ -480,6 +358,11 @@ class ExplorationBase(RunnerABC):
             adsorbate=gas,
             core=np.unique(cluster.idx_core),
             nfibonacci=int(self.config.exploration.nfibonacci),
+            distance_lst=np.arange(
+                self.config.exploration.min_distance,
+                self.config.exploration.max_distance,
+                self.config.exploration.step_distance,
+            ),
             use_direct=True,
             use_raw=True,
         )
@@ -489,8 +372,8 @@ class ExplorationBase(RunnerABC):
         # ---------------------------------------------
         futures: list = []
         start: float = perf_counter()
-        lst = np.arange(1, adsorption_helper.nrun)
         maxtry = int(self.config.exploration.maxtry)
+        lst = np.arange(1, adsorption_helper.nrun).astype(int)
         if adsorption_helper.nrun > maxtry:
             lst = np.random.choice(lst, size=maxtry - 1, replace=False)
         np.random.shuffle(lst)
@@ -498,24 +381,35 @@ class ExplorationBase(RunnerABC):
         for irun in lst:
             futures.append(
                 self.executor.submit(
-                    helper_adsorption,
+                    helper_adsorption_func,
                     config=self.config,
                     graph=cluster,
                     gas=gas,
-                    irun=irun,
+                    initial_atoms=adsorption_helper.__call__(irun=irun).copy(),
                     graph_label=graph_label,
-                    allow_hash_change=True,
                     raise_when_fail=False,
                     deep_copy=True,
                 )
             )
         self.logger.info(
             self._reformat_message(
-                f"Submit {len(lst)} adsorption tasks by "
-                f"{perf_counter() - start:.2f} seconds"
-                f" for {cluster_key} with {gas_key}"
+                f"Submit {len(lst)}(nrun={adsorption_helper.nrun})"
+                f" adsorption tasks by {perf_counter() - start:.2f}"
+                f" seconds for {cluster_key} with {gas_key}"
             )
         )
+        return futures
+
+    def __second_step_adsorption(
+        self,
+        gas: Gas,
+        cluster: Cluster,
+        system_key: str = "",
+    ) -> None:
+        gas_key = gas.get_key_for_metadata(False)
+        cluster_key = cluster.get_key_for_metadata(False)
+        futures = self._2step_ads_submit(gas, cluster)
+        graph_label = f"{cluster_key}_{gas_key}"
 
         # -----------------------------------------------------------
         # wait for the adsorption tasks to finish
@@ -542,12 +436,10 @@ class ExplorationBase(RunnerABC):
                     msg += f" Simplify original {event} by threshold "
                     msg += f"{self.config.event.simplified_threshold:.2f}"
                 self.logger.info(self._reformat_message(msg))
-            if oldnew.exploration_can_be_finished(
+            if self.network.exploration_can_be_finished(
                 confidence=confidence,
-                min_found=self.network.metadata.table.get_minconut_for(
-                    cluster_key=cluster_key,
-                    exclude_gas=False,
-                ),
+                cluster_key=cluster_key,
+                gas_key=gas_key,
             ):
                 msg = f"Finish exploration for {cluster_key} and {gas_key}"
                 msg += f"with confidence {confidence:.2f}. {len(futures)}"
@@ -556,9 +448,10 @@ class ExplorationBase(RunnerABC):
                 for future in futures:
                     self.executor.cancel(future)
                 break
+        self.network.recorder.adsorption.add(graph_label)
         self.network.persistence()
 
-    def _second_step_bulk(
+    def __second_step_bulk(
         self,
         lst: list[Cluster],
         system_key: str = "",

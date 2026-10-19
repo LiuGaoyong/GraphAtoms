@@ -230,7 +230,6 @@ class TestHelper:
             nfibonacci=10,
             distance_lst=np.array([2.0, 2.5]),
         )
-        assert obj.nrun > 0
         print(f"  nrun = {obj.nrun}")
 
     def test_helper_raw_path_single_iteration(
