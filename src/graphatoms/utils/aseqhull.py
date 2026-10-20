@@ -5,6 +5,42 @@ from scipy.spatial import Voronoi
 from graphatoms.utils.adsorption import _get_1order_nbr
 
 
+def get_voronoi_candidates(
+    atoms: Atoms,
+    index: int,
+    *,
+    select: tuple[bool, bool, bool] = (True, True, True),
+) -> list[tuple[str, Atoms, Atoms]]:
+    """Get the NEB candidates around the `index`-th atom.
+
+    Each candidate is a pair of (initial, final) structures, in which only the
+    `index`-th atom is displaced to the two Voronoi vertices bounding one
+    Voronoi edge of the cell of that atom.  The (initial, final) pair is thus
+    a candidate transition path crossing one face of the Voronoi cell, and it
+    is used by the bulk exploration (see `helper_neb`).
+
+    Returns:
+        list[tuple[str, Atoms, Atoms]]:
+            the unique key of the candidate, and its initial/final structures.
+    """
+    candidates: list[tuple[str, Atoms, Atoms]] = []
+    for k, (initial, final) in enumerate(
+        get_voronoi_lst(atoms, index, select=select)
+    ):
+        key = f"{index}-{k}-{_key_of_positions(initial, index)}"
+        key += f">{_key_of_positions(final, index)}"
+        candidates.append((key, initial, final))
+    return candidates
+
+
+def _key_of_positions(atoms: Atoms, index: int) -> str:
+    """Get a hashable & restart-stable key of the `index`-th position."""
+    # `+ 0.0` normalizes `-0.0` (from `round`) to `0.0` so that the key is
+    # stable between the current run and a restart.
+    x, y, z = (round(float(i), 2) + 0.0 for i in atoms.positions[index])
+    return f"{x:.2f},{y:.2f},{z:.2f}"
+
+
 def get_voronoi_lst(
     atoms: Atoms,
     index: int,
@@ -33,10 +69,17 @@ def get_voronoi_lst(
             continue
         for idx, first in enumerate(region):
             second = region[idx + 1] if idx < len(region) - 1 else region[0]
-            d = np.linalg.norm(vor.vertices[second] - vor.points[index])
-            if d > 10.0:
+            if first < 0 or second < 0:
                 continue
-            elif first < 0 or second < 0:
+            # Both vertices of the pair must be near the `index`-th atom.
+            # Note: the vertices of the unbounded regions (i.e. the regions
+            # of the atoms at the boundary of the finite object) are far
+            # from the atoms, and they are not valid candidates.
+            d = max(
+                np.linalg.norm(vor.vertices[first] - vor.points[index]),
+                np.linalg.norm(vor.vertices[second] - vor.points[index]),
+            )
+            if d > 10.0:
                 continue
             elif first in first_lst and second not in first_lst:
                 lst.append((first, second))
