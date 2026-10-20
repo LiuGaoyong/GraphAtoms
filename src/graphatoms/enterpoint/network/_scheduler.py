@@ -46,10 +46,11 @@ class Scheduler(BaseModel):
     @validate_call
     def read_npz(cls, filename: FilePath, *args, **kwargs) -> Self:
         data: dict[str, dict[str, NDArray]] = defaultdict(dict)
-        dct: Mapping[str, NDArray] = np.load(filename)
-        for k, v in dct.items():
-            k2, k1 = k.split("_")
-            data[k1][k2] = v
+        with np.load(filename) as npz:
+            dct: Mapping[str, NDArray] = npz
+            for k, v in dct.items():
+                k2, k1 = k.rsplit("_", 1)
+                data[k1][k2] = v
         return cls(**data)
 
     def can_be_skip(
@@ -62,7 +63,6 @@ class Scheduler(BaseModel):
         **kwargs,
     ) -> tuple[bool, float]:
         diffpositions = np.asarray(diffpositions, dtype=float)
-        print(diffpositions)
         assert 0 <= thetacutoff <= 180, "thetacutoff must be in 0-180"
         if isinstance(graph, str):
             if is_fixed is None:
@@ -110,7 +110,6 @@ class Scheduler(BaseModel):
             cos: np.ndarray = cosine_similarity(dR, dR_new)
             if np.max(cos) <= np.cos(np.deg2rad(thetacutoff)):
                 self.dR[key] = np.vstack((dR, dR_new))  # row_stack
-                print(self.dR[key])
                 return False, np.max(cos)
             return True, np.max(cos)
 

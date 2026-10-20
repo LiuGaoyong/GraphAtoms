@@ -126,7 +126,7 @@ class OurBaseModel(PydanticFactoryMixin, _IndexMaskMixin):
                 if v0.shape != v1.shape:
                     return False
                 if np.all(v0 == v1):
-                    return True
+                    continue
                 elif not np.allclose(v0, v1):
                     return False
             else:

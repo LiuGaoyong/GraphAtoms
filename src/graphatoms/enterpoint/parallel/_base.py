@@ -111,12 +111,21 @@ class MultiprocessingExecutor(ParallelExecutorABC):
             return_when=cf.FIRST_COMPLETED,
             timeout=timeout,
         )
-        self.__executor.map
-        return self.get(list(done)[0]), undone  # type: ignore[override]
+        if len(done) == 0:
+            raise TimeoutError(
+                "concurrent.futures.wait() returned no finished task "
+                f"within timeout={timeout!r}."
+            )
+        # `FIRST_COMPLETED` may return *several* futures at once.  Only one
+        # result can be returned by this API, so the other already-finished
+        # futures must be pushed back into the remaining list; otherwise their
+        # results are silently dropped by callers that loop until the list is
+        # empty.
+        done = list(done)
+        return self.get(done[0]), list(undone) + done[1:]  # type: ignore[override]
 
     @override
     def map(self, fn, *iterables, timeout=None, chunksize=1) -> list[Any]:
-        print(iterables)
         return list(
             self.__executor.map(
                 fn,
@@ -128,6 +137,16 @@ class MultiprocessingExecutor(ParallelExecutorABC):
 
 
 class SerialExecutor(MultiprocessingExecutor):
+    """Run tasks one at a time.
+
+    .. warning::
+        This is *not* an in-process executor: it delegates to a
+        single-worker :class:`~concurrent.futures.ProcessPoolExecutor`, so
+        every task and its arguments must be picklable and each call runs in a
+        forked child process.  See the project bug report for the implications
+        under Slurm.
+    """
+
     @override
-    def __init__(self, *, nworkers=None, **kwargs) -> None:
-        super().__init__(nworkers=1, **kwargs)
+    def __init__(self, *a, **kw) -> None:
+        super().__init__(nworkers=1)

@@ -117,7 +117,7 @@ def bond_list(
     )
     matrix = sp.csr_matrix(matrix, dtype=int)
     if infer_order:
-        raise NotImplementedError("infer_order is not implemented.")
+        raise NotImplementedError("infer_order is not implemented now.")
         edges = sp.coo_array(matrix).coords
         get_adjacency_by_rdkit(
             numbers=np.array(
@@ -133,7 +133,6 @@ def bond_list(
             target=edges[1],
             infer_order=False,
         )
-
     return matrix
 
 

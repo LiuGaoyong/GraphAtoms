@@ -10,13 +10,21 @@ from graphatoms.enterpoint.parallel._base import (
 )
 from graphatoms.enterpoint.parallel._dask import DaskExecutor
 from graphatoms.enterpoint.parallel._executorlib import ExecutorLibExecutor
-from graphatoms.enterpoint.parallel._ray import _RAY_AVAILABLE, RayExecutor, ray
+from graphatoms.enterpoint.parallel._ray import RayExecutor, ray
 
 __all__ = [
     "SerialExecutor",
     "MultiprocessingExecutor",
     "ParallelExecutorABC",
     "get_executor",
+]
+BACKENDS = [
+    "serial",
+    "multiprocessing",
+    "ray",
+    "dask",
+    "executorlib",
+    "joblib",
 ]
 
 
@@ -40,7 +48,11 @@ def get_executor(
     backend = str(backend).lower()
     if backend in ("ray",):
         return RayExecutor(nworkers=nworkers, **kwargs)  # type: ignore[arg-type]
-    elif backend in ("dask",):
+    # `ncpus_for_tasks` only applies to the ray backend; `RunnerABC` passes
+    # it unconditionally, so drop it for the other backends instead of
+    # forwarding it to `ProcessPoolExecutor`.
+    kwargs.pop("ncpus_for_tasks", None)
+    if backend in ("dask",):
         return DaskExecutor(nworkers=nworkers, **kwargs)  # type: ignore[arg-type]
     elif backend in ("executorlib",):
         return ExecutorLibExecutor(  # type: ignore[arg-type]
@@ -53,10 +65,7 @@ def get_executor(
             nworkers = None
         return MultiprocessingExecutor(nworkers=nworkers, **kwargs)  # type: ignore[call-arg]
     else:
-        raise ValueError(
-            f"Unknown backend: {backend} Available: "
-            f"{['serial', 'multiprocessing', 'ray', 'dask', 'executorlib']}"
-        )
+        raise ValueError(f"Unknown backend: {backend} Available: {BACKENDS}")
 
 
 def executor_map(
@@ -69,12 +78,19 @@ def executor_map(
 ) -> Sequence[Any]:
     if isinstance(executor, RayExecutor):
         dct: dict[int, ray.ObjectRef] = {}
+        # Hold a strong reference to every deduplicated object.  Keying the
+        # cache on `id(v)` alone is only safe while the objects stay alive;
+        # if an intermediate object were collected, CPython could hand its
+        # `id` to a *different* object and the wrong value would be
+        # substituted into a task.
+        keepalive: list[Any] = []
         remote_params: list[dict[str, ray.ObjectRef]] = []
         for params in fn_params:
             item: dict[str, ray.ObjectRef] = {}
             for k, v in params.items():
                 if id(v) not in dct:
                     dct[id(v)] = ray.put(v)
+                    keepalive.append(v)
                 item[k] = dct[id(v)]
             remote_params.append(item)
         fn_params = remote_params

@@ -64,13 +64,17 @@ def _matscipy_neighbor_list(
     sorted: bool = True,
 ) -> tuple[np.ndarray, ...]:
     try:
-        pass  # type: ignore
+        from matscipy.neighbours import (  # type: ignore  # noqa: F401
+            neighbour_list as _matscipy_neighbour_list,
+        )
     except Exception:
         raise Exception(
             "Please install `matscipy` to speed up "  #
             "the calculation of neighbor list.",
         )
-    raise NotImplementedError
+    raise NotImplementedError(
+        "The `matscipy` neighbor-list backend is not implemented yet."
+    )
 
 
 #############################################################
@@ -213,7 +217,6 @@ def neighbor_list(
             max_nbins=int(max_nbins),
         )  # type: ignore
     elif backend == "matscipy":
-        raise NotImplementedError
         return _matscipy_neighbor_list(
             quantities=quantities,
             a=a,
