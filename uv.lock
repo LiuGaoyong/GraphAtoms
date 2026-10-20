@@ -846,7 +846,7 @@ wheels = [
 
 [[package]]
 name = "graphatoms"
-version = "2.3.2"
+version = "2.3.3"
 source = { editable = "." }
 dependencies = [
     { name = "array-api-compat" },
@@ -902,7 +902,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2,<3" },
     { name = "numpydantic" },
     { name = "ovld" },
-    { name = "pandas", specifier = ">=2,<4" },
+    { name = "pandas" },
     { name = "pyarrow" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pymatgen", specifier = ">2023.6" },
