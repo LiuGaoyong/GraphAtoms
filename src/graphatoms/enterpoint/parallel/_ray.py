@@ -46,10 +46,6 @@ class RayExecutor(ParallelExecutorABC):
             raise ImportError(
                 "ray is not installed. Install it with: pip install ray"
             )
-        # Do NOT swallow exceptions here: on a Slurm allocation a failed
-        # connection to an existing cluster (e.g. a wrong/absent RAY_ADDRESS)
-        # must surface immediately instead of silently falling back to a
-        # local, single-node cluster.
         if not ray.is_initialized():  # type: ignore
             ray.init(  # type: ignore
                 ignore_reinit_error=True,

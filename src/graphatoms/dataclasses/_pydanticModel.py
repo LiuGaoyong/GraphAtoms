@@ -126,12 +126,6 @@ class OurBaseModel(PydanticFactoryMixin, _IndexMaskMixin):
                 if v0.shape != v1.shape:
                     return False
                 if np.all(v0 == v1):
-                    # This field matches exactly, but the remaining fields
-                    # still have to be compared.  Returning `True` here made
-                    # two objects equal as soon as their *first* array field
-                    # matched, so e.g. two graphs with identical positions but
-                    # different bonds/energies compared equal and could be
-                    # silently deduplicated.
                     continue
                 elif not np.allclose(v0, v1):
                     return False

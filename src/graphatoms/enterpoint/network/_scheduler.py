@@ -46,14 +46,9 @@ class Scheduler(BaseModel):
     @validate_call
     def read_npz(cls, filename: FilePath, *args, **kwargs) -> Self:
         data: dict[str, dict[str, NDArray]] = defaultdict(dict)
-        # `np.load` keeps a file handle open; close it deterministically
-        # instead of relying on the garbage collector.
         with np.load(filename) as npz:
             dct: Mapping[str, NDArray] = npz
             for k, v in dct.items():
-                # Keys are written as f"{key}_dR" / f"{key}_is_fixed".  The
-                # key itself may contain underscores, so split on the *last*
-                # one; `k.split("_")` raised ValueError for such keys.
                 k2, k1 = k.rsplit("_", 1)
                 data[k1][k2] = v
         return cls(**data)
