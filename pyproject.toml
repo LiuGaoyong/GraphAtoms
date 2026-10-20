@@ -12,7 +12,7 @@ graphatoms-network = "graphatoms.enterpoint.network:main"
 graphatoms-run = "graphatoms.enterpoint.runner:run"
 [project]
 name = "graphatoms"
-version = "2.3.1"
+version = "2.3.2"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
