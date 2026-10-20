@@ -13,11 +13,11 @@ def test_get_voronoi_candidates() -> None:
 
     keys = [k for k, _, _ in candidates]
     assert len(set(keys)) == len(keys)
-    for key, initial, final in candidates:
+    for key, intermediate, final in candidates:
         assert isinstance(key, str)
-        assert len(initial) == len(atoms)
+        assert len(intermediate) == len(atoms)
         assert len(final) == len(atoms)
-        for image in (initial, final):
+        for image in (intermediate, final):
             moved = np.any(
                 np.abs(image.positions - atoms.positions) > 1e-8,
                 axis=1,
@@ -25,4 +25,4 @@ def test_get_voronoi_candidates() -> None:
             # only the `index`-th atom is displaced
             assert np.count_nonzero(moved) == 1
             assert moved[index]
-        assert not np.allclose(initial.positions, final.positions)
+        assert not np.allclose(intermediate.positions, final.positions)

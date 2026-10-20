@@ -13,23 +13,26 @@ def get_voronoi_candidates(
 ) -> list[tuple[str, Atoms, Atoms]]:
     """Get the NEB candidates around the `index`-th atom.
 
-    Each candidate is a pair of (initial, final) structures, in which only the
-    `index`-th atom is displaced to the two Voronoi vertices bounding one
-    Voronoi edge of the cell of that atom.  The (initial, final) pair is thus
-    a candidate transition path crossing one face of the Voronoi cell, and it
-    is used by the bulk exploration (see `helper_neb`).
+    Each candidate is a pair of (intermediate, final) structures, in which
+    only the `index`-th atom is displaced to the two Voronoi vertices
+    bounding one Voronoi edge of the cell of that atom.  The initial state is
+    the input structure itself (i.e. the graph which the candidate belongs
+    to), so the pair is the `intermediate -> final` part of a candidate
+    transition path crossing one face of the Voronoi cell.  It is used by the
+    bulk exploration (see `helper_neb`).
 
     Returns:
         list[tuple[str, Atoms, Atoms]]:
-            the unique key of the candidate, and its initial/final structures.
+            the unique key of the candidate, and its intermediate/final
+            structures.
     """
     candidates: list[tuple[str, Atoms, Atoms]] = []
-    for k, (initial, final) in enumerate(
+    for k, (intermediate, final) in enumerate(
         get_voronoi_lst(atoms, index, select=select)
     ):
-        key = f"{index}-{k}-{_key_of_positions(initial, index)}"
+        key = f"{index}-{k}-{_key_of_positions(intermediate, index)}"
         key += f">{_key_of_positions(final, index)}"
-        candidates.append((key, initial, final))
+        candidates.append((key, intermediate, final))
     return candidates
 
 
