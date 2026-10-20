@@ -25,6 +25,7 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
   - `graphatoms-network`: Inspect and visualize a stored reaction network
 - **Hydra-driven Configuration**: Composable, override-friendly config via Hydra/OmegaConf with grouped groups (`atoms`, `bonds`, `calculator`)
 - **Pluggable Parallel Backends**: Switch executors at the config level — `serial`, `multiprocessing`, `ray`, `dask`, `executorlib` — for distributed/on-the-fly KMC workflows
+- **Ray-native Runners**: With `parallel=ray`, `run_type=otfkmc` and `run_type=rxngen` use a shared `ReactionNetwork` Ray actor plus Ray tasks for optimization, dimer and adsorption, keeping the recorder, scheduler and databases consistent across workers
 
 ## Module Structure
 
