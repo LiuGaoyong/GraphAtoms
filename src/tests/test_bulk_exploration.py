@@ -24,7 +24,7 @@ class EagerExecutor:
         return futures.pop(0), futures
 
 
-def fake_helper_neb(config, cluster, initial_atoms, final_atoms, **kwargs):
+def fake_helper_neb(config, cluster, intermediate_atoms, final_atoms, **kwargs):
     """Stand-in for the NEB helper: always report a failed search."""
     return HelperNebResult(
         result=None,

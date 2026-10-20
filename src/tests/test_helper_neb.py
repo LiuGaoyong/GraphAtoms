@@ -74,11 +74,11 @@ def test_helper_neb_bulk(config: Config, bulk_cluster: Cluster) -> None:
     assert len(candidates) > 0
 
     reaction: Reaction | None = None
-    for key, initial, final in candidates:
+    for key, intermediate, final in candidates:
         result, (label, trajectory), cost_time, result_type = helper_neb(
             config=config,
             graph=bulk_cluster,
-            initial_atoms=initial,
+            intermediate_atoms=intermediate,
             final_atoms=final,
             graph_label=key,
             nimages=5,

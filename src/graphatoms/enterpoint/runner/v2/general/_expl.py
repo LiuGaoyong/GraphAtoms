@@ -216,14 +216,14 @@ class ExplorationBase(_Base):
                         dict(
                             cluster=cluster,
                             config=self.config,
-                            initial_atoms=initial_atoms,
+                            intermediate_atoms=intermediate_atoms,
                             final_atoms=final_atoms,
                             candidate_key=key,
                             for_system=system_key,
                             allow_fixed_bonds_change=False,
                             deep_copy=True,
                         )
-                        for key, initial_atoms, final_atoms in candidates
+                        for key, intermediate_atoms, final_atoms in candidates
                     ],
                     only_submit=True,
                 )

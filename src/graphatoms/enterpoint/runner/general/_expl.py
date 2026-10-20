@@ -457,10 +457,12 @@ class ExplorationBase(RunnerABC):
         """Get the unexplored NEB candidates of a bulk cluster.
 
         The candidates are the Voronoi edges around the core atom of the
-        bulk cluster (see `aseqhull.get_voronoi_candidates`).  The
-        candidates which have been explored already (i.e. the ones recorded
-        in `network.recorder.bulk`) are filtered out, so the exploration of
-        the cluster is finished when the returned list is empty.
+        bulk cluster (see `aseqhull.get_voronoi_candidates`), i.e. pairs of
+        (intermediate state, final state); the initial state of every
+        candidate path is the `cluster` itself.  The candidates which have
+        been explored already (i.e. the ones recorded in
+        `network.recorder.bulk`) are filtered out, so the exploration of the
+        cluster is finished when the returned list is empty.
         """
         cluster_key = cluster.get_key_for_metadata(False)
         atoms = cluster.to_ase(
@@ -469,12 +471,12 @@ class ExplorationBase(RunnerABC):
         ).copy()
         candidates: list[tuple[str, Atoms, Atoms]] = []
         for index in np.unique(cluster.idx_core):
-            for key, initial_atoms, final_atoms in get_voronoi_candidates(
+            for key, intermediate_atoms, final_atoms in get_voronoi_candidates(
                 atoms, int(index)
             ):
                 if f"{cluster_key}@{key}" in self.network.recorder.bulk:
                     continue
-                candidates.append((key, initial_atoms, final_atoms))
+                candidates.append((key, intermediate_atoms, final_atoms))
         return candidates
 
     def _2step_bulk_submit(
@@ -489,14 +491,14 @@ class ExplorationBase(RunnerABC):
         cluster_key = cluster.get_key_for_metadata(False)
         futures: list = []
         start: float = perf_counter()
-        for key, initial_atoms, final_atoms in candidates:
+        for key, intermediate_atoms, final_atoms in candidates:
             futures.append(
                 self.executor.submit(
                     helper_neb_func,
                     config=self.config,
                     graph=cluster.model_copy(deep=True),
                     graph_label=f"{cluster_key}|{key}",
-                    initial_atoms=initial_atoms,
+                    intermediate_atoms=intermediate_atoms,
                     final_atoms=final_atoms,
                     allow_fixed_bonds_change=False,
                     raise_when_fail=False,

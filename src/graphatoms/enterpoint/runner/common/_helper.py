@@ -684,7 +684,7 @@ def helper_dimer(
 def helper_neb(
     config: Config,
     graph: Cluster,
-    initial_atoms: Atoms,
+    intermediate_atoms: Atoms,
     final_atoms: Atoms,
     *,
     graph_label: Any | None = None,
@@ -694,19 +694,21 @@ def helper_neb(
     deep_copy: bool = True,
     **kwargs,
 ) -> tuple[Reaction | str, tuple[Any, list[Atoms]], float, str]:
-    """NEB search for transition state between two candidate structures.
+    """NEB search for transition state of a bulk candidate path.
 
-    The `initial_atoms` and `final_atoms` are the two images of a candidate
-    transition path (see `graphatoms.utils.aseqhull.get_voronoi_candidates`).
-    Both of them are relaxed first, then the band is optimized.  The
-    highest-energy interior image of the converged band is taken as the
-    transition state.
+    The candidate path comes from
+    `graphatoms.utils.aseqhull.get_voronoi_candidates`: the initial state is
+    the input `graph`, while the `intermediate_atoms` and the `final_atoms`
+    are the two states of one Voronoi edge.  The band therefore goes
+    `graph -> intermediate -> final`, and the intermediate state is used as
+    the (unrelaxed) waypoint of the band.
 
     Parameters:
         config: The configuration object.
-        graph: The graph which the candidate path belongs to.
-        initial_atoms: The initial image of the NEB band.
-        final_atoms: The final image of the NEB band.
+        graph: The graph which the candidate path belongs to
+            (i.e. the initial state of the path).
+        intermediate_atoms: The intermediate state of the band.
+        final_atoms: The final state of the band.
         graph_label: The label of the graph.
         allow_fixed_bonds_change: Whether to
             allow the fixed bonds change after NEB.
@@ -733,6 +735,11 @@ def helper_neb(
         config.calculator,  # type: ignore
         Calculator,
     )
+    # the initial state is the input graph itself
+    initial_atoms: Atoms = graph.to_ase(
+        exclude_bond_attibutes=True,
+        exclude_energetics=True,
+    ).copy()
 
     def fail(e: Exception) -> tuple[str, tuple[Any, list[Atoms]], float, str]:
         if raise_when_fail:
@@ -750,9 +757,10 @@ def helper_neb(
     neb_lst: list[Atoms] = []
     try:
         neb_lst, coveraged = asetools.call_neb(
-            atoms=initial_atoms.copy(),
+            atoms=initial_atoms,
             calc=calc,
             final_atoms=final_atoms.copy(),
+            intermediate_atoms=intermediate_atoms.copy(),
             nimages=int(nimages),
             max_steps=int(config.optimizer.steps),
             fmax=float(config.event.max_force),
@@ -785,6 +793,9 @@ def helper_neb(
     energies: np.ndarray = np.asarray([i.get_potential_energy() for i in band])
     idx_ts: int = int(np.argmax(energies[1:-1])) + 1
     try:
+        # the initial state of the band is the input graph, so the (already
+        # checked) graph is used as the reactant for free.
+        reactant: Cluster = graph
         ts = graph.update_geometry(
             new_positions=band[idx_ts].positions,
             parse_bonds=config.bonds,  # type: ignore
@@ -795,16 +806,6 @@ def helper_neb(
             parse_bonds=config.bonds,  # type: ignore
             deep=deep_copy,
         )
-        if np.allclose(band[0].positions, graph.positions, atol=0.05):
-            # the initial image falls back to the input minimum, so the
-            # (already checked) graph is used as the reactant for free.
-            reactant: Cluster = graph
-        else:
-            reactant = graph.update_geometry(
-                new_positions=band[0].positions,
-                parse_bonds=config.bonds,  # type: ignore
-                deep=deep_copy,
-            )
     except Exception as e:
         return fail(e)
 
@@ -860,20 +861,6 @@ def helper_neb(
         )
     except Exception as e:
         return fail(e)
-    if reactant is not graph:
-        try:
-            reactant, _ = __helper_vibration(
-                result_atoms=band[0].copy(),
-                result_label=graph_label,
-                result=reactant,
-                deep_copy=deep_copy,
-                check_minima=True,
-                check_ts=False,
-                config=config,
-                start=start,
-            )
-        except Exception as e:
-            return fail(e)
 
     try:
         rxn = Reaction(R=reactant, P=product, T=ts)

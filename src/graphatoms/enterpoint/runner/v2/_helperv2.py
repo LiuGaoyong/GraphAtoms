@@ -333,7 +333,7 @@ class HelperNebResult(HelperResult):
 def helper_neb(
     config: Config,
     cluster: Cluster,
-    initial_atoms: Atoms,
+    intermediate_atoms: Atoms,
     final_atoms: Atoms,
     *,
     candidate_key: str = "",
@@ -345,11 +345,17 @@ def helper_neb(
 ) -> HelperNebResult:
     """NEB search for transition state of a bulk candidate path.
 
+    The initial state is the `cluster` itself, while the
+    `intermediate_atoms` and the `final_atoms` are the two states of one
+    Voronoi edge of the cluster's core atom (see
+    `graphatoms.utils.aseqhull.get_voronoi_candidates`).
+
     Parameters:
         config(Config):  The configuration object.
-        cluster(Cluster):  The bulk cluster to be explored.
-        initial_atoms(Atoms): The initial image of the NEB band.
-        final_atoms(Atoms): The final image of the NEB band.
+        cluster(Cluster):  The bulk cluster to be explored
+            (i.e. the initial state).
+        intermediate_atoms(Atoms): The intermediate state of the NEB band.
+        final_atoms(Atoms): The final state of the NEB band.
         candidate_key: The key of the Voronoi-edge candidate
             (see `graphatoms.utils.aseqhull.get_voronoi_candidates`).
         for_system: The key of the system which the cluster belongs to.
@@ -406,7 +412,7 @@ def helper_neb(
             kwargs
             | dict(
                 graph_label=f"{cluster_key}|{candidate_key}",
-                initial_atoms=initial_atoms,
+                intermediate_atoms=intermediate_atoms,
                 final_atoms=final_atoms,
                 allow_fixed_bonds_change=allow_fixed_bonds_change,
                 nimages=nimages,
