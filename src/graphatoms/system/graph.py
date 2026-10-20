@@ -463,10 +463,24 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         # for bond attribute
         df = graph.get_edge_dataframe()
         assert len(df.columns) >= 2, df.columns
-        dct["pair"] = df[df.columns[:2]].to_numpy()
-        for k in set(df.columns[2:]) & {"order", "distance"}:
-            if not df[k].isnull().all():
-                dct[k] = df[k].to_numpy()
+        pair = df[df.columns[:2]].to_numpy()
+        attrs = {
+            k: df[k].to_numpy()
+            for k in set(df.columns[2:]) & {"order", "distance"}
+            if not df[k].isnull().all()
+        }
+        if not graph.is_directed():
+            # An undirected igraph keeps one edge per bond, while
+            # `BondGraph.pair` uses the symmetric (i, j) / (j, i) form.
+            # Rebuild it from the edge list here so the round-trip is
+            # lossless without storing a second copy of the bond list on
+            # the graph object.
+            pair = np.vstack([pair, pair[:, ::-1]])
+            perm = np.lexsort((pair[:, 1], pair[:, 0]))
+            pair = pair[perm]
+            attrs = {k: np.concatenate([v, v])[perm] for k, v in attrs.items()}
+        dct["pair"] = pair
+        dct.update(attrs)
         return cls.from_dict(dct, **kwargs)
 
     def to_igraph(self, *args, **kwargs) -> IGraph:

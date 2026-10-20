@@ -48,7 +48,11 @@ def get_executor(
     backend = str(backend).lower()
     if backend in ("ray",):
         return RayExecutor(nworkers=nworkers, **kwargs)  # type: ignore[arg-type]
-    elif backend in ("dask",):
+    # `ncpus_for_tasks` only applies to the ray backend; `RunnerABC` passes
+    # it unconditionally, so drop it for the other backends instead of
+    # forwarding it to `ProcessPoolExecutor`.
+    kwargs.pop("ncpus_for_tasks", None)
+    if backend in ("dask",):
         return DaskExecutor(nworkers=nworkers, **kwargs)  # type: ignore[arg-type]
     elif backend in ("executorlib",):
         return ExecutorLibExecutor(  # type: ignore[arg-type]
