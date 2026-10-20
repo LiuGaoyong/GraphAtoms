@@ -105,6 +105,9 @@ def call_optimization(
     result_lst: list[Atoms] = []
     converged = False
 
+    # NOTE: `atoms` can also be an `ase.mep.neb.BaseNEB` (see `call_neb`).
+    # It is optimized like an `Atoms`, but it only provides the
+    # `get_positions()` method instead of the `positions` attribute.
     atoms.calc = calc
     atoms.calc.reset()
     optimizer: Optimizer = OPT_CLS(
@@ -122,9 +125,10 @@ def call_optimization(
     try:
         for _ in range(max_steps):
             converged = optimizer.run(steps=1, fmax=fmax)
-            if np.any(np.isinf(atoms.positions)):
+            positions: np.ndarray = atoms.get_positions()  # type: ignore
+            if np.any(np.isinf(positions)):
                 raise RuntimeError(_ERR_MSG)
-            if np.any(np.isnan(atoms.positions)):
+            if np.any(np.isnan(positions)):
                 raise RuntimeError(_ERR_MSG)
             if converged:
                 break
