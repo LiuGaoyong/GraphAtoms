@@ -4,9 +4,11 @@ from ase.calculators.emt import EMT
 from ase.constraints import FixAtoms
 
 from graphatoms.utils.asetools import (
+    build_neb_images,
     call_dimer,
     call_dimer_displace,
     call_neb,
+    run_neb,
 )
 
 
@@ -67,3 +69,39 @@ def test_neb_method() -> None:
     assert np.linalg.norm(band[-1].positions[-1] - band[0].positions[-1]) > 0.5
     energies = [i.get_potential_energy() for i in band]
     assert energies[1] > max(energies[0], energies[2])
+
+
+def test_build_and_run_neb_with_intermediate() -> None:
+    atoms = fcc111("Cu", size=(2, 2, 2), vacuum=10.0)
+    add_adsorbate(atoms, "Cu", 1.5, "fcc")
+    atoms.set_constraint(FixAtoms(mask=[a.tag >= 2 for a in atoms]))
+    atoms.calc = EMT()
+    atoms.get_potential_energy()
+
+    intermediate = atoms.copy()
+    intermediate.positions[-1] += np.array([0.5, 0.2, 0.1])
+    final = atoms.copy()
+    final.positions[-1] += np.array([1.0, 0.9, 0.1])
+    nimages = 5
+    images = build_neb_images(
+        atoms.copy(),
+        calc=EMT(),
+        final_atoms=final,
+        intermediate_atoms=intermediate,
+        nimages=nimages,
+        max_steps=100,
+        fmax=0.2,
+    )
+    assert len(images) == nimages
+    # the intermediate state is the waypoint in the middle of the band
+    np.testing.assert_allclose(
+        images[nimages // 2].positions[-1],
+        intermediate.positions[-1],
+    )
+
+    lst, converged = run_neb(images, calc=EMT(), max_steps=100, fmax=0.2)
+    assert converged
+    assert len(lst) % nimages == 0
+    band = lst[-nimages:]
+    assert len(band) == nimages
+    assert not np.allclose(band[0].positions, band[-1].positions)
