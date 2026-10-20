@@ -463,13 +463,7 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         # for bond attribute
         df = graph.get_edge_dataframe()
         assert len(df.columns) >= 2, df.columns
-        if "pair" in dct:
-            # Preferred: the exact bond list stored by `to_igraph`.
-            dct["pair"] = np.asarray(dct["pair"], dtype=int)
-        else:
-            # Fallback for graphs created outside of `to_igraph`: rebuild the
-            # bond list from the (undirected) edge dataframe.
-            dct["pair"] = df[df.columns[:2]].to_numpy()
+        dct["pair"] = df[df.columns[:2]].to_numpy()
         for k in set(df.columns[2:]) & {"order", "distance"}:
             if not df[k].isnull().all():
                 dct[k] = df[k].to_numpy()
@@ -499,15 +493,6 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             v = getattr(self, k)
             if v is not None:
                 G[k] = v
-        # `as_undirected()` below collapses a symmetric bond list — i.e. one
-        # containing both (i, j) and (j, i), which is what `BondGraph` stores
-        # by default — into a single undirected edge per pair.  That made the
-        # `to_igraph` -> `from_igraph` round-trip lossy: the bond list was
-        # halved and the object hash changed.  Keep the exact `pair` array as
-        # a graph attribute so the conversion is lossless for both the
-        # symmetric and the half ("bothways=False") representation.
-        if self.pair is not None:
-            G["pair"] = self.pair
         return G.as_undirected()
 
     @override

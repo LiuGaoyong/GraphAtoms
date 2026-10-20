@@ -40,38 +40,43 @@ class ReactionNetworkGenerator(ExplorationBase):
         if not self.config.restart:
             self.__match_apply_recorder = MatchApplyRecorder()
             self.__match_apply_recorder.persist(self.__path)
-            self.__system_dct: dict[str, System] = {
+            self.__initial_system_dct: dict[str, System] = {
                 sys.get_key_for_metadata(use_positions_uuid=False): sys
                 for sys in self.get_batch_system_for()
             }
         else:
-            data = self.__path.read_text()
-            obj = MatchApplyRecorder.model_validate_json(data)
-            self.__match_apply_recorder: MatchApplyRecorder = obj
-            self.__system_dct: dict[str, System] = {
-                k: System.from_ase(
-                    v,
-                    parse_bonds=self.config.bonds,  # type: ignore
-                    parse_atoms_is_outer_or_not=True,
+            self.__match_apply_recorder = (
+                MatchApplyRecorder.model_validate_json(
+                    json_data=self.__path.read_text(),
                 )
-                for k, v in self.network.db_system.items()
-            }
+            )
+            self.__initial_system_dct = self.__system_dct_from_db
+
+    @property
+    def __explred_systems(self) -> set[str]:
+        return set(self.__match_apply_recorder.record.keys())
+
+    @property
+    def __system_dct_from_db(self) -> dict[str, System]:
+        return {
+            k: System.from_ase(
+                v,
+                parse_bonds=self.config.bonds,  # type: ignore
+                parse_atoms_is_outer_or_not=True,
+            )
+            for k, v in self.network.db_system.items()
+        }
 
     @override
     def run(self) -> None:
         """Run the simulation for the given number of steps."""
-        system_dct: dict[str, System] = self.__system_dct
+        system_dct: dict[str, System] = self.__initial_system_dct
         for self.__istep in range(self.config.max_steps):
             un_explred_systems: dict[str, System] = {
                 k: v
                 for k, v in system_dct.items()
-                if k not in self.network.db_system
+                if k not in self.__explred_systems
             }
-            # `system_dct` only ever grows, so testing it for emptiness would
-            # never terminate.  The loop must stop once every known system has
-            # been explored (i.e. all of them are already in `db_system`);
-            # otherwise this burns `max_steps` (1e5 by default) no-op
-            # iterations, each one rewriting the JSON recorder.
             if len(un_explred_systems) == 0:
                 msg = f"Istep={self.__istep}: No system left to explore."
                 self.logger.info(self._reformat_message(msg))

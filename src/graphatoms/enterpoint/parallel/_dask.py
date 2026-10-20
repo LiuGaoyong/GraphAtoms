@@ -26,15 +26,12 @@ class DaskExecutor(ParallelExecutorABC):
     """An executor backed by :class:`dask.distributed.Client`."""
 
     def __init__(self, *, nworkers: int | None = None, **kwargs) -> None:
-        # Keep the optional-dependency check *before* the "not implemented"
-        # error so that a missing `distributed` produces the documented,
-        # actionable ImportError instead of a generic NotImplementedError.
+        raise NotImplementedError("DaskExecutor is not implemented.")
         if not _DASK_AVAILABLE:
             raise ImportError(
                 "dask is not installed. Install it with: "
                 "pip install dask distributed"
             )
-        raise NotImplementedError("DaskExecutor is not implemented.")
         self._client = Client(
             n_workers=nworkers,
             silence_logs=logging.ERROR,

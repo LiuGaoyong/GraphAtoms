@@ -79,13 +79,8 @@ class MultiprocessingExecutor(ParallelExecutorABC):
         self,
         *,
         nworkers: int | None = None,
-        ncpus_for_tasks: int = 1,
         **kwargs,
     ) -> None:
-        # `ncpus_for_tasks` only has an effect for the ray backend.  It is
-        # accepted (and ignored) here so that every backend shares one
-        # constructor signature and `RunnerABC` can pass it unconditionally.
-        self.ncpus_for_tasks = ncpus_for_tasks
         self.__executor = cf.ProcessPoolExecutor(
             max_workers=nworkers,
             **kwargs,
@@ -153,5 +148,5 @@ class SerialExecutor(MultiprocessingExecutor):
     """
 
     @override
-    def __init__(self, *, nworkers=None, **kwargs) -> None:
-        super().__init__(nworkers=1, **kwargs)
+    def __init__(self, *a, **kw) -> None:
+        super().__init__(nworkers=1)

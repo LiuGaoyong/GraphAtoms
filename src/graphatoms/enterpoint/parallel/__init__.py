@@ -10,17 +10,21 @@ from graphatoms.enterpoint.parallel._base import (
 )
 from graphatoms.enterpoint.parallel._dask import DaskExecutor
 from graphatoms.enterpoint.parallel._executorlib import ExecutorLibExecutor
-from graphatoms.enterpoint.parallel._ray import (  # noqa: F401
-    _RAY_AVAILABLE,
-    RayExecutor,
-    ray,
-)
+from graphatoms.enterpoint.parallel._ray import RayExecutor, ray
 
 __all__ = [
     "SerialExecutor",
     "MultiprocessingExecutor",
     "ParallelExecutorABC",
     "get_executor",
+]
+BACKENDS = [
+    "serial",
+    "multiprocessing",
+    "ray",
+    "dask",
+    "executorlib",
+    "joblib",
 ]
 
 
@@ -57,15 +61,7 @@ def get_executor(
             nworkers = None
         return MultiprocessingExecutor(nworkers=nworkers, **kwargs)  # type: ignore[call-arg]
     else:
-        available = [
-            "serial",
-            "multiprocessing",
-            "ray",
-            "dask",
-            "executorlib",
-            "joblib",
-        ]
-        raise ValueError(f"Unknown backend: {backend} Available: {available}")
+        raise ValueError(f"Unknown backend: {backend} Available: {BACKENDS}")
 
 
 def executor_map(

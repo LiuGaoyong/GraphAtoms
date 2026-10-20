@@ -27,15 +27,12 @@ class ExecutorLibExecutor(ParallelExecutorABC):
     """An executor backed by :class:`executorlib.Executor`."""
 
     def __init__(self, *, nworkers: int | None = None, **kwargs) -> None:
-        # Keep the optional-dependency check *before* the "not implemented"
-        # error so that a missing `executorlib` produces the documented,
-        # actionable ImportError instead of a generic NotImplementedError.
+        raise NotImplementedError("ExecutorLibExecutor is not implemented.")
         if not _EXECUTORLIB_AVAILABLE:
             raise ImportError(
                 "executorlib is not installed. Install it with: "
                 "pip install executorlib"
             )
-        raise NotImplementedError("ExecutorLibExecutor is not implemented.")
         self._executor = _ExecutorLibExecutorBase(  # type: ignore
             max_workers=nworkers, **kwargs
         )
