@@ -6,7 +6,7 @@ They also check whether the calculation is necessary and output logger.
 
 import dataclasses as dc
 from io import StringIO
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import numpy as np
 from ase import Atoms
@@ -22,11 +22,12 @@ from graphatoms.enterpoint.runner.common._base import (
     Logger,
 )
 from graphatoms.reaction import Adsorption, Desorption, Reaction
-from graphatoms.system import Cluster, Gas, System
+from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils.asetools import call_dimer_displace
 from graphatoms.utils.parser import hydra_parse
 
 __all__ = [
+    "NetworkLike",
     "helper_dimer",
     "helper_adsorption",
     "helper_optimization",
@@ -35,6 +36,54 @@ __all__ = [
     "HelperDimerResult",
     "HelperResult",
 ]
+
+
+class NetworkLike(Protocol):
+    """The subset of :class:`ReactionNetwork` used by the helpers.
+
+    The ray runner injects a proxy that forwards these calls to a
+    ``ReactionNetwork`` ray actor, so the helpers can be shared between the
+    local and the distributed execution modes.
+    """
+
+    def get_use_position_uuid(
+        self,
+        k: str | Cluster | Gas | System,
+    ) -> bool: ...
+
+    def object_has_been_optimized(
+        self,
+        graph: Cluster | Gas | System,
+    ) -> SysGraph | None: ...
+
+    def exploration_can_be_finished(
+        self,
+        confidence: float,
+        *args,
+        cluster_key: str,
+        gas_key: str | None = None,
+        **kwargs,
+    ) -> bool: ...
+
+    def exploration_can_be_skipped(
+        self,
+        thetacutoff: float,
+        diffpositions: np.ndarray,
+        *args,
+        cluster_key: str | None,
+        **kwargs,
+    ) -> tuple[bool, float]: ...
+
+    def reformat_message(self, msg: str) -> str: ...
+
+
+def _get_network(
+    config: Config,
+    network: NetworkLike | None,
+) -> NetworkLike:
+    if network is not None:
+        return network
+    return ReactionNetwork.from_config(config, restart=True, remote_mode=True)
 
 
 @dc.dataclass
@@ -57,6 +106,7 @@ def helper_optimization(
     allow_not_connected: bool = False,
     run_vibration: bool = True,
     deep_copy: bool = True,
+    network: NetworkLike | None = None,
     **kwargs,
 ) -> HelperOptimizationResult:
     """Optimize the input graph, analyze its vibrations and check it.
@@ -71,7 +121,7 @@ def helper_optimization(
     assert isinstance(graph, Cluster | Gas | System), (
         "The `graph` must be a Cluster, Gas, or System."
     )
-    log_container, logger, network = (
+    log_container, logger = (
         StringIO(),
         Logger(
             core=Core(),
@@ -85,8 +135,8 @@ def helper_optimization(
             patchers=[],
             extra={},
         ),
-        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
     )
+    network = _get_network(config, network)
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
 
     # --------------------------------------------
@@ -175,6 +225,7 @@ def helper_dimer(
     allow_desorption: bool | Literal["all", "input"] = "all",
     allow_metal_element_in_gas: bool = False,
     deep_copy: bool = True,
+    network: NetworkLike | None = None,
     **kwargs,
 ) -> HelperDimerResult:
     """Dimer search for transition state.
@@ -193,7 +244,7 @@ def helper_dimer(
         deep_copy: Whether to deep copy the optimized graph.
     """
     assert isinstance(cluster, Cluster), "The `cluster` must be a Cluster."
-    log_container, logger, network = (
+    log_container, logger = (
         StringIO(),
         Logger(
             core=Core(),
@@ -207,8 +258,8 @@ def helper_dimer(
             patchers=[],
             extra={},
         ),
-        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
     )
+    network = _get_network(config, network)
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
 
     # -----------------------------------------------------------
@@ -333,10 +384,11 @@ def helper_adsorption(
     initial_atoms: Atoms | None = None,
     allow_fixed_atoms_adsorption: bool = False,
     deep_copy: bool = True,
+    network: NetworkLike | None = None,
     **kwargs,
 ) -> HelperAdsorptionResult:
     """Helper function for adsorption process."""
-    log_container, logger, network = (
+    log_container, logger = (
         StringIO(),
         Logger(
             core=Core(),
@@ -350,8 +402,8 @@ def helper_adsorption(
             patchers=[],
             extra={},
         ),
-        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
     )
+    network = _get_network(config, network)
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
     cluster_key = graph.get_key_for_metadata(False)
     gas_key = gas.get_key_for_metadata(False)
