@@ -520,22 +520,15 @@ def helper_dimer(
         gas_atoms = Atoms(numbers=gas_z, positions=gas_r)  # type: ignore
         gas_init = Gas.from_ase(gas_atoms, parse_bonds=config.bonds)  # type: ignore
         gas_key, _gas_complete = gas_init.get_key_for_metadata(), False
-        # Only the database access is allowed to fail here.  Previously the
-        # `try` also wrapped the `allow_desorption == "input"` branch, whose
-        # `NotImplementedError` / `HelperException` were then swallowed by the
-        # bare `except Exception: pass`, so the option was silently ignored
-        # and the run continued with an unrequested gas optimization.
         try:
             network = ReactionNetwork.from_config(
                 config=config, remote_mode=True, restart=True
             )
-        except Exception:
-            network = None  # go to the "not complete" block below
-        if network is not None:
             if network.contain_sysgraph(gas_key, "gas"):
                 _gas_complete = True
                 gas = network.read_sysgraph(gas_key, "gas")
             elif str(allow_desorption).lower() == "input":
+                raise NotImplementedError("Not implemented yet.")
                 gas_name_set = set(config.event.gas_sticking.keys())
                 gas_name_set.update(config.initial_gas_pressure.keys())
                 if gas_init.smiles not in gas_name_set:
@@ -552,6 +545,8 @@ def helper_dimer(
                             perf_counter() - start,
                             result_type,
                         )
+        except Exception:
+            pass  # go to next next block, ...
         if not _gas_complete:
             try:
                 gas, _, cost_time = helper_optimization(
