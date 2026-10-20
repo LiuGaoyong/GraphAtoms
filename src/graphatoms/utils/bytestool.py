@@ -2,11 +2,14 @@
 
 import gzip
 import hashlib
+import os
 import string
+import uuid
 import zlib
 from collections.abc import Callable
 from functools import partial
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Any
 
 from numpy.random import choice
 from pydantic import Field, validate_call
@@ -177,6 +180,54 @@ def hash_string(value: bytes | str, algo: str = "blake2b") -> str:
 def random_string(n: int) -> str:
     pool: list[str] = list(string.ascii_letters + string.digits)
     return "".join(choice(pool, size=int(n)))
+
+
+def _fsync_dir(path: Path) -> None:
+    """Best-effort fsync of a directory so a rename is durable (POSIX)."""
+    try:
+        fd = os.open(str(path), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def atomic_write(target: Path, writer: Callable[[Path], Any]) -> None:
+    """Write `target` atomically.
+
+    The `writer` callback receives a temporary path in the same
+    directory and must create/write the file there. The temp file is
+    fsynced and then os.replace()d onto `target`. Because both paths
+    live in the same directory, os.replace is atomic on POSIX.
+
+    The temp file keeps `target.suffix`, so callers such as
+    ``np.savez`` that auto-append ".npz" behave correctly.
+    """
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    file_stem = f".{target.stem}.tmp.{os.getpid()}{uuid.uuid4().hex}"
+    tmp = target.parent / f"{file_stem}{target.suffix}"
+    try:
+        writer(tmp)
+        # ensure the file is synced to disk
+        with open(tmp, "rb") as f:
+            os.fsync(f.fileno())
+        os.replace(tmp, target)
+        _fsync_dir(target.parent)
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def atomic_write_text(target: Path, text: str, encoding="utf-8") -> None:
+    atomic_write(target, lambda p: p.write_text(text, encoding=encoding))
 
 
 #######################################################################

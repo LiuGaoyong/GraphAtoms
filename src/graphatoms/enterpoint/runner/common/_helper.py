@@ -4,12 +4,14 @@ These helper functions only run calculation, and check the result.
 They do not check whether the calculation is necessary and output logger.
 """
 
+from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
+from ase.io.extxyz import write_xyz as write_extxyz
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
@@ -18,6 +20,7 @@ from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.system.atoms import Structure
 from graphatoms.utils import asetools
 from graphatoms.utils.adsorption import Helper
+from graphatoms.utils.bytestool import atomic_write
 from graphatoms.utils.parser import hydra_parse
 
 from ._errors import CheckVibrationFailed, HelperException, OptimizationFailed
@@ -178,11 +181,10 @@ def helper_optimization(
             deep=deep_copy,
         )
     except Exception as e:
-        lst[0].write(f"debug-{graph_label}.xyz", format="extxyz", append=False)
-        for i in range(1, len(lst)):
-            lst[i].write(
-                f"debug-{graph_label}.xyz", format="extxyz", append=True
-            )
+        atomic_write(
+            Path(f"debug-{graph_label}.xyz"),
+            writer=lambda p: write_extxyz(p, lst),
+        )
         raise e
     if (not allow_not_connected) and (not result.is_connected):
         e = HelperException(

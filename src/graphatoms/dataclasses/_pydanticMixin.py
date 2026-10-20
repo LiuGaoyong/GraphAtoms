@@ -229,7 +229,11 @@ class __Json(PydanticConvertFactoryMixin):
                 indent=indent,
             )
         )
-        filename.write_text(self.to_str(**kwargs), "utf-8")
+        bytesutils.atomic_write_text(
+            target=filename,
+            text=self.to_str(**kwargs),
+            encoding="utf-8",
+        )
         return filename
 
     @classmethod
@@ -260,13 +264,15 @@ class __Toml(PydanticConvertFactoryMixin):
                 numpy_ndarray_compatible=True,
             )
         )
-        with filename.open("wb") as f:
-            toml_w.dump(
+        bytesutils.atomic_write_text(
+            target=filename,
+            text=toml_w.dumps(
                 self.to_dict(**kwargs),
-                f,
                 indent=indent,
                 multiline_strings=True,
-            )
+            ),
+            encoding="utf-8",
+        )
         return filename
 
     @classmethod
@@ -301,16 +307,17 @@ class __Yaml(PydanticConvertFactoryMixin):
                 numpy_ndarray_compatible=True,
             )
         )
-        with filename.open("w", encoding="utf-8") as f:
-            f.write(
-                OmegaConf.to_yaml(
-                    self.to_dict(**kwargs),
-                    # f,
-                    # encoding="utf-8",
-                    # # default_flow_style=False,
-                    # indent=4,
-                )
-            )
+        bytesutils.atomic_write_text(
+            target=filename,
+            text=OmegaConf.to_yaml(
+                self.to_dict(**kwargs),
+                # f,
+                # encoding="utf-8",
+                # # default_flow_style=False,
+                # indent=4,
+            ),
+            encoding="utf-8",
+        )
         return filename
 
     @classmethod
@@ -345,10 +352,14 @@ class __Npz(PydanticConvertFactoryMixin):
                 numpy_ndarray_compatible=True,
             )
         )
-        (np.savez_compressed if compress else np.savez)(
-            filename,
-            allow_pickle=False,
-            **self.to_dict(**kwargs),
+        func = np.savez_compressed if compress else np.savez
+        bytesutils.atomic_write(
+            target=filename,
+            writer=lambda p: func(
+                p,
+                allow_pickle=False,
+                **self.to_dict(**kwargs),
+            ),
         )
         return filename
 
@@ -411,7 +422,14 @@ class __Pickle(PydanticConvertFactoryMixin):
                 numpy_ndarray_compatible=True,
             )
         )
-        dump(self.to_dict(**kwargs), filename, compress=compress)
+        bytesutils.atomic_write(
+            target=filename,
+            writer=lambda p: dump(
+                value=self.to_dict(**kwargs),
+                filename=p,
+                compress=compress,  # type: ignore
+            ),
+        )
         return filename
 
     @classmethod

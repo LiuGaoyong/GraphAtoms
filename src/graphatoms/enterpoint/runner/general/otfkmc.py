@@ -17,6 +17,7 @@ from graphatoms.enterpoint.runner.common._helper import (
     helper_match,
 )
 from graphatoms.reaction import Adsorption, Desorption, Reaction
+from graphatoms.utils.bytestool import atomic_write
 
 from ._expl import ExplorationBase
 
@@ -92,7 +93,10 @@ class OTFKMC(ExplorationBase):
             # -------------------------------------------
             system = self.get_system_for(atoms)
             data = [i.model_dump() for i in df_data]
-            pd.DataFrame(data).to_csv(self.__info_path)
+            atomic_write(
+                self.__info_path,
+                writer=lambda p: pd.DataFrame(data).to_csv(p),
+            )
             self.__traj.write(system.to_ase())
             if df_data[-1].time > float(self.config.max_times):
                 self.logger.info(

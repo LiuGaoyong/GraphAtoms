@@ -23,10 +23,11 @@ from scipy.spatial.transform import Rotation
 from graphatoms.geometry import neighbor_list
 from graphatoms.geometry.sample import fibonacci_lattice
 from graphatoms.system import Cluster, Gas, System
+from graphatoms.utils.asetools import call_optimization as optimize
+from graphatoms.utils.bytestool import atomic_write
 from graphatoms.utils.rdutils import rdmol2ase, smiles2rdmol
 
 matplotlib.use("Agg")
-from .asetools import call_optimization as optimize
 
 
 #########################################
@@ -786,5 +787,8 @@ def plot(atoms: Atoms, pngfname: Path) -> None:
         )
         ax.set_xticks([])
         ax.set_yticks([])
-    fig.savefig(pngfname.with_suffix(".png"))
+    atomic_write(
+        pngfname.with_suffix(".png"),
+        writer=lambda p: fig.savefig(p),
+    )
     plt.close(fig)

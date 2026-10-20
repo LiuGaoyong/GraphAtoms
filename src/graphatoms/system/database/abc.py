@@ -1,11 +1,14 @@
 from abc import abstractmethod
 from collections.abc import Mapping, MutableSet
+from pathlib import Path
 from typing import override
 
 import numpy as np
 from ase import Atoms
+from ase.io.extxyz import write_xyz as write_extxyz
 
 from graphatoms.system import SysGraph
+from graphatoms.utils.bytestool import atomic_write
 
 
 class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
@@ -63,11 +66,11 @@ class DatabaseABC(Mapping[str, Atoms], MutableSet[str]):
                 if not np.all(np.abs(vdiff) < check_threshold):
                     # Save some files for debug.
                     old = SysGraph.from_ase(old_value)
-                    for v, append in [
-                        (old_value, False),
-                        (value.to_ase(), True),
-                    ]:
-                        v.write(f"{key}-debug.xyz", "extxyz", append=append)
+                    lst = [old_value, value.to_ase()]
+                    atomic_write(
+                        Path(f"{key}-debug.xyz"),
+                        writer=lambda p: write_extxyz(p, lst),
+                    )
                     value.write_npz(f"{key}-new.npz")  # type: ignore
                     old.write_npz(f"{key}-old.npz")  # type: ignore
                     raise ValueError(

@@ -56,6 +56,8 @@ if __name__ == "__main__":
     from matplotlib import pyplot as plt
     from matplotlib.axes import Axes
 
+    from graphatoms.utils.bytestool import atomic_write
+
     N = 100
 
     fig, axes = plt.subplots(1, 2, figsize=(8, 4.5), dpi=150)
@@ -76,4 +78,8 @@ if __name__ == "__main__":
         ax.set_xticks([])
         ax.set_yticks([])
     plt.tight_layout()
-    fig.savefig(Path(__file__).with_suffix(".png"))
+
+    atomic_write(
+        Path(__file__).with_suffix(".png"),
+        writer=lambda p: fig.savefig(p),
+    )

@@ -9,6 +9,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from graphatoms.dataclasses._numpydantic import NDArray
 from graphatoms.system import SysGraph  # type: ignore
+from graphatoms.utils.bytestool import atomic_write
 
 
 class Scheduler(BaseModel):
@@ -35,7 +36,10 @@ class Scheduler(BaseModel):
         save: Callable = np.savez_compressed if compress else np.savez
         dct = {f"{k}_is_fixed": v for k, v in self.is_fixed.items()}
         dct = {f"{k}_dR": v for k, v in self.dR.items()} | dct
-        save(filename, allow_pickle=False, **dct)
+        atomic_write(
+            target=filename,
+            writer=lambda p: save(p, allow_pickle=False, **dct),
+        )
         return filename
 
     @classmethod
@@ -151,5 +155,8 @@ if __name__ == "__main__":
     plt.title("Blue: Keep; Red: Skip")
 
     p = Path(__file__).with_suffix(".png")
-    plt.savefig(p)
+    atomic_write(
+        p,
+        writer=lambda p: plt.savefig(p),
+    )
     obj.write_npz(p.with_suffix(".npz"))

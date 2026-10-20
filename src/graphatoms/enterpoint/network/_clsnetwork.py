@@ -27,6 +27,7 @@ from graphatoms.reaction import (
 )
 from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.system.database import DatabaseABC, get_db
+from graphatoms.utils.bytestool import atomic_write, atomic_write_text
 
 __all__ = [
     "MetaData",
@@ -88,8 +89,9 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
                 + " Please delete it or use `restart=True`."
             )
             self.__path.mkdir(parents=True, exist_ok=True)
-            self.__path_exploration_recorder.write_text(
-                RecorderInfo.get_csv_title() + "\n"
+            atomic_write_text(
+                self.__path_exploration_recorder,
+                RecorderInfo.get_csv_title() + "\n",
             )
             self.__recorder = Recorder()
             self.__scheduler = Scheduler()
@@ -130,6 +132,7 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
         config: Config,
         *args,
         restart: bool | None = None,
+        remote_retry_times: float = 2.0,
         remote_mode: bool = False,
         **kwargs,
     ) -> Self:  # type: ignore
@@ -152,7 +155,7 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
                     )
                     break
                 except Exception as e:
-                    time.sleep(0.5)
+                    time.sleep(abs(remote_retry_times))
                     err = e
             if err is not None:
                 raise RuntimeError(
@@ -535,8 +538,11 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
                     msg = f"Event {event._string()} failed "
                     msg += f"to simplify. because of {e}"
                     fname = self.__path / "event-simplify-fail.pkl"
-                    fname.with_suffix(".err").write_text(msg)
-                    fname.write_bytes(pickle.dumps(event))
+                    atomic_write_text(fname.with_suffix(".err"), msg)
+                    atomic_write(
+                        fname,
+                        writer=lambda p: p.write_bytes(pickle.dumps(event)),
+                    )
                     event.R.write_npz(fname.with_suffix(".R.npz"))
                     event.P.write_npz(fname.with_suffix(".P.npz"))
                     if event.G is not None:
@@ -789,8 +795,10 @@ if __name__ == "__main__":
         if "merge" not in zzzz_path.name:
             p = zzzz_path / "event"
             (p / "recorder.json").unlink(missing_ok=True)
-            with open(p / "recorder.json", "w") as f:
-                json.dump({}, f, indent=4)
+            atomic_write_text(
+                p / "recorder.json",
+                json.dumps({}, indent=4),
+            )
             network_lst.append(
                 ReactionNetwork(
                     zzzz_path / "event",

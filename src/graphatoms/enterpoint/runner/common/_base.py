@@ -26,6 +26,7 @@ from graphatoms.enterpoint.config.atoms import AseReadAtomsConfig
 from graphatoms.enterpoint.network import ReactionNetwork
 from graphatoms.enterpoint.parallel import get_executor
 from graphatoms.system import Cluster, Gas, System
+from graphatoms.utils.bytestool import atomic_write_text
 from graphatoms.utils.parser import hydra_parse
 
 from ._helper import helper_optimization
@@ -241,8 +242,10 @@ class RunnerABC:
 
     def persist_gas_number_dct(self) -> None:
         """Persist the gas number dct to file."""
-        with open(self.__gas_number_path, "w") as f:
-            json.dump(self.gas_number_dct, f, indent=4)
+        atomic_write_text(
+            self.__gas_number_path,
+            json.dumps(self.gas_number_dct, indent=4),
+        )
 
     def load_gas_number_dct(self) -> None:
         """Load the gas number dct from file."""
@@ -376,7 +379,7 @@ class RunnerABC:
         values: list[Cluster] = []
         keys: list[tuple[bool, int, str]] = []
         for core in system.get_site_core(max_ncore=max_ncore):  # type: ignore
-            idx_core = np.unique(np.where(core)).astype(int)
+            idx_core = np.unique(np.where(core)).astype(int)  # type: ignore
             values.append(
                 Cluster.from_select(
                     system,

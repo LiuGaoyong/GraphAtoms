@@ -10,6 +10,7 @@ from graphatoms.dataclasses import OurBaseModel
 from graphatoms.enterpoint.config import Config, EventConfig
 from graphatoms.reaction import EventBase, EventInfo
 from graphatoms.system.bonds import matchmode2nmatch
+from graphatoms.utils.bytestool import atomic_write
 
 __all__ = ["MetaData"]
 
@@ -187,7 +188,10 @@ class MetaData(BaseModel):
 
     def persistence(self, path: Path | str) -> None:
         self.basic.write_json(Path(path) / "metadata-basic.json")
-        self.table.dataframe.to_feather(Path(path) / "metadata-table.feather")
+        atomic_write(
+            Path(path) / "metadata-table.feather",
+            writer=lambda p: self.table.dataframe.to_feather(p),
+        )
 
     @classmethod
     def from_storage(cls, path: Path | str) -> Self:
