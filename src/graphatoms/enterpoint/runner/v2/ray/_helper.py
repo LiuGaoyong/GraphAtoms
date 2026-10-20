@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 from io import StringIO
-from typing import Any, Literal, override
+from pathlib import Path
+from typing import Any, Literal, cast
 
 import numpy as np
 import ray
-from ray.actor import ActorProxy
+from ray.actor import ActorClass, ActorProxy
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
+from graphatoms.enterpoint.network._clsnetwork import NETWORK_PATH_PREFIX
 from graphatoms.enterpoint.runner.common._base import (
     LOGURU_FORMAT,
     Core,
@@ -25,26 +29,191 @@ from graphatoms.system import Cluster, Gas, SysGraph, System
 # =============================================
 #                Ray Actors
 # ---------------------------------------------
-class _RayReactionNetwork(ReactionNetwork):
-    @ray.method()
-    @override
-    def persistence(self) -> None:  # type: ignore
-        return super().persistence()
+class _RayReactionNetwork:
+    """A :class:`ReactionNetwork` that lives in a single Ray actor.
 
-    @ray.method(num_returns=2)
-    @override
-    def read_event(self, key: str) -> tuple[EventInfo, EventBase]:  # type: ignore
-        return super().read_event(key)
+    All reads and writes of the network (databases, recorder, scheduler and
+    metadata) go through this actor, so concurrent exploration tasks no
+    longer open the same storage from several workers at once.
+    """
 
-    @ray.method(num_returns=1)
-    @override
-    def object_has_been_optimized(self, graph: SysGraph) -> SysGraph | None:  # type: ignore
-        return super().object_has_been_optimized(graph)
+    def __init__(self, *, config: Config) -> None:
+        self.__network = ReactionNetwork(
+            path=Path(config.outputs) / NETWORK_PATH_PREFIX,
+            restart=True,
+            format=config.event.db_format,
+            remote_mode=False,
+            config=config.event,
+        )
+
+    def persistence(self) -> None:
+        """Persist the network to its storage."""
+        self.__network.persistence()
+
+    def get_use_position_uuid(
+        self,
+        k: str | Cluster | Gas | System,
+    ) -> bool:
+        return self.__network.get_use_position_uuid(k)
+
+    def object_has_been_optimized(
+        self,
+        graph: Cluster | Gas | System,
+    ) -> SysGraph | None:
+        return self.__network.object_has_been_optimized(graph)
+
+    def exploration_can_be_finished(
+        self,
+        confidence: float,
+        *args,
+        cluster_key: str,
+        gas_key: str | None = None,
+        **kwargs,
+    ) -> bool:
+        return self.__network.exploration_can_be_finished(
+            confidence,
+            *args,
+            cluster_key=cluster_key,
+            gas_key=gas_key,
+            **kwargs,
+        )
+
+    def exploration_can_be_skipped(
+        self,
+        thetacutoff: float,
+        diffpositions: np.ndarray,
+        *args,
+        cluster_key: str | None,
+        **kwargs,
+    ) -> tuple[bool, float]:
+        return self.__network.exploration_can_be_skipped(
+            thetacutoff,
+            diffpositions,
+            *args,
+            cluster_key=cluster_key,
+            **kwargs,
+        )
+
+    def found(
+        self,
+        event: EventBase | str,
+        for_gas: str | None,
+        for_cluster: str,
+        *,
+        for_system: str | None = None,
+        persist: bool = True,
+        **kwargs,
+    ) -> str:
+        return self.__network.found(
+            event,
+            for_gas,
+            for_cluster,
+            for_system=for_system,
+            persist=persist,
+            **kwargs,
+        )
+
+    def write_sysgraph(
+        self,
+        sysgraph: SysGraph,
+        type: Literal["minima", "ts", "gas", "cluster", "system"] = "minima",
+    ) -> bool:
+        return self.__network.write_sysgraph(sysgraph, type)
+
+    def read_event(self, key: str) -> tuple[EventInfo, EventBase]:
+        return self.__network.read_event(key)
+
+    def reformat_message(self, msg: str) -> str:
+        return ReactionNetwork.reformat_message(msg)
+
+    def record_skip(self, cluster_key: str) -> None:
+        """Mark the dimer search of ``cluster_key`` as skipped."""
+        self.__network.recorder.cluster[cluster_key].found_skip()
+
+    def add_adsorption(self, graph_label: str) -> None:
+        """Mark the adsorption pair ``graph_label`` as explored."""
+        self.__network.recorder.adsorption.add(graph_label)
 
 
-# RayReactionNetwork: ActorClass[_RayReactionNetwork] = ray.remote(
-#     _RayReactionNetwork  # object: ActorProxy[_RayReactionNetwork]
-# )
+RayReactionNetwork: ActorClass[_RayReactionNetwork] = ray.remote(
+    _RayReactionNetwork
+)
+RayReactionNetworkHandle = ActorProxy[_RayReactionNetwork]
+
+
+class RayNetworkProxy:
+    """Synchronous view of a :class:`RayReactionNetwork` actor.
+
+    The v2 helpers are ordinary functions that expect a ``ReactionNetwork``.
+    This proxy gives them the small synchronous interface they use while
+    forwarding every call to the actor with ``ray.get``.
+    """
+
+    def __init__(self, network: RayReactionNetworkHandle) -> None:
+        self.__network = network
+
+    def get_use_position_uuid(
+        self,
+        k: str | Cluster | Gas | System,
+    ) -> bool:
+        return cast(
+            bool,
+            ray.get(self.__network.get_use_position_uuid.remote(k)),
+        )
+
+    def object_has_been_optimized(
+        self,
+        graph: Cluster | Gas | System,
+    ) -> SysGraph | None:
+        return cast(
+            SysGraph | None,
+            ray.get(self.__network.object_has_been_optimized.remote(graph)),
+        )
+
+    def exploration_can_be_finished(
+        self,
+        confidence: float,
+        *args,
+        cluster_key: str,
+        gas_key: str | None = None,
+        **kwargs,
+    ) -> bool:
+        return cast(
+            bool,
+            ray.get(
+                self.__network.exploration_can_be_finished.remote(
+                    confidence,
+                    *args,
+                    cluster_key=cluster_key,
+                    gas_key=gas_key,
+                    **kwargs,
+                )
+            ),
+        )
+
+    def exploration_can_be_skipped(
+        self,
+        thetacutoff: float,
+        diffpositions: np.ndarray,
+        *args,
+        cluster_key: str | None,
+        **kwargs,
+    ) -> tuple[bool, float]:
+        return cast(
+            tuple[bool, float],
+            ray.get(
+                self.__network.exploration_can_be_skipped.remote(
+                    thetacutoff,
+                    diffpositions,
+                    *args,
+                    cluster_key=cluster_key,
+                    **kwargs,
+                )
+            ),
+        )
+
+    def reformat_message(self, msg: str) -> str:
+        return ReactionNetwork.reformat_message(msg)
 
 
 # =============================================
@@ -54,7 +223,7 @@ class _RayReactionNetwork(ReactionNetwork):
 def helper_optimization(
     config: Config,
     graph: Cluster | Gas | System,
-    network: ActorProxy[_RayReactionNetwork],
+    network: RayReactionNetworkHandle,
     *,
     graph_label: Any | None = None,
     allow_hash_change: bool = True,
