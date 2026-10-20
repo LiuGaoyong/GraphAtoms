@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import weakref
 from collections.abc import Callable
@@ -17,6 +19,15 @@ except ImportError:  # pragma: no cover - exercised when ray absent
 if TYPE_CHECKING:
     import ray  # type: ignore
 
+# NOTE: `from __future__ import annotations` above is required, *not* optional.
+# `ray` is an optional dependency (it is only a dev dependency in
+# pyproject.toml), so when it is absent this module sets `ray = None`.  Without
+# postponed evaluation the `-> ray.ObjectRef` annotations below would be
+# evaluated eagerly at class-definition time and raise
+# `AttributeError: 'NoneType' object has no attribute 'ObjectRef'`, which makes
+# `import graphatoms.enterpoint.parallel` (and therefore `graphatoms-run`)
+# fail on any installation that does not happen to have ray installed.
+
 
 class RayExecutor(ParallelExecutorABC):
     """An executor backed by :mod:`ray`."""
@@ -35,15 +46,16 @@ class RayExecutor(ParallelExecutorABC):
             raise ImportError(
                 "ray is not installed. Install it with: pip install ray"
             )
-        try:
-            if not ray.is_initialized():  # type: ignore
-                ray.init(  # type: ignore
-                    ignore_reinit_error=True,
-                    num_cpus=nworkers,
-                    **kwargs,
-                )
-        except Exception:
-            pass
+        # Do NOT swallow exceptions here: on a Slurm allocation a failed
+        # connection to an existing cluster (e.g. a wrong/absent RAY_ADDRESS)
+        # must surface immediately instead of silently falling back to a
+        # local, single-node cluster.
+        if not ray.is_initialized():  # type: ignore
+            ray.init(  # type: ignore
+                ignore_reinit_error=True,
+                num_cpus=nworkers,
+                **kwargs,
+            )
 
     @override
     def submit(
@@ -90,8 +102,16 @@ class RayExecutor(ParallelExecutorABC):
         timeout: float | None = None,
         **kwargs,
     ) -> tuple[Any, list[ray.ObjectRef]]:  # type: ignore
-        done, unfinished = ray.wait(futures, timeout=timeout)  # type: ignore
-        return ray.get(done)[0], unfinished  # type: ignore
+        done, unfinished = ray.wait(futures, timeout=timeout, **kwargs)  # type: ignore
+        if len(done) == 0:
+            raise TimeoutError(
+                "ray.wait() returned no finished task "
+                f"within timeout={timeout!r}."
+            )
+        # `ray.wait` defaults to `num_returns=1`, but a caller may ask for
+        # more.  Keep every finished ref accounted for so that no completed
+        # result is silently dropped from the caller's work queue.
+        return ray.get(done[0]), list(unfinished) + list(done[1:])  # type: ignore
 
     @override
     def map(self, fn, *iterables, timeout=None, chunksize=1) -> list[Any]:

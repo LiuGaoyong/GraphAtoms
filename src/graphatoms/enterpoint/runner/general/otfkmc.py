@@ -82,6 +82,8 @@ class OTFKMC(ExplorationBase):
                 )
             )
 
+        max_exploration_retry = 3
+        n_exploration_failed = 0
         while True:
             otfkmc_info = OTFKMCInfo()
             self.logger.info("=" * self._log_length)
@@ -136,7 +138,23 @@ class OTFKMC(ExplorationBase):
                 msg = f"Exploration failed by {end - start:.2f} s "
                 msg += f"for system={system.get_key_for_metadata()}"
                 self.logger.warning(self._reformat_message(msg))
+                # A single failed exploration may be caused by an unlucky
+                # random adsorption site, so retrying is legitimate.  But
+                # `istep` only advances once a reaction is applied, and the
+                # max-time / max-step checks read `df_data[-1]`, so an
+                # unbounded retry loop would never terminate (and would burn
+                # the whole Slurm allocation).  Give up after a few tries.
+                n_exploration_failed += 1
+                if n_exploration_failed >= max_exploration_retry:
+                    msg = f"Exploration failed {n_exploration_failed} times "
+                    msg += "consecutively for system="
+                    msg += f"{system.get_key_for_metadata()}. Stop the KMC "
+                    msg += "simulation."
+                    self.logger.error(self._reformat_message(msg))
+                    self.__traj.close()
+                    break
                 continue
+            n_exploration_failed = 0
 
             # -------------------------------------------
             # 3 step: graph matching

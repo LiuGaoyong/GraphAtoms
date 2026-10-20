@@ -118,21 +118,6 @@ def bond_list(
     matrix = sp.csr_matrix(matrix, dtype=int)
     if infer_order:
         raise NotImplementedError("infer_order is not implemented.")
-        edges = sp.coo_array(matrix).coords
-        get_adjacency_by_rdkit(
-            numbers=np.array(
-                [
-                    0
-                    if z not in (1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 32, 35, 53)
-                    else z
-                    for z in atoms.numbers
-                ]
-            ),
-            geometry=atoms.positions,
-            source=edges[0],
-            target=edges[1],
-            infer_order=False,
-        )
 
     return matrix
 

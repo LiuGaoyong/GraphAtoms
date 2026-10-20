@@ -67,7 +67,12 @@ class ReactionNetworkGenerator(ExplorationBase):
                 for k, v in system_dct.items()
                 if k not in self.network.db_system
             }
-            if len(system_dct) == 0:
+            # `system_dct` only ever grows, so testing it for emptiness would
+            # never terminate.  The loop must stop once every known system has
+            # been explored (i.e. all of them are already in `db_system`);
+            # otherwise this burns `max_steps` (1e5 by default) no-op
+            # iterations, each one rewriting the JSON recorder.
+            if len(un_explred_systems) == 0:
                 msg = f"Istep={self.__istep}: No system left to explore."
                 self.logger.info(self._reformat_message(msg))
                 break
