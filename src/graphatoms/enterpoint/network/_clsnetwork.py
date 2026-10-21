@@ -8,6 +8,7 @@ import numpy as np
 from ase import Atoms
 
 from graphatoms.enterpoint.config import Config, EventConfig
+from graphatoms.enterpoint.network._equivalence import EquivalenceRegistry
 from graphatoms.enterpoint.network._metadata import MetaData
 from graphatoms.enterpoint.network._metadata import (
     _MetaDataBasic as MetaDataBasic,
@@ -102,6 +103,9 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
             else:
                 self.__metadata = MetaData()
         self.__format = format
+        self.__equivalence = EquivalenceRegistry.read_json(
+            path / "equivalence.json"
+        )
 
         # initialize the databases
         (
@@ -418,6 +422,11 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
         msg += f"Configuration  :{self.__metadata.basic.to_str(indent=4)}\n"
         return msg
 
+    @property
+    def equivalence(self) -> EquivalenceRegistry:
+        """Return the per-LE tolerance registry."""
+        return self.__equivalence
+
     def persistence(self) -> None:
         """Persist the reaction network to local storage."""
         if self.__remote_mode is True:
@@ -425,6 +434,13 @@ class ReactionNetwork(Mapping[str, tuple[EventInfo, EventBase]]):
         self.__recorder.write_json(self.__path / "recorder.json")
         self.__scheduler.write_npz(self.__path / "scheduler.npz")
         self.__metadata.persistence(self.__path)
+        self.persistence_equivalence()
+
+    def persistence_equivalence(self) -> None:
+        """Persist only the per-LE tolerance registry."""
+        if self.__remote_mode is True:
+            raise RuntimeError("this function is not supported in remote mode.")
+        self.__equivalence.write_json(self.__path / "equivalence.json")
 
     def get_use_position_uuid(self, k: str | System | Gas | Cluster) -> bool:
         """Return the `use_positions_uuid` of the database."""

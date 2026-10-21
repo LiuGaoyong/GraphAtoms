@@ -24,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.config.atoms import AseReadAtomsConfig
 from graphatoms.enterpoint.network import ReactionNetwork
+from graphatoms.enterpoint.network._equivalence import EquivalenceRegistry
 from graphatoms.enterpoint.parallel import get_executor
 from graphatoms.system import Cluster, Gas, System
 from graphatoms.utils.bytestool import atomic_write_text
@@ -34,6 +35,68 @@ from ._helper import helper_optimization
 _kB_in_JperK = _boltzmann_constant * _electron_charge
 LOGURU_FORMAT = os.environ["LOGURU_FORMAT"]
 LOGURU_FORMAT_LENGTH = 37
+
+
+def _unique_clusters_by_itlee(
+    values: list[Cluster],
+    keys: list[tuple[bool, int, str]],
+    candidates: np.ndarray,
+    tolerance: float,
+    equivalence: EquivalenceRegistry,
+    *,
+    allow_reflection: bool = False,
+    use_hash_bucket: bool = False,
+    max_branches: int = 200_000,
+    max_compare_per_bucket: int = 1000,
+) -> np.ndarray:
+    """Merge local environments that are ITLEE-equivalent.
+
+    Exact graph hashes are still used as a fast first pass by the caller.
+    This second pass deliberately bypasses the hash veto: the WL hash used
+    by GraphAtoms is not a canonical form, and using it as a veto would
+    turn thermal/coordination fluctuations into false-new environments.
+    """
+    representatives: list[int] = []
+    buckets: dict[tuple[bool, int, int, tuple], list[int]] = {}
+    fields = ("numbers", "is_core", "is_fix", "is_adsorbate")
+    for raw_idx in candidates:
+        idx = int(raw_idx)
+        cluster = values[idx]
+        surface, ncore, cluster_key = keys[idx]
+        bucket = (
+            surface,
+            ncore,
+            cluster.natoms,
+            tuple(np.sort(cluster.numbers).tolist()),
+        )
+        members = buckets.setdefault(bucket, [])
+        merged = False
+        for rep_idx in members[:max_compare_per_bucket]:
+            rep = values[rep_idx]
+            rep_key = keys[rep_idx][2]
+            delta = min(
+                equivalence.get_delta(cluster_key, default=tolerance),
+                equivalence.get_delta(rep_key, default=tolerance),
+            )
+            if cluster.is_equivalent(
+                rep,
+                method="itlee",
+                tolerance=delta,
+                use_hash_bucket=use_hash_bucket,
+                fields=fields,
+                allow_reflection=allow_reflection,
+                max_branches=max_branches,
+            ):
+                merged = True
+                break
+        if merged:
+            continue
+        if cluster_key not in equivalence.clusters:
+            equivalence.set_delta(cluster_key, tolerance)
+        if len(members) < max_compare_per_bucket:
+            members.append(idx)
+        representatives.append(idx)
+    return np.asarray(representatives, dtype=int)
 
 
 class RunnerABC:
@@ -415,10 +478,31 @@ class RunnerABC:
 
         # remove duplicate cluster
         _, idxs = np.unique([i.hash for i in values], return_index=True)
+        n_exact = len(idxs)
+        geometry = getattr(self.config, "geometry", None)
+        tolerance = float(getattr(geometry, "tolerance", 0.0))
+        if tolerance > 0:
+            idxs = _unique_clusters_by_itlee(
+                values=values,
+                keys=keys,
+                candidates=idxs,
+                tolerance=tolerance,
+                equivalence=self.network.equivalence,
+                allow_reflection=bool(
+                    getattr(geometry, "allow_reflection", False)
+                ),
+                use_hash_bucket=bool(
+                    getattr(geometry, "use_hash_bucket", False)
+                ),
+                max_branches=int(
+                    getattr(geometry, "max_branches", 200_000)
+                ),
+            )
         self.logger.info(
             self._reformat_message(
                 f"Find {len(values)} cluster for system="
-                f"{system.hash}. And {len(idxs)} unique cluster."
+                f"{system.hash}. And {n_exact} exact-unique, "
+                f"{len(idxs)} ITLEE-unique cluster."
             )
         )
         result = {keys[int(id)]: values[int(id)] for id in idxs}

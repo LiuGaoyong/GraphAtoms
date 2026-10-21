@@ -2,7 +2,7 @@ import json
 from abc import abstractmethod
 from collections.abc import Mapping, Sequence
 from functools import cached_property, reduce
-from typing import Annotated, Any, Self, override
+from typing import Annotated, Any, Literal, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -17,6 +17,7 @@ from scipy import sparse as sp
 from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
 from graphatoms.geometry import bond_list
 from graphatoms.geometry._inner_outer import check_atom_is_inner
+from graphatoms.geometry.itlee import ITLIEEResult, itlee_equiv
 from graphatoms.system.atoms import Box, Energetics, Matter, Structure
 from graphatoms.system.bonds import BondGraph, _subgraph_edges
 from graphatoms.utils import rdutils
@@ -146,6 +147,151 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             lst.insert(0, GasMixin._string(self))
         lst.append(AtomTag._string(self))
         return ",".join(lst)
+
+    ###################################################
+    #               Equivalence helpers
+    ###################################################
+    def get_itlee_colors(
+        self,
+        *,
+        fields: tuple[str, ...] = (
+            "numbers",
+            "is_core",
+            "is_fix",
+            "is_adsorbate",
+        ),
+    ) -> np.ndarray:
+        """Return composite colors used by the ITLEE matcher.
+
+        Missing optional fields are skipped.  Callers comparing two
+        objects should pass the same ``fields`` tuple to both sides.
+        """
+        columns: list[np.ndarray] = []
+        for field in fields:
+            value = getattr(self, field, None)
+            if value is None:
+                continue
+            array = np.asarray(value)
+            if array.ndim != 1 or len(array) != self.natoms:
+                raise ValueError(
+                    f"Field {field!r} has invalid shape {array.shape}."
+                )
+            columns.append(np.asarray(array, dtype=str))
+        if not columns:
+            return np.zeros(self.natoms, dtype=str)
+        return np.asarray(
+            ["|".join(items) for items in zip(*columns, strict=True)]
+        )
+
+    def get_itlee_equiv(
+        self,
+        other: "SysGraph",
+        tolerance: float,
+        *,
+        other_tolerance: float | None = None,
+        fields: tuple[str, ...] = ("numbers",),
+        allow_reflection: bool = False,
+        max_branches: int = 200_000,
+    ) -> ITLIEEResult | None:
+        """Return the ITLEE result if ``self`` and ``other`` are equivalent.
+
+        Both objects must have the same number of atoms.  The effective
+        tolerance is ``min(tolerance, other_tolerance)`` when
+        ``other_tolerance`` is provided, following Williams (2024).
+        """
+        if not isinstance(other, SysGraph):
+            return None
+        if len(self) != len(other):
+            return None
+        delta = (
+            float(tolerance)
+            if other_tolerance is None
+            else min(float(tolerance), float(other_tolerance))
+        )
+        if delta <= 0:
+            raise ValueError("tolerance must be positive.")
+        return itlee_equiv(
+            self.positions,
+            other.positions,
+            delta,
+            ref_colors=self.get_itlee_colors(fields=fields),
+            cur_colors=other.get_itlee_colors(fields=fields),
+            allow_reflection=allow_reflection,
+            max_branches=max_branches,
+        )
+
+    def is_equivalent(
+        self,
+        other: "SysGraph",
+        *,
+        method: Literal["graph", "itlee"] = "graph",
+        tolerance: float | None = None,
+        other_tolerance: float | None = None,
+        use_hash_bucket: bool = True,
+        fields: tuple[str, ...] = ("numbers",),
+        allow_reflection: bool = False,
+        verify_graph: bool = True,
+        max_branches: int = 200_000,
+    ) -> bool:
+        """Check equivalence using either graph topology or ITLEE.
+
+        ``method="graph"`` compares the coloured bond graph.  The graph
+        hash is used as a fast necessary-condition veto, not as the
+        equality criterion; when ``verify_graph`` is True an igraph
+        isomorphism check gives the final answer.
+
+        ``method="itlee"`` compares equal-sized coloured point clouds with
+        the ITLEE L2 criterion.  It never compares objects of different
+        sizes; use :meth:`BondGraph.get_match_mode` for pattern-to-system
+        matching.
+        """
+        if not isinstance(other, SysGraph):
+            return False
+        if len(self) != len(other):
+            return False
+        if not np.array_equal(np.sort(self.numbers), np.sort(other.numbers)):
+            return False
+
+        if method == "graph":
+            if use_hash_bucket and self.hash != other.hash:
+                return False
+            if not verify_graph:
+                return True
+            if (
+                self.coordination is not None
+                and other.coordination is not None
+            ):
+                color1 = np.vectorize(hash)(self.get_igcolor())
+                color2 = np.vectorize(hash)(other.get_igcolor())
+            else:
+                color1, color2 = self.numbers, other.numbers
+            return bool(
+                self.get_igraph().isomorphic_vf2(
+                    other.get_igraph(),
+                    color1=color1,
+                    color2=color2,
+                )
+            )
+        elif method == "itlee":
+            if tolerance is None:
+                raise ValueError(
+                    "method='itlee' requires a positive tolerance."
+                )
+            if use_hash_bucket and self.hash != other.hash:
+                return False
+            return (
+                self.get_itlee_equiv(
+                    other,
+                    tolerance,
+                    other_tolerance=other_tolerance,
+                    fields=fields,
+                    allow_reflection=allow_reflection,
+                    max_branches=max_branches,
+                )
+                is not None
+            )
+        else:
+            raise ValueError(f"Unknown equivalence method: {method!r}.")
 
     @cached_property
     def smarts(self) -> str:

@@ -15,6 +15,7 @@ from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.runner.common._helper import (
     helper_apply,
     helper_match,
+    record_reconstruction,
 )
 from graphatoms.reaction import Adsorption, Desorption, Reaction
 from graphatoms.utils.bytestool import atomic_write
@@ -251,6 +252,22 @@ class OTFKMC(ExplorationBase):
                     self.gas_number_dct[gas_key] -= 1.0
                     msg = f"Remove 1 gas({gas_key})."
                     self.logger.info(self._reformat_message(msg))
+            n_recon = min(len(selected_rxn.R), len(selected_rxn.P))
+            recon_ok, recon_delta, recon_limit = record_reconstruction(
+                config=self.config,
+                network=self.network,
+                for_cluster=selected_info.for_cluster,
+                rmsd=rmsd,
+                n_atoms=n_recon,
+            )
+            if not recon_ok:
+                self.logger.warning(
+                    self._reformat_message(
+                        "reconstruction_failure "
+                        f"rmsd={rmsd:.4f} limit={recon_limit:.4f} "
+                        f"delta={recon_delta:.4f}"
+                    )
+                )
             self.logger.info(
                 f"Apply Rxn {selected_rxn_key} "
                 + f"Successfully, RMSD: {rmsd:.4f}.\n {selected_info}"

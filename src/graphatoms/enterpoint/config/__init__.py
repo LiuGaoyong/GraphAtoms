@@ -25,6 +25,18 @@ class SiteConfig:
 
 
 @dataclass
+class GeometryConfig:
+    """Run-level ITLEE geometric-tolerance settings."""
+
+    tolerance: float = 0.0
+    allow_reflection: bool = False
+    use_hash_bucket: bool = False
+    reconstruction_check: bool = True
+    delta_halving: bool = True
+    max_branches: int = 200_000
+
+
+@dataclass
 class ExplConfig:
     maxtry: int = 1000
     maxconfidence: float = 10
@@ -87,6 +99,7 @@ class Config:
     debug: bool = False
 
     site: SiteConfig = field(default_factory=SiteConfig)
+    geometry: GeometryConfig = field(default_factory=GeometryConfig)
     exploration: ExplConfig = field(default_factory=ExplConfig)
     event: EventConfig = field(default_factory=EventConfig)
     optimizer: OptConfig = field(default_factory=OptConfig)

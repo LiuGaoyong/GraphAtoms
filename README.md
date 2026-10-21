@@ -12,11 +12,12 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 
 - **Graph-based Chemical System Representation**: Represent chemical systems, clusters, and gas molecules using graph theory
 - **Reaction Modeling**: Support for reaction classes, KMC (Kinetic Monte Carlo) events, and MC (Monte Carlo) moves
-- **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), and sampling
+- **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), sampling, and ITLEE (Invariant and Tolerant Local Environment Equivalence, Williams 2024)
 - **Data Storage**: Support for HDF5 and SQLite databases for efficient data persistence
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
 - **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
 - **Subgraph Operations**: Backend-agnostic subgraph extraction with relabeling support using array-api-compat and array-api-extra
+- **Tolerant Event Reuse**: `SysGraph.is_equivalent(method="graph"|"itlee")` combines exact graph identity with a configurable geometric tolerance; `get_match_mode(tolerance=...)` filters graph embeddings by the ITLEE L2 criterion, and per-local-environment tolerances are stored in `equivalence.json`
 - **CLI Entry Points**: Three console scripts for configuration, execution, and inspection:
   - `graphatoms-config`: Resolve and print the Hydra/OmegaConf run configuration
   - `graphatoms-run`: Launch a run
@@ -34,12 +35,12 @@ src/graphatoms/
 ├── dataclasses/     # Pydantic-based data models
 ├── enterpoint/      # Entry points: CLI, config, runners, network, parallel
 │   ├── config/      # Hydra/OmegaConf configuration (atoms, bonds, calculator)
-│   ├── network/     # Reaction network: scheduler, recorder, metadata
+│   ├── network/     # Reaction network: scheduler, recorder, metadata, equivalence registry
 │   ├── parallel/    # Pluggable executors (serial, multiprocessing, ray, dask, executorlib)
 │   ├── runner/      # Runners (otfkmc, rxngen) and helpers
 │   ├── steps/       # Step primitives for runners
 │   └── view.py      # CLI viewer for reactions
-├── geometry/        # Geometric operations
+├── geometry/        # Geometric operations (including itlee.py)
 ├── reaction/        # Reaction classes and KMC events
 │   ├── _event.py    # Event base and event info
 │   ├── reaction.py  # Reaction class

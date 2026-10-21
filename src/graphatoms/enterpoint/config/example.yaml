@@ -45,6 +45,13 @@ site:
   method: "distance" # or hop
   env_threshold: 15 # the environment threshold
   max_moved_threshold: 8 # the maximum moved threshold
+geometry:
+  tolerance: 0.0 # ITLEE delta in Angstrom (L2 norm); 0 disables it
+  allow_reflection: false
+  use_hash_bucket: false # bypass the WL hash veto in the tolerant LE pass
+  reconstruction_check: true
+  delta_halving: true
+  max_branches: 200000
 exploration:
   maxtry: 1000
   maxconfidence: 10
