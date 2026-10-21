@@ -12,6 +12,8 @@ the network call.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import ray
 from ase import Atoms
@@ -31,6 +33,7 @@ from graphatoms.enterpoint.runner.v2._helperv2 import (
     compute_dimer,
     compute_optimization,
 )
+from graphatoms.reaction import EventInfo
 from graphatoms.system import Cluster, Gas, System
 from graphatoms.utils.asetools import call_dimer_displace
 from graphatoms.utils.parser import hydra_parse
@@ -74,7 +77,12 @@ def wait_one(refs: list) -> tuple[object, list]:
     return ray.get(done[0]), list(remaining)
 
 
-def actor_call(actor: RayNetworkActorHandle, method: str, *args, **kwargs):
+def actor_call(
+    actor: RayNetworkActorHandle,
+    method: str,
+    *args,
+    **kwargs,
+) -> Any:
     """Synchronously call one actor method from the driver or a task."""
     return ray.get(getattr(actor, method).remote(*args, **kwargs))
 
@@ -272,7 +280,7 @@ def task_match(
     **kwargs,
 ) -> tuple[str, bool, np.ndarray | None]:
     """Match a system against one event, reading the event from the actor."""
-    info = actor_call(actor, "read_event_info", rxn_key)
+    info: EventInfo = actor_call(actor, "read_event_info", rxn_key)
     key = info.key_r if rxn_is_forward else info.key_p
     pattern = actor_call(actor, "read_sysgraph", key, "minima", True)
     return compute_match(

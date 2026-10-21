@@ -37,10 +37,8 @@ class RayReactionNetworkGenerator(RayExplorationMixin, RayRunnerBase):
                 for sys in self.get_batch_system_for()
             }
         else:
-            self._match_apply_recorder = (
-                MatchApplyRecorder.model_validate_json(
-                    json_data=self._match_apply_path.read_text(),
-                )
+            self._match_apply_recorder = MatchApplyRecorder.model_validate_json(
+                json_data=self._match_apply_path.read_text(),
             )
             self._initial_system_dct = self._system_dct_from_db
 
@@ -56,7 +54,7 @@ class RayReactionNetworkGenerator(RayExplorationMixin, RayRunnerBase):
                 parse_bonds=self.config.bonds,  # type: ignore
                 parse_atoms_is_outer_or_not=True,
             )
-            for k, v in actor_call(self.actor, "db_system_items").items()
+            for k, v in actor_call(self.actor, "db_system_items").items()  # type: ignore
         }
 
     @override

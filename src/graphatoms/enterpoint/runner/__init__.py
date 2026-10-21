@@ -15,8 +15,6 @@ from .v2.general.rxngen import ReactionNetworkGenerator
 __all__ = [
     "OnTheFlyKMC",
     "ReactionNetworkGenerator",
-    "RayOnTheFlyKMC",
-    "RayReactionNetworkGenerator",
     "run",
     "run_ray",
 ]
