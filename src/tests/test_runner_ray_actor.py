@@ -95,6 +95,19 @@ def test_runner_exports_ray_runners_lazily() -> None:
     assert runner.RayReactionNetworkGenerator.__name__ == (
         "RayReactionNetworkGenerator"
     )
+    assert callable(runner.run_ray)
+
+
+def test_ray_optional_dependency_helper() -> None:
+    from graphatoms.enterpoint.runner.v2.ray._optional import (
+        RAY_INSTALL_HINT,
+        RayNotInstalledError,
+        require_ray,
+    )
+
+    assert issubclass(RayNotInstalledError, ImportError)
+    assert "graphatoms[ray]" in RAY_INSTALL_HINT
+    require_ray()
 
 
 if __name__ == "__main__":

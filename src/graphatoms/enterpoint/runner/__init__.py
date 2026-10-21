@@ -18,20 +18,49 @@ __all__ = [
     "RayOnTheFlyKMC",
     "RayReactionNetworkGenerator",
     "run",
+    "run_ray",
 ]
+
+
+def _import_ray_runners():
+    """Import the Ray runners, raising a descriptive error without Ray."""
+    from .v2.ray._optional import (
+        RAY_INSTALL_HINT,
+        RayNotInstalledError,
+    )
+
+    try:
+        from .v2.ray import RayOTFKMC, RayReactionNetworkGenerator
+    except RayNotInstalledError as e:  # pragma: no cover - install dependent
+        raise ImportError(RAY_INSTALL_HINT) from e
+    return RayOTFKMC, RayReactionNetworkGenerator
 
 
 def __getattr__(name: str) -> Any:
     """Lazily expose the Ray runners without importing Ray by default."""
     if name in ("RayOnTheFlyKMC", "RayOTFKMC"):
-        from .v2.ray.otfkmc import RayOTFKMC
-
+        RayOTFKMC, _ = _import_ray_runners()
         return RayOTFKMC
     elif name == "RayReactionNetworkGenerator":
-        from .v2.ray.rxngen import RayReactionNetworkGenerator
-
+        _, RayReactionNetworkGenerator = _import_ray_runners()
         return RayReactionNetworkGenerator
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def run_ray(cfg: Config) -> None:
+    """Run the Ray-native runner for the configured ``run_type``."""
+    run_type = str(cfg.run_type).lower()
+    RayOTFKMC, RayReactionNetworkGenerator = _import_ray_runners()
+    if run_type == "otfkmc":
+        runner = RayOTFKMC(config=cfg)
+    elif run_type == "rxngen":
+        runner = RayReactionNetworkGenerator(config=cfg)
+    else:
+        raise ValueError(f" run_type `{cfg.run_type}` is not supported.")
+    try:
+        runner.run()
+    finally:
+        runner.close()
 
 
 @hydra.main(
@@ -42,22 +71,10 @@ def __getattr__(name: str) -> Any:
 def run(cfg: Config) -> None:
     run_type = str(cfg.run_type).lower()
     if str(cfg.parallel).lower() == "ray":
-        # The ray backend uses a dedicated Ray-native runner. Importing it
-        # lazily keeps ray an optional dependency.
-        if run_type == "otfkmc":
-            from .v2.ray.otfkmc import RayOTFKMC
-
-            runner = RayOTFKMC(config=cfg)
-        elif run_type == "rxngen":
-            from .v2.ray.rxngen import RayReactionNetworkGenerator
-
-            runner = RayReactionNetworkGenerator(config=cfg)
-        else:
-            raise ValueError(f" run_type `{cfg.run_type}` is not supported.")
-        try:
-            runner.run()
-        finally:
-            runner.close()
+        # The ray backend uses a dedicated Ray-native runner.  ``run_ray``
+        # imports Ray lazily and raises a descriptive error when the optional
+        # dependency is missing.
+        run_ray(cfg)
     elif run_type == "otfkmc":
         OnTheFlyKMC(config=cfg).run()
     elif run_type == "rxngen":
