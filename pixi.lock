@@ -14265,6 +14265,7 @@ packages:
   - hydra-core
   - typer
   - loguru
+  - ray>=2.9 ; extra == 'ray'
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/1c/70/4a6dc4bb34da4dee35e30f09bbd1bfbdd26f33b62fb9b8df31f08a199cd2/ruff-0.16.4-py3-none-macosx_11_0_arm64.whl
   name: ruff
