@@ -45,6 +45,7 @@ def _unique_clusters_by_itlee(
     equivalence: EquivalenceRegistry,
     *,
     allow_reflection: bool = False,
+    use_hash_bucket: bool = False,
     max_compare_per_bucket: int = 1000,
 ) -> np.ndarray:
     """Merge local environments that are ITLEE-equivalent.
@@ -80,7 +81,7 @@ def _unique_clusters_by_itlee(
                 rep,
                 method="itlee",
                 tolerance=delta,
-                use_hash_bucket=False,
+                use_hash_bucket=use_hash_bucket,
                 fields=fields,
                 allow_reflection=allow_reflection,
             ):
@@ -487,6 +488,9 @@ class RunnerABC:
                 equivalence=self.network.equivalence,
                 allow_reflection=bool(
                     getattr(geometry, "allow_reflection", False)
+                ),
+                use_hash_bucket=bool(
+                    getattr(geometry, "use_hash_bucket", False)
                 ),
             )
         self.logger.info(

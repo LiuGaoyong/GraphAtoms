@@ -130,6 +130,12 @@ class Test_ITLEECore:
         ref, cur, _ = _random_cloud()
         assert itlee_equiv(ref, cur[:-1], 0.05) is None
 
+    def test_ambiguous_delta(self) -> None:
+        ref = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+        result = itlee_equiv(ref, ref, 2.0)
+        assert result is not None
+        assert result.ambiguous is True
+
 
 class Test_SysGraphEquivalence:
     def test_graph_and_itlee(self, cluster: Cluster) -> None:
@@ -247,6 +253,38 @@ class Test_MatchTolerance:
     def test_negative_tolerance(self, system: System, cluster: Cluster) -> None:
         with pytest.raises(ValueError):
             system.get_match_mode(cluster, tolerance=-0.1)
+
+    def test_tolerant_return_options(
+        self, system: System, cluster: Cluster
+    ) -> None:
+        dct = cluster.to_dict()
+        dct.pop("hashes", None)
+        dct["coordination"] = (cluster.CN_MATRIX + 1).astype("uint8")
+        pattern = Cluster.model_validate(dct)
+
+        count = system.get_match_mode(
+            pattern,
+            tolerance=0.05,
+            only_count=True,
+            return_match_target=False,
+        )
+        assert isinstance(count, int) and count >= 1
+
+        mapping = system.get_match_mode(
+            pattern,
+            tolerance=0.05,
+            return_match_target=False,
+        )
+        assert isinstance(mapping, np.ndarray)
+        assert mapping.shape[1] == len(pattern)
+
+        vf2 = system.get_match_mode(
+            pattern,
+            tolerance=0.05,
+            algorithm="vf2",
+            return_metrics=True,
+        )
+        assert isinstance(vf2, list) and len(vf2) > 0
 
 
 class Test_EquivalenceRegistry:
