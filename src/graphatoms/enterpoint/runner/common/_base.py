@@ -46,6 +46,7 @@ def _unique_clusters_by_itlee(
     *,
     allow_reflection: bool = False,
     use_hash_bucket: bool = False,
+    max_branches: int = 200_000,
     max_compare_per_bucket: int = 1000,
 ) -> np.ndarray:
     """Merge local environments that are ITLEE-equivalent.
@@ -84,6 +85,7 @@ def _unique_clusters_by_itlee(
                 use_hash_bucket=use_hash_bucket,
                 fields=fields,
                 allow_reflection=allow_reflection,
+                max_branches=max_branches,
             ):
                 merged = True
                 break
@@ -491,6 +493,9 @@ class RunnerABC:
                 ),
                 use_hash_bucket=bool(
                     getattr(geometry, "use_hash_bucket", False)
+                ),
+                max_branches=int(
+                    getattr(geometry, "max_branches", 200_000)
                 ),
             )
         self.logger.info(

@@ -49,7 +49,6 @@ geometry:
   tolerance: 0.0 # ITLEE delta in Angstrom (L2 norm); 0 disables it
   allow_reflection: false
   use_hash_bucket: false # bypass the WL hash veto in the tolerant LE pass
-  verify_graph: true
   reconstruction_check: true
   delta_halving: true
   max_branches: 200000

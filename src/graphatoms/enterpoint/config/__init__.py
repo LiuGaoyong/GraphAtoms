@@ -31,7 +31,6 @@ class GeometryConfig:
     tolerance: float = 0.0
     allow_reflection: bool = False
     use_hash_bucket: bool = False
-    verify_graph: bool = True
     reconstruction_check: bool = True
     delta_halving: bool = True
     max_branches: int = 200_000
