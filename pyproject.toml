@@ -66,6 +66,10 @@ dependencies = [
     "typer",
     "loguru",
 ]
+
+[project.optional-dependencies]
+ray = ["ray>=2.9"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.11",

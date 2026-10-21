@@ -42,18 +42,22 @@ def __getattr__(name: str) -> Any:
 def run(cfg: Config) -> None:
     run_type = str(cfg.run_type).lower()
     if str(cfg.parallel).lower() == "ray":
-        # The ray backend uses a dedicated actor-based implementation of the
-        # v2 runners; importing it lazily keeps ray an optional dependency.
+        # The ray backend uses a dedicated Ray-native runner. Importing it
+        # lazily keeps ray an optional dependency.
         if run_type == "otfkmc":
             from .v2.ray.otfkmc import RayOTFKMC
 
-            RayOTFKMC(config=cfg).run()
+            runner = RayOTFKMC(config=cfg)
         elif run_type == "rxngen":
             from .v2.ray.rxngen import RayReactionNetworkGenerator
 
-            RayReactionNetworkGenerator(config=cfg).run()
+            runner = RayReactionNetworkGenerator(config=cfg)
         else:
             raise ValueError(f" run_type `{cfg.run_type}` is not supported.")
+        try:
+            runner.run()
+        finally:
+            runner.close()
     elif run_type == "otfkmc":
         OnTheFlyKMC(config=cfg).run()
     elif run_type == "rxngen":
