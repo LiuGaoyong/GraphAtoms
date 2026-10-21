@@ -10,6 +10,7 @@ from ase import Atoms
 from graphatoms.dataclasses import OurBaseModel
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.runner.common import helper_apply
+from graphatoms.enterpoint.runner.common._helper import record_reconstruction
 from graphatoms.system import System
 
 from ._expl import ExplorationBase
@@ -146,6 +147,24 @@ class ReactionNetworkGenerator(ExplorationBase):
                 )
                 new_sys_key = new_system.get_key_for_metadata(False)
                 dct[new_sys_key] = new_system
+                info = self.network.read_event_info(rxn_key)
+                _, rxn = self.network.read_event(rxn_key)
+                n_recon = min(len(rxn.R), len(rxn.P))
+                recon_ok, recon_delta, recon_limit = record_reconstruction(
+                    config=self.config,
+                    network=self.network,
+                    for_cluster=info.for_cluster,
+                    rmsd=rmsd,
+                    n_atoms=n_recon,
+                )
+                if not recon_ok:
+                    self.logger.warning(
+                        self._reformat_message(
+                            "reconstruction_failure "
+                            f"rmsd={rmsd:.4f} limit={recon_limit:.4f} "
+                            f"delta={recon_delta:.4f}"
+                        )
+                    )
                 msg = f"Apply for rxn_key={rxn_key}(fwd={forward}) "
                 msg += f"Successfully, RMSD={rmsd:.4f}, System={new_sys_key}"
                 self.logger.info(self._reformat_message(msg))

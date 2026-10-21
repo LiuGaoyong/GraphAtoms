@@ -785,6 +785,63 @@ def helper_adsorption(
     return rxn, (graph_label, lst), cost_time, "adsorption"
 
 
+def _geometry_settings(config: Config) -> tuple[float, bool, int]:
+    geometry = getattr(config, "geometry", None)
+    tolerance = float(getattr(geometry, "tolerance", 0.0))
+    allow_reflection = bool(getattr(geometry, "allow_reflection", False))
+    max_branches = int(getattr(geometry, "max_branches", 200_000))
+    return tolerance, allow_reflection, max_branches
+
+
+def _tolerance_for_cluster(
+    config: Config,
+    network: ReactionNetwork,
+    cluster_key: str,
+) -> float:
+    tolerance, _, _ = _geometry_settings(config)
+    if tolerance <= 0:
+        return 0.0
+    return min(
+        tolerance,
+        network.equivalence.get_delta(cluster_key, default=tolerance),
+    )
+
+
+
+def record_reconstruction(
+    config: Config,
+    network: ReactionNetwork,
+    for_cluster: str,
+    rmsd: float,
+    n_atoms: int,
+) -> tuple[bool, float, float]:
+    """Record an L3a reconstruction check and optionally halve delta.
+
+    Returns:
+        ``(success, delta, limit)``.  When tolerance is disabled or the
+        check is turned off, returns ``(True, 0.0, inf)``.
+    """
+    geometry = getattr(config, "geometry", None)
+    if not bool(getattr(geometry, "reconstruction_check", True)):
+        return True, 0.0, float("inf")
+    tolerance = float(getattr(geometry, "tolerance", 0.0))
+    if tolerance <= 0:
+        return True, 0.0, float("inf")
+    delta = min(
+        tolerance,
+        network.equivalence.get_delta(for_cluster, default=tolerance),
+    )
+    limit = delta / float(np.sqrt(max(int(n_atoms), 1)))
+    if rmsd > limit:
+        network.equivalence.record_failure(for_cluster, default=tolerance)
+        if bool(getattr(geometry, "delta_halving", True)):
+            network.equivalence.halve(for_cluster, default=tolerance)
+        network.persistence_equivalence()
+        return False, delta, limit
+    network.equivalence.record_attempt(for_cluster, default=tolerance)
+    network.persistence_equivalence()
+    return True, delta, limit
+
 def helper_match(
     config: Config,
     system: System,
@@ -803,22 +860,24 @@ def helper_match(
         config=config, restart=True, remote_mode=True
     )
     info = network.read_event_info(rxn_key)
-    if rxn_is_forward:
-        result = system.get_match_mode(  # type: ignore
-            pattern=network.read_sysgraph(info.key_r, "minima", True),
-            algorithm="lad",
-            return_match_target=True,
-            only_number_color=False,
-            only_count=False,
-        )
-    else:
-        result = system.get_match_mode(  # type: ignore
-            pattern=network.read_sysgraph(info.key_p, "minima", True),
-            algorithm="lad",
-            return_match_target=True,
-            only_number_color=False,
-            only_count=False,
-        )
+    pattern = network.read_sysgraph(
+        info.key_r if rxn_is_forward else info.key_p,
+        "minima",
+        True,
+    )
+    tolerance = _tolerance_for_cluster(config, network, info.for_cluster)
+    _, allow_reflection, max_branches = _geometry_settings(config)
+    result = system.get_match_mode(  # type: ignore
+        pattern=pattern,
+        algorithm="lad",
+        return_match_target=True,
+        only_number_color=False,
+        only_count=False,
+        tolerance=tolerance if tolerance > 0 else None,
+        other_tolerance=tolerance if tolerance > 0 else None,
+        allow_reflection=allow_reflection,
+        max_branches=max_branches,
+    )
     assert not isinstance(result, int)
     return rxn_key, rxn_is_forward, result
 
@@ -827,17 +886,46 @@ def helper_apply(
     rxn_key: str,
     config: Config,
     system: System | Atoms,
-    match_mode: np.ndarray,
+    match_mode: np.ndarray | None,
     raise_when_fail: bool = True,
     forward: bool = True,
 ) -> tuple[str, bool, Atoms | str, float]:
     network = ReactionNetwork.from_config(
         config=config, restart=True, remote_mode=True
     )
+    info = network.read_event_info(rxn_key)
     _, rxn = network.read_event(rxn_key)
     if not forward:
         rxn = rxn.reversed
     try:
+        if match_mode is None:
+            tolerance = _tolerance_for_cluster(
+                config, network, info.for_cluster
+            )
+            if tolerance > 0:
+                assert isinstance(system, System)
+                _, allow_reflection, max_branches = _geometry_settings(config)
+                match_mode = system.get_match_mode(  # type: ignore
+                    pattern=rxn.R,
+                    algorithm="lad",
+                    return_match_target=True,
+                    only_number_color=False,
+                    only_count=False,
+                    tolerance=tolerance,
+                    other_tolerance=tolerance,
+                    allow_reflection=allow_reflection,
+                    max_branches=max_branches,
+                )
+                if match_mode is None:
+                    return (
+                        rxn_key,
+                        forward,
+                        "no tolerant graph match",
+                        np.inf,
+                    )
+            else:
+                atoms, rmsd = rxn.apply(system)
+                return rxn_key, forward, atoms, rmsd
         atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
         return rxn_key, forward, atoms, rmsd
     except Exception as e:

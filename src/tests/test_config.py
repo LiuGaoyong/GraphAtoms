@@ -44,6 +44,8 @@ def run_1st_step(config: str | None = None) -> None:
                 overrides=overrides,
             )
             cfg.outputs = Path(tmp).as_posix()
+            assert cfg.geometry.tolerance == 0.0
+            assert cfg.geometry.reconstruction_check is True
             print(list(Path(tmp).rglob("*")))
             print(OmegaConf.to_yaml(cfg))
 
