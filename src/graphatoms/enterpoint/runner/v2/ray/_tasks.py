@@ -184,7 +184,7 @@ def task_dimer(
         )
         if str(result.result) not in event_label:
             result.message += (
-                " Simplify original event by threshold "
+                f" Simplify original {result.result} by threshold "
                 f"{config.event.simplified_threshold:.2f}"
             )
     elif result.is_failed:
@@ -256,7 +256,7 @@ def task_adsorption(
         )
         if str(result.result) not in event_label:
             result.message += (
-                " Simplify original event by threshold "
+                f" Simplify original {result.result} by threshold "
                 f"{config.event.simplified_threshold:.2f}"
             )
     return result

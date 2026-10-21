@@ -16,6 +16,7 @@ import ray
 from ase import Atoms
 from ase.units import _e as _electron_charge
 from ase.units import kB as _boltzmann_constant
+from omegaconf import OmegaConf
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.runner.common._base import (
@@ -51,7 +52,7 @@ class RayRunnerBase:
         self._init_run_state()
 
         self.logger.info("=" * self._log_length)
-        self.logger.info(f"The Configuration:\n{config}")
+        self.logger.info("The Configuration:\n" + OmegaConf.to_yaml(config))
         self.logger.info(f"self.path floder : {self.path}")
         self.logger.info("=" * self._log_length)
 
