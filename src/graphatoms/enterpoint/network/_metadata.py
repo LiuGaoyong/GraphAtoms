@@ -1,6 +1,7 @@
 import dataclasses as dc
+import types
 from pathlib import Path
-from typing import Any, Self, override
+from typing import Any, Self, Union, get_args, get_origin, override
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,25 @@ from graphatoms.system.bonds import matchmode2nmatch
 from graphatoms.utils.bytestool import atomic_write
 
 __all__ = ["MetaData"]
+
+
+def _is_list_of_optional_str(annotation: Any) -> bool:
+    """Whether the annotation is ``list[str | None]``."""
+    if get_origin(annotation) is not list:
+        return False
+    element = get_args(annotation)[0]
+    if get_origin(element) not in (Union, types.UnionType):
+        return False
+    return set(get_args(element)) == {str, type(None)}
+
+
+def _missing_to_none(value: Any) -> Any:
+    """Convert a missing value marker of pandas to ``None``."""
+    if value is None or value is pd.NA:
+        return None
+    if isinstance(value, float) and np.isnan(value):
+        return None
+    return value
 
 
 class _MetaDataBasic(OurBaseModel, EventConfig):
@@ -109,7 +129,23 @@ class _MetaDataTable(BaseModel):
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame) -> Self:
-        return cls(**{k: df[k].to_list() for k in df.columns})
+        """Create the table from a DataFrame.
+
+        Note:
+            Since pandas 3.0, a string column containing missing values is
+            read back as the new default string dtype (``str``), whose
+            missing value marker is ``numpy.nan`` instead of ``None``.
+            Such ``nan`` values are rejected by the ``str | None`` fields,
+            so they are converted back to ``None`` here.
+        """
+        data: dict[str, list[Any]] = {}
+        for k in df.columns:
+            values: list[Any] = df[k].to_list()
+            field = cls.__pydantic_fields__.get(k)
+            if field is not None and _is_list_of_optional_str(field.annotation):
+                values = [_missing_to_none(v) for v in values]
+            data[k] = values
+        return cls(**data)
 
     def merge(self, other: Self, idxs: list[int] | None = None) -> None:
         if idxs is None:
