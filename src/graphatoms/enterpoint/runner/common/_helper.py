@@ -681,6 +681,199 @@ def helper_dimer(
             )
 
 
+def helper_neb(
+    config: Config,
+    graph: Cluster,
+    intermediate_atoms: Atoms,
+    final_atoms: Atoms,
+    *,
+    graph_label: Any | None = None,
+    allow_fixed_bonds_change: bool = False,
+    nimages: int = 5,
+    raise_when_fail: bool = False,
+    deep_copy: bool = True,
+    **kwargs,
+) -> tuple[Reaction | str, tuple[Any, list[Atoms]], float, str]:
+    """NEB search for transition state of a bulk candidate path.
+
+    The candidate path comes from
+    `graphatoms.utils.aseqhull.get_voronoi_candidates`: the initial state is
+    the input `graph`, while the `intermediate_atoms` and the `final_atoms`
+    are the two states of one Voronoi edge.  The band therefore goes
+    `graph -> intermediate -> final`, and the intermediate state is used as
+    the (unrelaxed) waypoint of the band.
+
+    Parameters:
+        config: The configuration object.
+        graph: The graph which the candidate path belongs to
+            (i.e. the initial state of the path).
+        intermediate_atoms: The intermediate state of the band.
+        final_atoms: The final state of the band.
+        graph_label: The label of the graph.
+        allow_fixed_bonds_change: Whether to
+            allow the fixed bonds change after NEB.
+        nimages: The number of images of the NEB band (must be >= 3).
+        raise_when_fail: Whether to raise exception when failed.
+        deep_copy: Whether to deep copy the optimized graph.
+
+    Raises:
+        OptimizationFailed: If the NEB failed.
+        CheckVibrationFailed: If the check of vibration failed.
+        HelperException: If the reactant/product is invalid.
+
+    Returns:
+        the reaction object,
+        tuple of (graph_id and NEB trajectory),
+        the time cost in seconds,
+        and the result type.
+    """
+    result_type: str = "neb"
+    start = perf_counter()
+    if graph_label is None:
+        graph_label = graph.get_key_for_metadata()
+    calc: Calculator = hydra_parse(
+        config.calculator,  # type: ignore
+        Calculator,
+    )
+    # the initial state is the input graph itself
+    initial_atoms: Atoms = graph.to_ase(
+        exclude_bond_attibutes=True,
+        exclude_energetics=True,
+    ).copy()
+
+    def fail(e: Exception) -> tuple[str, tuple[Any, list[Atoms]], float, str]:
+        if raise_when_fail:
+            raise e
+        return (
+            str(e),
+            (graph_label, neb_lst),
+            perf_counter() - start,
+            result_type,
+        )
+
+    # -----------------------------------------
+    #       call NEB for TS search
+    # -----------------------------------------
+    neb_lst: list[Atoms] = []
+    try:
+        neb_lst, coveraged = asetools.call_neb(
+            atoms=initial_atoms,
+            calc=calc,
+            final_atoms=final_atoms.copy(),
+            intermediate_atoms=intermediate_atoms.copy(),
+            nimages=int(nimages),
+            max_steps=int(config.optimizer.steps),
+            fmax=float(config.event.max_force),
+            **kwargs,
+        )
+    except Exception as e:
+        return fail(e)
+
+    # one band (i.e. `nimages` atoms objects) is recorded per NEB step,
+    # so the last `nimages` records are the converged band.
+    band: list[Atoms] = neb_lst[-int(nimages) :]
+    if len(band) != int(nimages):
+        e = HelperException(msg="the NEB band is incomplete", label=graph_label)
+        return fail(e)
+    last_pos: np.ndarray = band[-1].get_positions()
+    if np.any(np.isinf(last_pos)) or np.any(np.isnan(last_pos)):
+        return fail(ValueError("NEB failed, positions contain inf/nan."))
+    if not coveraged:
+        e = OptimizationFailed(
+            type="neb",
+            max_steps=max(int(config.optimizer.steps), len(neb_lst)),
+            label=graph_label,
+        )
+        return fail(e)
+
+    # -----------------------------------------
+    #    get the reactant, transition state & product
+    # -----------------------------------------
+    # the highest-energy interior image is taken as the transition state
+    energies: np.ndarray = np.asarray([i.get_potential_energy() for i in band])
+    idx_ts: int = int(np.argmax(energies[1:-1])) + 1
+    try:
+        # the initial state of the band is the input graph, so the (already
+        # checked) graph is used as the reactant for free.
+        reactant: Cluster = graph
+        ts = graph.update_geometry(
+            new_positions=band[idx_ts].positions,
+            parse_bonds=config.bonds,  # type: ignore
+            deep=deep_copy,
+        )
+        product = graph.update_geometry(
+            new_positions=band[-1].positions,
+            parse_bonds=config.bonds,  # type: ignore
+            deep=deep_copy,
+        )
+    except Exception as e:
+        return fail(e)
+
+    # -----------------------------------------
+    #    check the reactant/product & fixed bonds
+    # -----------------------------------------
+    if reactant.hash == product.hash:
+        key_r = reactant.get_key_for_metadata(use_positions_uuid=True)
+        key_p = product.get_key_for_metadata(use_positions_uuid=True)
+        if key_r == key_p:
+            e = HelperException(
+                msg="product uuid is same as reactant",
+                label=graph_label,
+            )
+            return fail(e)
+    if not allow_fixed_bonds_change:
+        break_bonds, make_bonds = graph.bond_difference(product)
+        diff_bonds = np.asarray(break_bonds + make_bonds)
+        if np.any(np.isin(diff_bonds, graph.idx_fix)):
+            kp = product.get_key_for_metadata()
+            e = HelperException(
+                msg="fixed bonds modified for product",
+                label=f"{graph_label}, P={kp}",
+            )
+            return fail(e)
+
+    # -----------------------------------------
+    #       analyze frequencies & check
+    # -----------------------------------------
+    try:
+        ts, _ = __helper_vibration(
+            result_atoms=band[idx_ts].copy(),
+            result_label=graph_label,
+            deep_copy=deep_copy,
+            check_minima=False,
+            check_ts=True,
+            config=config,
+            start=start,
+            result=ts,
+        )
+    except Exception as e:
+        return fail(e)
+    try:
+        product, _ = __helper_vibration(
+            result_atoms=band[-1].copy(),
+            result_label=graph_label,
+            result=product,
+            deep_copy=deep_copy,
+            check_minima=True,
+            check_ts=False,
+            config=config,
+            start=start,
+        )
+    except Exception as e:
+        return fail(e)
+
+    try:
+        rxn = Reaction(R=reactant, P=product, T=ts)
+    except Exception as e:
+        return fail(e)
+    return (
+        rxn,
+        (graph_label, neb_lst),
+        perf_counter() - start,
+        result_type,
+    )
+
+
 def helper_adsorption(
     gas: Gas,
     config: Config,

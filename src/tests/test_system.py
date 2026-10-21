@@ -8,8 +8,9 @@ import numpy as np
 import pyarrow as pa
 import pytest
 from ase import Atoms
-from ase.build import molecule
+from ase.build import fcc111, molecule
 from ase.cluster import Octahedron
+from ase.constraints import FixAtoms
 
 from graphatoms.system import Cluster, Gas, System
 from graphatoms.system import SysGraph as Graph
@@ -303,3 +304,31 @@ class Test_PyArrowCompability:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-vv", "-s"])
+
+
+def test_cluster_from_select_with_fix_constraint() -> None:
+    """`Cluster.from_select` keeps the fixed atoms of the system fixed."""
+    atoms = fcc111("Cu", (2, 2, 3), vacuum=10.0)
+    zmax = atoms.positions[:, 2].max()
+    atoms.set_constraint(
+        FixAtoms(mask=[a.position[2] < zmax - 1.0 for a in atoms])
+    )
+    system = System.from_ase(
+        atoms,
+        parse_bonds={"method": "raw"},
+        parse_atoms_is_outer_or_not=True,
+    )
+    assert system.is_fix is not None
+    is_fix = system.is_fix.copy()
+    core = np.asarray([int(np.argmax(atoms.positions[:, 2]))])
+    cluster = Cluster.from_select(
+        system,
+        core,
+        method="distance",
+        env_threshold=8,
+        max_moved_threshold=5,
+    )
+    assert np.count_nonzero(cluster.is_fix) >= np.count_nonzero(is_fix)
+    assert not np.any(np.isin(cluster.idx_core, cluster.idx_fix))
+    # `from_select` must not modify the system
+    np.testing.assert_array_equal(is_fix, system.is_fix)

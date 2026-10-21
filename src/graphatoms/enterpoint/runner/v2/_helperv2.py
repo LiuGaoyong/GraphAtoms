@@ -29,10 +29,12 @@ from graphatoms.utils.parser import hydra_parse
 __all__ = [
     "helper_dimer",
     "helper_adsorption",
+    "helper_neb",
     "helper_optimization",
     "HelperOptimizationResult",
     "HelperAdsorptionResult",
     "HelperDimerResult",
+    "HelperNebResult",
     "HelperResult",
 ]
 
@@ -314,6 +316,135 @@ def helper_dimer(
             message=msg,
             displacement_trajectory=arr,
             for_cluster=cluster_key,
+            cost_time=cost_time,
+        )
+
+
+@dc.dataclass
+class HelperNebResult(HelperResult):
+    result: Reaction | None
+    trajectory: np.ndarray | None = None
+    candidate_key: str = ""
+    for_cluster: str = ""
+    for_system: str = ""
+    is_failed: bool = False
+
+
+def helper_neb(
+    config: Config,
+    cluster: Cluster,
+    intermediate_atoms: Atoms,
+    final_atoms: Atoms,
+    *,
+    candidate_key: str = "",
+    for_system: str = "",
+    allow_fixed_bonds_change: bool = False,
+    nimages: int = 5,
+    deep_copy: bool = True,
+    **kwargs,
+) -> HelperNebResult:
+    """NEB search for transition state of a bulk candidate path.
+
+    The initial state is the `cluster` itself, while the
+    `intermediate_atoms` and the `final_atoms` are the two states of one
+    Voronoi edge of the cluster's core atom (see
+    `graphatoms.utils.aseqhull.get_voronoi_candidates`).
+
+    Parameters:
+        config(Config):  The configuration object.
+        cluster(Cluster):  The bulk cluster to be explored
+            (i.e. the initial state).
+        intermediate_atoms(Atoms): The intermediate state of the NEB band.
+        final_atoms(Atoms): The final state of the NEB band.
+        candidate_key: The key of the Voronoi-edge candidate
+            (see `graphatoms.utils.aseqhull.get_voronoi_candidates`).
+        for_system: The key of the system which the cluster belongs to.
+        allow_fixed_bonds_change: Whether to
+            allow the fixed bonds change after NEB.
+        nimages: The number of images of the NEB band.
+        deep_copy: Whether to deep copy the optimized graph.
+    """
+    assert isinstance(cluster, Cluster), "The `cluster` must be a Cluster."
+    log_container, logger, network = (
+        StringIO(),
+        Logger(
+            core=Core(),
+            exception=None,
+            depth=0,
+            record=False,
+            lazy=False,
+            colors=False,
+            raw=False,
+            capture=True,
+            patchers=[],
+            extra={},
+        ),
+        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
+    )
+    logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
+
+    # -----------------------------------------------------------
+    # check if the cluster is at a minimum
+    # -----------------------------------------------------------
+    use_pos_uuid = network.get_use_position_uuid(cluster)
+    cluster_key = cluster.get_key_for_metadata(use_pos_uuid)
+    if not cluster.check_minima(
+        fmax=float(config.event.max_force),
+        fqmin=float(config.event.min_frequency),
+    ):
+        msg = f"Cluster {cluster_key} is not at a minimum."
+        return HelperNebResult(
+            result=None,
+            message=msg,
+            candidate_key=candidate_key,
+            for_cluster=cluster_key,
+            for_system=for_system,
+            is_failed=True,
+        )
+
+    # -----------------------------------------------------------
+    # do NEB search
+    # -----------------------------------------------------------
+    rxn_or_msg, (_, lst), cost_time, _ = funcs.helper_neb(
+        config=config,
+        graph=cluster,
+        **(
+            kwargs
+            | dict(
+                graph_label=f"{cluster_key}|{candidate_key}",
+                intermediate_atoms=intermediate_atoms,
+                final_atoms=final_atoms,
+                allow_fixed_bonds_change=allow_fixed_bonds_change,
+                nimages=nimages,
+                raise_when_fail=False,
+                deep_copy=deep_copy,
+            )
+        ),
+    )
+    arr = np.array([a.positions for a in lst[-int(nimages) :]])
+    if isinstance(rxn_or_msg, str):
+        msg = f"NEB search for {cluster_key} failed by "
+        msg += f"{cost_time:.2f} seconds because of {rxn_or_msg}"
+        return HelperNebResult(
+            result=None,
+            message=msg,
+            trajectory=arr,
+            candidate_key=candidate_key,
+            for_cluster=cluster_key,
+            for_system=for_system,
+            is_failed=True,
+            cost_time=cost_time,
+        )
+    else:
+        msg = f"NEB search for {cluster_key} successfully, and"
+        msg += f" got {rxn_or_msg} by {cost_time:.2f} seconds."
+        return HelperNebResult(
+            result=rxn_or_msg,
+            message=msg,
+            trajectory=arr,
+            candidate_key=candidate_key,
+            for_cluster=cluster_key,
+            for_system=for_system,
             cost_time=cost_time,
         )
 

@@ -10,11 +10,13 @@ from graphatoms.enterpoint.runner.common import (
     RunnerABC,
     helper_adsorption,
     helper_dimer,
+    helper_neb,
     helper_optimization,
 )
 from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils import asetools
 from graphatoms.utils.adsorption import Helper
+from graphatoms.utils.aseqhull import get_voronoi_candidates
 from graphatoms.utils.parser import hydra_parse
 
 
@@ -167,9 +169,6 @@ class ExplorationBase(RunnerABC):
         self.logger.info(self._reformat_message(msg))
         # 2.2 exploration for each cluster ... ...
         if len(lst_4bulk) > 0:
-            raise NotImplementedError(
-                "Bulk exploration is not implemented yet."
-            )
             self.__second_step_bulk(
                 lst_4bulk,
                 system_key=system_key,
@@ -451,10 +450,107 @@ class ExplorationBase(RunnerABC):
         self.network.recorder.adsorption.add(graph_label)
         self.network.persistence()
 
+    def _2step_bulk_candidates(
+        self,
+        cluster: Cluster,
+    ) -> list[tuple[str, Atoms, Atoms]]:
+        """Get the unexplored NEB candidates of a bulk cluster.
+
+        The candidates are the Voronoi edges around the core atom of the
+        bulk cluster (see `aseqhull.get_voronoi_candidates`), i.e. pairs of
+        (intermediate state, final state); the initial state of every
+        candidate path is the `cluster` itself.  The candidates which have
+        been explored already (i.e. the ones recorded in
+        `network.recorder.bulk`) are filtered out, so the exploration of the
+        cluster is finished when the returned list is empty.
+        """
+        cluster_key = cluster.get_key_for_metadata(False)
+        atoms = cluster.to_ase(
+            exclude_bond_attibutes=True,
+            exclude_energetics=True,
+        ).copy()
+        candidates: list[tuple[str, Atoms, Atoms]] = []
+        for index in np.unique(cluster.idx_core):
+            for key, intermediate_atoms, final_atoms in get_voronoi_candidates(
+                atoms, int(index)
+            ):
+                if f"{cluster_key}@{key}" in self.network.recorder.bulk:
+                    continue
+                candidates.append((key, intermediate_atoms, final_atoms))
+        return candidates
+
+    def _2step_bulk_submit(
+        self,
+        cluster: Cluster,
+        candidates: list[tuple[str, Atoms, Atoms]],
+        *args,
+        helper_neb_func: Callable = helper_neb,
+        **kwargs,
+    ) -> list[Any]:
+        """Submit the NEB tasks of the unexplored candidates."""
+        cluster_key = cluster.get_key_for_metadata(False)
+        futures: list = []
+        start: float = perf_counter()
+        for key, intermediate_atoms, final_atoms in candidates:
+            futures.append(
+                self.executor.submit(
+                    helper_neb_func,
+                    config=self.config,
+                    graph=cluster.model_copy(deep=True),
+                    graph_label=f"{cluster_key}|{key}",
+                    intermediate_atoms=intermediate_atoms,
+                    final_atoms=final_atoms,
+                    allow_fixed_bonds_change=False,
+                    raise_when_fail=False,
+                )
+            )
+        msg = f"Submit {len(futures)} NEB tasks for the bulk cluster "
+        msg += f"{cluster_key} by {perf_counter() - start:.2f} seconds."
+        self.logger.info(self._reformat_message(msg))
+        return futures
+
     def __second_step_bulk(
         self,
         lst: list[Cluster],
         system_key: str = "",
     ) -> None:
-        """The second step for the on-the-fly KMC simulation."""
-        raise NotImplementedError
+        """The second step for the bulk exploration (by NEB).
+
+        Note: the exploration of a bulk cluster is finished when all the
+        NEB candidates (i.e. the `aseqhull` list of that cluster) have been
+        explored.  There is no confidence based early stopping here, so no
+        submitted task is canceled.
+        """
+        for cluster in lst:
+            cluster_key = cluster.get_key_for_metadata(False)
+            candidates = self._2step_bulk_candidates(cluster)
+            if len(candidates) == 0:
+                msg = f"The bulk exploration for {cluster_key} is finished."
+                self.logger.info(self._reformat_message(msg))
+                continue
+            futures = self._2step_bulk_submit(cluster, candidates)
+            while len(futures) > 0:
+                future_result, futures = self.executor.wait(futures)  # type: ignore
+                event, (label, _), cost_time, _ = future_result
+                event_label = self.network.found(
+                    event,
+                    for_gas=None,
+                    for_cluster=cluster_key,
+                    for_system=system_key,
+                    persist=True,
+                )
+                # record the explored candidate, so a restart will skip it
+                key = str(label).split("|", 1)[-1]
+                self.network.recorder.bulk.add(f"{cluster_key}@{key}")
+                if str(event_label).startswith("fail"):
+                    msg = f"NEB search {event_label} by {cost_time:.2f}"
+                    msg += f" seconds because of {event}"
+                    self.logger.info(self._reformat_message(msg))
+                else:
+                    msg = "NEB search successfully, and got "
+                    msg += f"{event_label} by {cost_time:.2f} seconds."
+                    self.logger.info(self._reformat_message(msg))
+            msg = f"Finish the bulk exploration for {cluster_key}: "
+            msg += f"all the {len(candidates)} NEB candidates are explored."
+            self.logger.info(self._reformat_message(msg))
+            self.network.persistence()

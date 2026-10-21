@@ -5,9 +5,11 @@ from graphatoms.enterpoint.runner.general._expl import ExplorationBase as _Base
 from graphatoms.enterpoint.runner.v2._helperv2 import (
     HelperAdsorptionResult,
     HelperDimerResult,
+    HelperNebResult,
     HelperResult,
     helper_adsorption,
     helper_dimer,
+    helper_neb,
 )
 from graphatoms.system import Cluster, System
 
@@ -70,6 +72,31 @@ class ExplorationBase(_Base):
                         self.network.recorder.cluster[
                             future_result.for_cluster
                         ].found_skip()
+                elif isinstance(future_result, HelperNebResult):
+                    if future_result.result is not None:
+                        event = future_result.result
+                        event_label = self.network.found(
+                            event=event,
+                            for_cluster=future_result.for_cluster,
+                            for_gas=None,
+                            for_system=future_result.for_system,
+                            persist=True,
+                        )
+                        if str(event) not in event_label:
+                            msg += " Simplify original "
+                            msg += f"{event} by threshold {threshold_str}"
+                    else:
+                        self.network.found(
+                            future_result.message,
+                            for_cluster=future_result.for_cluster,
+                            for_gas=None,
+                            for_system=future_result.for_system,
+                            persist=True,
+                        )
+                    # record the explored candidate, so a restart will skip it
+                    graph_label = future_result.for_cluster
+                    graph_label += f"@{future_result.candidate_key}"
+                    self.network.recorder.bulk.add(graph_label)
                 else:
                     raise NotImplementedError(
                         f"Unknown type {type(future_result)}"  #
@@ -123,9 +150,11 @@ class ExplorationBase(_Base):
         # 2.2 exploration for each cluster ... ...
         futures = []
         if len(lst_4bulk) > 0:
-            self.__second_step_bulk(
-                lst_4bulk,
-                system_key=system_key,
+            futures.extend(
+                self.__second_step_bulk(
+                    lst_4bulk,
+                    system_key=system_key,
+                )
             )
         if len(lst_4adsorption) > 0:
             for cluster in lst_4adsorption:
@@ -158,3 +187,48 @@ class ExplorationBase(_Base):
                     )
                 )
         return True, energy, futures
+
+    def __second_step_bulk(
+        self,
+        lst: list[Cluster],
+        system_key: str = "",
+    ) -> list:
+        """Submit the NEB tasks of the bulk exploration.
+
+        Note: the exploration of a bulk cluster is finished when all the
+        NEB candidates (i.e. the `aseqhull` list of that cluster) have been
+        explored, so every remaining candidate is submitted at once and no
+        task is canceled.
+        """
+        futures: list = []
+        for cluster in lst:
+            cluster_key = cluster.get_key_for_metadata(False)
+            candidates = self._2step_bulk_candidates(cluster)
+            if len(candidates) == 0:
+                msg = f"The bulk exploration for {cluster_key} is finished."
+                self.logger.info(self._reformat_message(msg))
+                continue
+            futures.extend(
+                executor_map(
+                    fn=helper_neb,
+                    executor=self.executor,
+                    fn_params=[
+                        dict(
+                            cluster=cluster,
+                            config=self.config,
+                            intermediate_atoms=intermediate_atoms,
+                            final_atoms=final_atoms,
+                            candidate_key=key,
+                            for_system=system_key,
+                            allow_fixed_bonds_change=False,
+                            deep_copy=True,
+                        )
+                        for key, intermediate_atoms, final_atoms in candidates
+                    ],
+                    only_submit=True,
+                )
+            )
+            msg = f"Submit {len(candidates)} NEB tasks for "
+            msg += f"the bulk cluster {cluster_key}."
+            self.logger.info(self._reformat_message(msg))
+        return futures

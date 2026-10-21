@@ -10,7 +10,8 @@ from ase.calculators.calculator import Calculator
 from ase.calculators.singlepoint import SinglePointCalculator as SPC
 from ase.constraints import FixAtoms
 from ase.io.trajectory import TrajectoryWriter
-from ase.mep import DimerControl, MinModeAtoms
+from ase.mep import DimerControl, MinModeAtoms, idpp_interpolate
+from ase.mep import interpolate as interpolate_images
 from ase.mep.dimer import DimerTranslate, MinModeTranslate
 from ase.mep.neb import NEB, BaseNEB, DyNEB
 from ase.optimize.optimize import Dynamics, Optimizer
@@ -105,6 +106,9 @@ def call_optimization(
     result_lst: list[Atoms] = []
     converged = False
 
+    # NOTE: `atoms` can also be an `ase.mep.neb.BaseNEB` (see `call_neb`).
+    # It is optimized like an `Atoms`, but it only provides the
+    # `get_positions()` method instead of the `positions` attribute.
     atoms.calc = calc
     atoms.calc.reset()
     optimizer: Optimizer = OPT_CLS(
@@ -122,9 +126,10 @@ def call_optimization(
     try:
         for _ in range(max_steps):
             converged = optimizer.run(steps=1, fmax=fmax)
-            if np.any(np.isinf(atoms.positions)):
+            positions: np.ndarray = atoms.get_positions()  # type: ignore
+            if np.any(np.isinf(positions)):
                 raise RuntimeError(_ERR_MSG)
-            if np.any(np.isnan(atoms.positions)):
+            if np.any(np.isnan(positions)):
                 raise RuntimeError(_ERR_MSG)
             if converged:
                 break
@@ -253,10 +258,188 @@ def call_dimer(
     return data, converged
 
 
+def build_neb_images(
+    atoms: Atoms,
+    calc: Calculator,
+    final_atoms: Atoms,
+    intermediate_atoms: Atoms | None = None,
+    *,
+    nimages: int = 5,
+    method4interpolate: str = "linear",
+    method4opt: str = "FIRE",
+    max_steps: int = 100,
+    fmax: float = 0.05,
+) -> list[Atoms]:
+    """Build the images of the NEB band.
+
+    The `atoms` (i.e. the initial state) and the `final_atoms` (i.e. the
+    final state) are optimized first.  If `intermediate_atoms` is given, it
+    is used as an (unrelaxed) waypoint in the middle of the band, so that
+    the band goes `initial -> intermediate -> final`; otherwise the interior
+    images are interpolated directly between the two optimized states.
+
+    Parameters
+    ----------
+    atoms : Atoms
+        The initial state.
+    calc : Calculator
+        The calculator to use for relaxing the endpoints.
+    final_atoms : Atoms
+        The final state.
+    intermediate_atoms : Atoms | None, optional
+        The intermediate state, i.e. the waypoint of the band.
+        Defaults to None.
+    nimages : int, optional
+        The number of images of the band (must be >= 3). Defaults to 5.
+    method4interpolate : str, optional
+        The method to interpolate the interior images, "linear" or "idpp".
+        Only "linear" is supported when `intermediate_atoms` is given,
+        because the band then crosses the waypoint.
+    method4opt : str, optional
+        The optimizer for relaxing the endpoints. Defaults to "FIRE".
+    max_steps : int, optional
+        The maximum number of steps for relaxing the endpoints.
+    fmax : float, optional
+        The maximum force for relaxing the endpoints.
+
+    Returns
+    -------
+    list[Atoms]
+        The images of the NEB band, from the initial to the final state.
+    """
+    assert nimages >= 3, "nimages must be at least 3."
+    images: list[Atoms] = []
+    for k, at in zip(["initial", "final"], [atoms, final_atoms]):
+        lst, converged = call_optimization(
+            at,
+            calc,
+            method=method4opt,
+            max_steps=max_steps,
+            trajectory=None,
+            logfile=None,
+            fmax=fmax,
+        )
+        if not converged:
+            raise RuntimeError(f"Optimization did not converge for {k} image.")
+        images.append(lst[-1])
+    assert len(images) == 2
+    first, last = images[0], images[-1]
+
+    # the first image is the optimized initial state, the last image is the
+    # optimized final state, and the interior images are interpolated.
+    result: list[Atoms] = [first.copy() for _ in range(nimages - 1)]
+    result.append(last)
+    if intermediate_atoms is None:
+        interpolate_images(result)
+        if method4interpolate == "idpp":
+            idpp_interpolate(result, traj=None, log=None)
+        elif method4interpolate != "linear":
+            raise NotImplementedError(
+                f"Unknown method4interpolate: {method4interpolate}"
+            )
+    else:
+        if method4interpolate != "linear":
+            raise NotImplementedError(
+                "Only `method4interpolate='linear'` is supported "
+                + "when `intermediate_atoms` is given."
+            )
+        # piecewise linear interpolation through the intermediate state
+        pos_init, pos_final = first.positions, last.positions
+        pos_middle = np.asarray(intermediate_atoms.positions, dtype=float)
+        imiddle: int = nimages // 2
+        for k in range(1, nimages - 1):
+            if k < imiddle:
+                t = k / imiddle
+                pos = pos_init * (1.0 - t) + pos_middle * t
+            elif k == imiddle:
+                pos = pos_middle
+            else:
+                t = (k - imiddle) / (nimages - 1 - imiddle)
+                pos = pos_middle * (1.0 - t) + pos_final * t
+            result[k].set_positions(pos)
+    return result
+
+
+def run_neb(
+    images: list[Atoms],
+    calc: Calculator,
+    *,
+    climb: bool = True,
+    k4spring: float = 0.1,
+    dynamic_relaxation: bool = True,
+    method4spring: str = "improvedtangent",
+    logfile: IO | Path | str | None = None,
+    trajectory: str | Path | None = None,
+    append_trajectory: bool = False,
+    method4opt: str = "FIRE",
+    max_steps: int = 100,
+    fmax: float = 0.05,
+) -> tuple[list[Atoms], bool]:
+    """Run the NEB optimization on the given images.
+
+    Parameters
+    ----------
+    images : list[Atoms]
+        The images of the NEB band (see `build_neb_images`).
+    calc : Calculator
+        The calculator to use.
+    climb : bool, optional
+        Whether to climb. Defaults to True.
+    k4spring : float, optional
+        The spring constant. Defaults to 0.1.
+    dynamic_relaxation : bool, optional
+        Whether to use dynamic relaxation. Defaults to True.
+        True skips images with forces below the convergence criterion.
+        This is updated after each force call; if a previously converged
+        image goes out of tolerance (due to spring adjustments between
+        the image and its neighbors), it will be optimized again.
+        False reverts to the default NEB implementation.
+    method4spring : str, optional
+        The method of the spring forces. Defaults to "improvedtangent".
+    method4opt : str, optional
+        The optimizer. Defaults to "FIRE".
+    max_steps : int, optional
+        The maximum number of steps. Defaults to 100.
+    fmax : float, optional
+        The maximum force. Defaults to 0.05.
+
+    Returns
+    -------
+    tuple[list[Atoms], bool]
+        The optimized atoms trajectory and whether the optimization converged.
+    """
+    assert len(images) >= 3, "The NEB band must have at least 3 images."
+    for at in images:
+        at.calc = deepcopy(calc)
+        at.calc.reset()
+        at.get_potential_energy()
+    neb = DyNEB(
+        images,
+        method=method4spring,
+        dynamic_relaxation=dynamic_relaxation,
+        climb=climb,
+        k=k4spring,
+        # Note: the `fmax` of `DyNEB` must be identical to the one of the
+        # optimizer, otherwise the dynamic relaxation skips the wrong images.
+        fmax=fmax,
+    )
+    return call_optimization(
+        neb,  # type: ignore
+        calc,
+        method=method4opt,
+        max_steps=max_steps,
+        trajectory=trajectory,
+        append_trajectory=append_trajectory,
+        logfile=logfile,
+        fmax=fmax,
+    )
+
+
 def call_neb(
     atoms: Atoms,
     calc: Calculator,
     final_atoms: Atoms,
+    intermediate_atoms: Atoms | None = None,
     *,
     nimages: int = 5,
     climb: bool = True,
@@ -273,16 +456,22 @@ def call_neb(
 ) -> tuple[list[Atoms], bool]:
     """Call NEB method to search transition state.
 
+    The band is built by `build_neb_images` (the given `intermediate_atoms`
+    is used as the waypoint of the band if it is not None) and optimized by
+    `run_neb`.
+
     Parameters
     ----------
     atoms : Atoms
-        The atoms to optimize.
+        The initial state.
     calc : Calculator
         The calculator to use.
     final_atoms : Atoms
-        The final atoms to optimize.
+        The final state.
+    intermediate_atoms : Atoms | None, optional
+        The intermediate state (the waypoint of the band). Defaults to None.
     nimages : int, optional
-        The number of images. Defaults to 5.
+        The number of images. Defaults to 5. Must be >= 3.
     climb : bool, optional
         Whether to climb. Defaults to True.
     k4spring : float, optional
@@ -305,11 +494,10 @@ def call_neb(
             * string: Paper IV string method (supports precon)
 
     method4interpolate : str, optional
-        The method to use for interpolation. Defaults to "FIRE".
-        Method by which to interpolate: 'linear' or 'idpp'.
-            linear provides a standard straight-line interpolation, while
-            idpp uses an image-dependent pair potential.
-
+        The method to interpolate the interior images. Defaults to "linear".
+        'linear' provides a standard straight-line interpolation, while
+        'idpp' uses an image-dependent pair potential.  Only 'linear' is
+        supported when `intermediate_atoms` is given.
 
     Paper I:
         G. Henkelman and H. Jonsson, Chem. Phys, 113, 9978 (2000).
@@ -331,52 +519,34 @@ def call_neb(
         https://dx.doi.org/10.1063/1.5064465
 
 
-
     Returns:
     -------
     tuple[list[Atoms], bool]
         The optimized atoms trajectory and whether the optimization converged.
     """
-    images: list[Atoms] = []
-    assert nimages >= 3, "nimages must be at least 3."
-    for k, at in zip(["first", "final"], [atoms, final_atoms]):
-        lst, converged = call_optimization(
-            at,
-            calc,
-            method=method4opt,
-            max_steps=max_steps,
-            trajectory=None,
-            logfile=None,
-            fmax=fmax,
-        )
-        if not converged:
-            raise RuntimeError(f"Optimization did not converge for {k} image.")
-        images.append(lst[-1])
-    assert len(images) == 2
-    for _ in range(nimages - 2):
-        target = images[0].copy()
-        images.insert(0, target)
-    assert len(images) == nimages
-    for at in images:
-        at.calc = deepcopy(calc)
-        at.calc.reset()
-        at.get_potential_energy()
-    neb = DyNEB(
-        images,
-        method=method4spring,
-        dynamic_relaxation=dynamic_relaxation,
-        climb=climb,
-        k=k4spring,
-    )
-    neb.interpolate(method=method4interpolate)
-    return call_optimization(
-        neb,  # type: ignore
-        calc,
-        method=method4opt,
+    images: list[Atoms] = build_neb_images(
+        atoms=atoms,
+        calc=calc,
+        final_atoms=final_atoms,
+        intermediate_atoms=intermediate_atoms,
+        nimages=nimages,
+        method4interpolate=method4interpolate,
+        method4opt=method4opt,
         max_steps=max_steps,
+        fmax=fmax,
+    )
+    return run_neb(
+        images=images,
+        calc=calc,
+        climb=climb,
+        k4spring=k4spring,
+        dynamic_relaxation=dynamic_relaxation,
+        method4spring=method4spring,
+        logfile=logfile,
         trajectory=trajectory,
         append_trajectory=append_trajectory,
-        logfile=logfile,
+        method4opt=method4opt,
+        max_steps=max_steps,
         fmax=fmax,
     )
 

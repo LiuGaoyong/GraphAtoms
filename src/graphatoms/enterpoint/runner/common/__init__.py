@@ -5,6 +5,7 @@ from ._helper import (
     helper_apply,
     helper_dimer,
     helper_match,
+    helper_neb,
     helper_optimization,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "helper_apply",
     "helper_dimer",
     "helper_match",
+    "helper_neb",
     "helper_optimization",
 ]
