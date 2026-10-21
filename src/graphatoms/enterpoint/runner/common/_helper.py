@@ -15,7 +15,7 @@ from ase.io.extxyz import write_xyz as write_extxyz
 
 from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.network import ReactionNetwork
-from graphatoms.reaction import Adsorption, Desorption, Reaction
+from graphatoms.reaction import Adsorption, Desorption, EventBase, Reaction
 from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.system.atoms import Structure
 from graphatoms.utils import asetools
@@ -785,6 +785,47 @@ def helper_adsorption(
     return rxn, (graph_label, lst), cost_time, "adsorption"
 
 
+def compute_match(
+    config: Config,
+    system: System,
+    rxn_is_forward: bool,
+    rxn_key: str,
+    pattern: SysGraph,
+) -> tuple[str, bool, np.ndarray | None]:
+    """Match a system against a pre-read reaction pattern."""
+    result = system.get_match_mode(  # type: ignore
+        pattern=pattern,
+        algorithm="lad",
+        return_match_target=True,
+        only_number_color=False,
+        only_count=False,
+    )
+    assert not isinstance(result, int)
+    return rxn_key, rxn_is_forward, result
+
+
+def compute_apply(
+    config: Config,
+    system: System | Atoms,
+    rxn_key: str,
+    forward: bool,
+    match_mode: np.ndarray,
+    rxn: EventBase,
+    raise_when_fail: bool = True,
+) -> tuple[str, bool, Atoms | str, float]:
+    """Apply a pre-read reaction to a system."""
+    if not forward:
+        rxn = rxn.reversed
+    try:
+        atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
+        return rxn_key, forward, atoms, rmsd
+    except Exception as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return rxn_key, forward, str(e), np.inf
+
+
 def helper_match(
     config: Config,
     system: System,
@@ -804,23 +845,10 @@ def helper_match(
     )
     info = network.read_event_info(rxn_key)
     if rxn_is_forward:
-        result = system.get_match_mode(  # type: ignore
-            pattern=network.read_sysgraph(info.key_r, "minima", True),
-            algorithm="lad",
-            return_match_target=True,
-            only_number_color=False,
-            only_count=False,
-        )
+        pattern = network.read_sysgraph(info.key_r, "minima", True)
     else:
-        result = system.get_match_mode(  # type: ignore
-            pattern=network.read_sysgraph(info.key_p, "minima", True),
-            algorithm="lad",
-            return_match_target=True,
-            only_number_color=False,
-            only_count=False,
-        )
-    assert not isinstance(result, int)
-    return rxn_key, rxn_is_forward, result
+        pattern = network.read_sysgraph(info.key_p, "minima", True)
+    return compute_match(config, system, rxn_is_forward, rxn_key, pattern)
 
 
 def helper_apply(
@@ -835,13 +863,12 @@ def helper_apply(
         config=config, restart=True, remote_mode=True
     )
     _, rxn = network.read_event(rxn_key)
-    if not forward:
-        rxn = rxn.reversed
-    try:
-        atoms, rmsd = rxn.apply(system, matched_indxs=match_mode)
-        return rxn_key, forward, atoms, rmsd
-    except Exception as e:
-        if raise_when_fail:
-            raise e
-        else:
-            return rxn_key, forward, str(e), np.inf
+    return compute_apply(
+        config=config,
+        system=system,
+        rxn_key=rxn_key,
+        forward=forward,
+        match_mode=match_mode,
+        rxn=rxn,
+        raise_when_fail=raise_when_fail,
+    )

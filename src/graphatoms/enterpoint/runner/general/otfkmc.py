@@ -36,6 +36,25 @@ class OTFKMCInfo(BaseModel):
     cost_other: float = 0
 
 
+def update_gas_number(
+    selected_rxn: Adsorption | Desorption,
+    gas_number_dct: dict[str, float],
+    logger,
+) -> None:
+    """Update the gas number dictionary after an adsorption/desorption step."""
+    assert selected_rxn.G is not None, "The gas must be not None."
+    gas_key = selected_rxn.G.get_key_for_metadata()
+    if gas_key not in gas_number_dct:
+        gas_number_dct[gas_key] = 0.0
+        logger.info(f"Add gas {gas_key} to the gas number dct.")
+    if isinstance(selected_rxn, Adsorption):
+        gas_number_dct[gas_key] += 1.0
+        logger.info(f"Add 1 gas({gas_key}).")
+    else:
+        gas_number_dct[gas_key] -= 1.0
+        logger.info(f"Remove 1 gas({gas_key}).")
+
+
 class OTFKMC(ExplorationBase):
     """The class for the on-the-fly KMC simulation."""
 
@@ -237,20 +256,11 @@ class OTFKMC(ExplorationBase):
                 self.logger.error(self._reformat_message(msg))
                 raise AssertionError(msg)
             if isinstance(selected_rxn, Adsorption | Desorption):
-                assert selected_rxn.G is not None, "The gas must be not None."
-                gas_key = selected_rxn.G.get_key_for_metadata()
-                if gas_key not in self.gas_number_dct:
-                    self.gas_number_dct[gas_key] = 0.0
-                    msg = f"Add gas {gas_key} to the gas number dct."
-                    self.logger.info(self._reformat_message(msg))
-                if isinstance(selected_rxn, Adsorption):
-                    self.gas_number_dct[gas_key] += 1.0
-                    msg = f"Add 1 gas({gas_key})."
-                    self.logger.info(self._reformat_message(msg))
-                else:
-                    self.gas_number_dct[gas_key] -= 1.0
-                    msg = f"Remove 1 gas({gas_key})."
-                    self.logger.info(self._reformat_message(msg))
+                update_gas_number(
+                    selected_rxn,
+                    self.gas_number_dct,
+                    self.logger,
+                )
             self.logger.info(
                 f"Apply Rxn {selected_rxn_key} "
                 + f"Successfully, RMSD: {rmsd:.4f}.\n {selected_info}"

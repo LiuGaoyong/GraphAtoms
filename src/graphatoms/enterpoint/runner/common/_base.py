@@ -36,6 +36,135 @@ LOGURU_FORMAT = os.environ["LOGURU_FORMAT"]
 LOGURU_FORMAT_LENGTH = 37
 
 
+def create_logger(config: Config, path: Path) -> Logger:
+    """Create the runner logger for the given output directory."""
+    loglevel = str(config.loglevel).upper()
+    logger = Logger(
+        core=Core(),
+        exception=None,
+        depth=0,
+        record=False,
+        lazy=False,
+        colors=False,
+        raw=False,
+        capture=True,
+        patchers=[],
+        extra={},
+    )
+    logger.add(sys.stderr, level=loglevel, format=LOGURU_FORMAT)
+    outlogfile = config.logfile
+    assert outlogfile is not None
+    logname = Path(str(outlogfile)).name
+    if logname != "-":
+        logger.add(
+            path.joinpath(logname),
+            level=loglevel,
+            format=LOGURU_FORMAT,
+        )
+    return logger
+
+
+def parse_system(
+    config: Config,
+    inp: Atoms | None,
+    logger: Logger,
+) -> System:
+    """Parse a system from the configuration or from an ``Atoms`` object."""
+    if inp is None:
+        try:
+            result: System = hydra_parse(config.system, System)
+        except Exception:
+            atoms = hydra_parse(config.system, Atoms)
+            result = System.from_ase(
+                atoms=atoms,
+                parse_bonds=config.bonds,  # type: ignore
+                parse_atoms_is_outer_or_not=True,
+            )
+        if config.system.get("attach_is_adsorbate", True):
+            result = result.model_copy(
+                update=dict(
+                    is_adsorbate=np.zeros_like(result.is_outer, dtype=bool)
+                ),
+                deep=False,
+            )
+    elif isinstance(inp, Atoms):
+        result = System.from_ase(
+            atoms=inp,
+            parse_bonds=config.bonds,  # type: ignore
+            parse_atoms_is_outer_or_not=True,
+        )
+    else:
+        msg = f"Unknown type of input: {type(inp)}"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    assert isinstance(result, System)
+    assert result.pair is not None
+    assert result.is_outer is not None
+    logger.info(f"Read the system: {result}")
+    return result
+
+
+def find_clusters(
+    config: Config,
+    system: System,
+    gas_lst: list[Gas],
+    logger: Logger | None = None,
+) -> tuple[dict[tuple[bool, int, str], Cluster], float]:
+    """Enumerate the unique clusters of a system for exploration."""
+    oesc = bool(config.exploration.surface_only_explore_single_core)
+    if oesc and len(gas_lst) == 0:
+        max_ncore = 1
+    else:
+        max_ncore = int(config.exploration.max_ncore_for_surface)
+
+    values: list[Cluster] = []
+    keys: list[tuple[bool, int, str]] = []
+    for core in system.get_site_core(max_ncore=max_ncore):  # type: ignore
+        idx_core = np.unique(np.where(core)).astype(int)  # type: ignore
+        values.append(
+            Cluster.from_select(
+                system,
+                idx_core,
+                env_threshold=config.site.env_threshold,
+                max_moved_threshold=config.site.max_moved_threshold,
+                method=config.site.method,
+            )
+        )
+        keys.append((True, len(idx_core), values[-1].hash))
+    if bool(config.exploration.allow_explore_bulk):
+        if system.is_outer is None:
+            msg = "System.is_outer is None."
+            raise ValueError(msg)
+        if system.is_fix is None:
+            is_moved = np.ones_like(system.is_outer, dtype=bool)
+        else:
+            is_moved = np.logical_not(system.is_fix)
+        is_inner = np.logical_not(system.is_outer)
+        mask = np.logical_and(is_inner, is_moved)
+        for idx in np.unique(np.where(mask)).astype(int):
+            values.append(
+                Cluster.from_select(
+                    system,
+                    np.array([idx]),
+                    env_threshold=config.site.env_threshold,
+                    max_moved_threshold=config.site.max_moved_threshold,
+                    method=config.site.method,
+                )
+            )
+            keys.append((False, 1, values[-1].hash))
+
+    _, idxs = np.unique([i.hash for i in values], return_index=True)
+    if logger is not None:
+        logger.info(
+            f"Find {len(values)} cluster for system="
+            f"{system.hash}. And {len(idxs)} unique cluster."
+        )
+    result = {keys[int(id)]: values[int(id)] for id in idxs}
+    energy = np.nan if system.energy is None else system.energy
+    return result, energy
+
+
 class RunnerABC:
     """The base class for all classes.
 
@@ -62,23 +191,7 @@ class RunnerABC:
         outlogfile = str(outlogfile)
 
         # Logger Setting
-        self.logger = log = Logger(
-            core=Core(),
-            exception=None,
-            depth=0,
-            record=False,
-            lazy=False,
-            colors=False,
-            raw=False,
-            capture=True,
-            patchers=[],
-            extra={},
-        )
-        log.add(sys.stderr, level=loglevel, format=LOGURU_FORMAT)
-        logname = Path(outlogfile).name
-        if logname != "-":
-            logfile = self.path.joinpath(logname)
-            log.add(logfile, level=loglevel, format=LOGURU_FORMAT)
+        self.logger = log = create_logger(config, self.path)
 
         # logging directory configuration
         if hydracfg is not None:
@@ -279,43 +392,7 @@ class RunnerABC:
         Returns:
             System: the system object for exploration.
         """
-        if inp is None:
-            # parse system for first step
-            try:
-                result: System = hydra_parse(self.config.system, System)
-            except Exception:
-                atoms = hydra_parse(self.config.system, Atoms)
-                result: System = System.from_ase(
-                    atoms=atoms,
-                    parse_bonds=self.config.bonds,  # type: ignore
-                    parse_atoms_is_outer_or_not=True,
-                )
-            if self.config.system.get("attach_is_adsorbate", True):
-                result = result.model_copy(
-                    update=dict(
-                        is_adsorbate=np.zeros_like(
-                            result.is_outer,
-                            dtype=bool,
-                        )
-                    ),
-                    deep=False,
-                )
-        elif isinstance(inp, Atoms):
-            result: System = System.from_ase(
-                atoms=inp,
-                parse_bonds=self.config.bonds,  # type: ignore
-                parse_atoms_is_outer_or_not=True,
-            )
-        else:
-            msg = f"Unknown type of input: {type(inp)}"
-            self.logger.error(self._reformat_message(msg))
-            raise ValueError(msg)
-
-        assert isinstance(result, System)
-        assert result.pair is not None
-        assert result.is_outer is not None
-        self.logger.info(self._reformat_message(f"Read the system: {result}"))
-        return result
+        return parse_system(self.config, inp, self.logger)
 
     def analysis(
         self,
@@ -370,57 +447,10 @@ class RunnerABC:
                     self.logger.info(self._reformat_message(msg))
                     self.network.write_sysgraph(system, "system")
 
-        oesc = bool(self.config.exploration.surface_only_explore_single_core)
-        if oesc and len(self.gas_lst) == 0:
-            max_ncore = 1
-        else:
-            max_ncore = int(self.config.exploration.max_ncore_for_surface)
-
-        values: list[Cluster] = []
-        keys: list[tuple[bool, int, str]] = []
-        for core in system.get_site_core(max_ncore=max_ncore):  # type: ignore
-            idx_core = np.unique(np.where(core)).astype(int)  # type: ignore
-            values.append(
-                Cluster.from_select(
-                    system,
-                    idx_core,
-                    env_threshold=self.config.site.env_threshold,
-                    max_moved_threshold=self.config.site.max_moved_threshold,
-                    method=self.config.site.method,
-                )
-            )
-            keys.append((True, len(idx_core), values[-1].hash))
-        if bool(self.config.exploration.allow_explore_bulk):
-            if system.is_outer is None:
-                msg = "System.is_outer is None."
-                self.logger.error(self._reformat_message(msg))
-                raise ValueError(msg)
-            if system.is_fix is None:
-                is_moved = np.ones_like(system.is_outer, dtype=bool)
-            else:
-                is_moved = np.logical_not(system.is_fix)
-            is_inner = np.logical_not(system.is_outer)
-            mask = np.logical_and(is_inner, is_moved)
-            for idx in np.unique(np.where(mask)).astype(int):
-                values.append(
-                    Cluster.from_select(
-                        system,
-                        np.array([idx]),
-                        env_threshold=self.config.site.env_threshold,
-                        max_moved_threshold=self.config.site.max_moved_threshold,
-                        method=self.config.site.method,
-                    )
-                )
-                keys.append((False, 1, values[-1].hash))
-
-        # remove duplicate cluster
-        _, idxs = np.unique([i.hash for i in values], return_index=True)
-        self.logger.info(
-            self._reformat_message(
-                f"Find {len(values)} cluster for system="
-                f"{system.hash}. And {len(idxs)} unique cluster."
-            )
+        result, energy = find_clusters(
+            self.config,
+            system,
+            self.gas_lst,
+            self.logger,
         )
-        result = {keys[int(id)]: values[int(id)] for id in idxs}
-        energy = np.nan if system.energy is None else system.energy
         return result, system.get_key_for_metadata(False), energy
