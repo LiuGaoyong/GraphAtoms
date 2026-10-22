@@ -60,7 +60,10 @@ def __helper_vibration(
         fqmin = float(config.event.min_frequency)
     else:
         fqmin = 1.0
-    freq, modes = asetools.call_vib(result_atoms, calc, ignore_fqmin=fqmin)
+    try:
+        freq, modes = asetools.call_vib(result_atoms, calc, ignore_fqmin=fqmin)
+    except Exception as e:
+        raise RuntimeError(f"Failed to run vibration calculation: {e}")
     f: np.ndarray = result_atoms.get_forces(apply_constraint=True)
     result = result.update_energetics(
         energy=result_atoms.get_potential_energy(),
@@ -135,16 +138,26 @@ def helper_optimization(
     # ---------------------------------------------
     #       call optimization
     # ---------------------------------------------
-    lst, coveraged = asetools.call_optimization(
-        atoms=graph.to_ase(
-            exclude_bond_attibutes=True,
-            exclude_energy=True,
-        ).copy(),
-        calc=calc,
-        method=str(config.optimizer.method).upper(),
-        max_steps=int(config.optimizer.steps),
-        fmax=float(config.optimizer.fmax),
-    )
+    try:
+        lst, coveraged = asetools.call_optimization(
+            atoms=graph.to_ase(
+                exclude_bond_attibutes=True,
+                exclude_energy=True,
+            ).copy(),
+            calc=calc,
+            method=str(config.optimizer.method).upper(),
+            max_steps=int(config.optimizer.steps),
+            fmax=float(config.optimizer.fmax),
+        )
+    except Exception as e:
+        msg = f"Failed to run optimization: {e}"
+        if raise_when_fail:
+            raise HelperException(msg)
+        return (
+            msg,
+            (graph_label, []),
+            perf_counter() - start,
+        )
     last_pos: np.ndarray = lst[-1].get_positions()
     if np.any(np.isinf(last_pos)) or np.any(np.isnan(last_pos)):
         e = ValueError("Optimization failed, positions contain inf/nan.")
@@ -313,25 +326,36 @@ def helper_dimer(
     if len(graph.idx_fix) != 0:  # patch for the fixed bonds
         graph_dist = graph.get_hop_distance(graph.idx_fix)
         mask[graph_dist <= 1] = False
-    dimer_lst, coveraged = asetools.call_dimer(
-        atoms=graph.to_ase(
-            exclude_bond_attibutes=True,
-            exclude_energetics=True,
-        ).copy(),
-        calc=calc,
-        # logfile="-",
-        # trajectory="dimer.traj",
-        append_trajectory=False,
-        parse_mask_from_atoms=True,
-        max_steps=int(config.optimizer.steps * 1.5),
-        fmax=float(config.event.max_force) * 0.5,
-        # Eecause dimer use projected force as
-        # criterion, so we use smaller force
-        # threshold to ensure check TS good.
-        displacement=displacement,
-        mask=mask,
-        **kwargs,
-    )
+    try:
+        dimer_lst, coveraged = asetools.call_dimer(
+            atoms=graph.to_ase(
+                exclude_bond_attibutes=True,
+                exclude_energetics=True,
+            ).copy(),
+            calc=calc,
+            # logfile="-",
+            # trajectory="dimer.traj",
+            append_trajectory=False,
+            parse_mask_from_atoms=True,
+            max_steps=int(config.optimizer.steps * 1.5),
+            fmax=float(config.event.max_force) * 0.5,
+            # Eecause dimer use projected force as
+            # criterion, so we use smaller force
+            # threshold to ensure check TS good.
+            displacement=displacement,
+            mask=mask,
+            **kwargs,
+        )
+    except Exception as e:
+        if raise_when_fail:
+            raise e
+        else:
+            return (
+                str(e),
+                (graph_label, []),
+                perf_counter() - start,
+                result_type,
+            )
     last_pos: np.ndarray = dimer_lst[-1].get_positions()
     if np.any(np.isinf(last_pos)) or np.any(np.isnan(last_pos)):
         e = ValueError("Optimization failed, positions contain inf/nan.")
@@ -428,15 +452,18 @@ def helper_dimer(
         atoms = dimer_lst[-1].copy()
         atoms.info.pop("hashes", None)
         atoms.positions += sign * mode
-        opt_lst, coveraged = asetools.call_optimization(
-            atoms=atoms,
-            calc=calc,
-            method=str(config.optimizer.method).upper(),
-            max_steps=int(config.optimizer.steps),
-            fmax=float(config.optimizer.fmax),
-            # trajectory=f"opt_{sign}.traj",
-            # logfile="-",
-        )
+        try:
+            opt_lst, coveraged = asetools.call_optimization(
+                atoms=atoms,
+                calc=calc,
+                method=str(config.optimizer.method).upper(),
+                max_steps=int(config.optimizer.steps),
+                fmax=float(config.optimizer.fmax),
+                # trajectory=f"opt_{sign}.traj",
+                # logfile="-",
+            )
+        except Exception:
+            coveraged = False
         if coveraged:
             product_result = graph.update_geometry(
                 opt_lst[-1].positions,
