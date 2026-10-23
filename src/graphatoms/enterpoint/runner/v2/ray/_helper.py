@@ -168,7 +168,7 @@ class RayNetworkProxy:
     ) -> bool:
         return cast(
             bool,
-            ray.get(self.__network.get_use_position_uuid.remote(k)),
+            ray.get(self.__network.get_use_position_uuid.remote(k)),  # type: ignore
         )
 
     def object_has_been_optimized(
@@ -177,7 +177,7 @@ class RayNetworkProxy:
     ) -> SysGraph | None:
         return cast(
             SysGraph | None,
-            ray.get(self.__network.object_has_been_optimized.remote(graph)),
+            ray.get(self.__network.object_has_been_optimized.remote(graph)),  # type: ignore
         )
 
     def exploration_can_be_finished(
@@ -191,7 +191,7 @@ class RayNetworkProxy:
         return cast(
             bool,
             ray.get(
-                self.__network.exploration_can_be_finished.remote(
+                self.__network.exploration_can_be_finished.remote(  # type: ignore
                     confidence,
                     *args,
                     cluster_key=cluster_key,
@@ -212,7 +212,7 @@ class RayNetworkProxy:
         return cast(
             tuple[bool, float],
             ray.get(
-                self.__network.exploration_can_be_skipped.remote(
+                self.__network.exploration_can_be_skipped.remote(  # type: ignore
                     thetacutoff,
                     diffpositions,
                     *args,

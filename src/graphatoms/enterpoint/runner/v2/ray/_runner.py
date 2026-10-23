@@ -112,11 +112,11 @@ class RayRunnerBase:
                         deep_copy=True,
                     )
                 )
-                if result.result is None:
+                if result.result is None:  # type: ignore
                     msg = f"Failed to optimize gas({gas_name})."
                     self.logger.error(msg)
                     raise ValueError(msg)
-                gas = result.result
+                gas = result.result  # type: ignore
                 actor_call(
                     self._actor,
                     "write_sysgraph",
@@ -125,7 +125,7 @@ class RayRunnerBase:
                 )
                 self.logger.info(
                     f"Optimized gas({gas_name}) in "
-                    f"{result.cost_time or 0.0:.2f} seconds."
+                    f"{result.cost_time or 0.0:.2f} seconds."  # type: ignore
                 )
             self._gas_lst.append(gas)
             p = self.config.initial_gas_pressure.get(gas_name, 0.0)
@@ -223,17 +223,17 @@ class RayRunnerBase:
                     deep_copy=True,
                 )
             )
-            if result.result is None:
-                self.logger.warning(result.message)
+            if result.result is None:  # type: ignore
+                self.logger.warning(result.message)  # type: ignore
                 self.logger.info(
                     f"Optimization system({sys_k}) failed. skip it."
                 )
                 return {}, "", np.nan
-            if not isinstance(result.result, System):
-                msg = f"Unknown type of output: {type(result.result)}"
+            if not isinstance(result.result, System):  # type: ignore
+                msg = f"Unknown type of output: {type(result.result)}"  # type: ignore
                 self.logger.error(msg)
                 raise ValueError(msg)
-            system = result.result
+            system = result.result  # type: ignore
             actor_call(self._actor, "write_sysgraph", system, "system")
             self.logger.info(
                 f"Optimization system({sys_k}) successfully. E={system.energy}"
@@ -255,7 +255,7 @@ class RayRunnerBase:
         try:
             actor_call(self._actor, "persistence")
         finally:
-            ray.kill(self._actor, no_restart=True)
+            ray.kill(self._actor, no_restart=True)  # type: ignore
 
     def run(self) -> None:
         raise NotImplementedError
