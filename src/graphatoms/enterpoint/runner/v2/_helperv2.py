@@ -6,7 +6,7 @@ They also check whether the calculation is necessary and output logger.
 
 import dataclasses as dc
 from io import StringIO
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import numpy as np
 from ase import Atoms
@@ -22,11 +22,12 @@ from graphatoms.enterpoint.runner.common._base import (
     Logger,
 )
 from graphatoms.reaction import Adsorption, Desorption, Reaction
-from graphatoms.system import Cluster, Gas, System
+from graphatoms.system import Cluster, Gas, SysGraph, System
 from graphatoms.utils.asetools import call_dimer_displace
 from graphatoms.utils.parser import hydra_parse
 
 __all__ = [
+    "NetworkLike",
     "helper_dimer",
     "helper_adsorption",
     "helper_optimization",
@@ -35,6 +36,54 @@ __all__ = [
     "HelperDimerResult",
     "HelperResult",
 ]
+
+
+class NetworkLike(Protocol):
+    """The subset of :class:`ReactionNetwork` used by the helpers.
+
+    The ray runner injects a proxy that forwards these calls to a
+    ``ReactionNetwork`` ray actor, so the helpers can be shared between the
+    local and the distributed execution modes.
+    """
+
+    def get_use_position_uuid(
+        self,
+        k: str | Cluster | Gas | System,
+    ) -> bool: ...
+
+    def object_has_been_optimized(
+        self,
+        graph: Cluster | Gas | System,
+    ) -> SysGraph | None: ...
+
+    def exploration_can_be_finished(
+        self,
+        confidence: float,
+        *args,
+        cluster_key: str,
+        gas_key: str | None = None,
+        **kwargs,
+    ) -> bool: ...
+
+    def exploration_can_be_skipped(
+        self,
+        thetacutoff: float,
+        diffpositions: np.ndarray,
+        *args,
+        cluster_key: str | None,
+        **kwargs,
+    ) -> tuple[bool, float]: ...
+
+    def reformat_message(self, msg: str) -> str: ...
+
+
+def _get_network(
+    config: Config,
+    network: NetworkLike | None,
+) -> NetworkLike:
+    if network is not None:
+        return network
+    return ReactionNetwork.from_config(config, restart=True, remote_mode=True)
 
 
 @dc.dataclass
@@ -57,6 +106,7 @@ def helper_optimization(
     allow_not_connected: bool = False,
     run_vibration: bool = True,
     deep_copy: bool = True,
+    network: NetworkLike | None = None,
     **kwargs,
 ) -> HelperOptimizationResult:
     """Optimize the input graph, analyze its vibrations and check it.
@@ -71,7 +121,7 @@ def helper_optimization(
     assert isinstance(graph, Cluster | Gas | System), (
         "The `graph` must be a Cluster, Gas, or System."
     )
-    log_container, logger, network = (
+    log_container, logger = (
         StringIO(),
         Logger(
             core=Core(),
@@ -85,8 +135,8 @@ def helper_optimization(
             patchers=[],
             extra={},
         ),
-        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
     )
+    network = _get_network(config, network)
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
 
     # --------------------------------------------
@@ -175,6 +225,7 @@ def helper_dimer(
     allow_desorption: bool | Literal["all", "input"] = "all",
     allow_metal_element_in_gas: bool = False,
     deep_copy: bool = True,
+    network: NetworkLike | None = None,
     **kwargs,
 ) -> HelperDimerResult:
     """Dimer search for transition state.
@@ -193,7 +244,7 @@ def helper_dimer(
         deep_copy: Whether to deep copy the optimized graph.
     """
     assert isinstance(cluster, Cluster), "The `cluster` must be a Cluster."
-    log_container, logger, network = (
+    log_container, logger = (
         StringIO(),
         Logger(
             core=Core(),
@@ -207,8 +258,8 @@ def helper_dimer(
             patchers=[],
             extra={},
         ),
-        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
     )
+    network = _get_network(config, network)
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
 
     # -----------------------------------------------------------
@@ -333,10 +384,11 @@ def helper_adsorption(
     initial_atoms: Atoms | None = None,
     allow_fixed_atoms_adsorption: bool = False,
     deep_copy: bool = True,
+    network: NetworkLike | None = None,
     **kwargs,
 ) -> HelperAdsorptionResult:
     """Helper function for adsorption process."""
-    log_container, logger, network = (
+    log_container, logger = (
         StringIO(),
         Logger(
             core=Core(),
@@ -350,8 +402,8 @@ def helper_adsorption(
             patchers=[],
             extra={},
         ),
-        ReactionNetwork.from_config(config, restart=True, remote_mode=True),
     )
+    network = _get_network(config, network)
     logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
     cluster_key = graph.get_key_for_metadata(False)
     gas_key = gas.get_key_for_metadata(False)
@@ -425,3 +477,167 @@ def helper_adsorption(
             for_cluster=cluster_key,
             for_gas=gas_key,
         )
+
+
+# ============================================================
+# Pure-compute counterparts used by the Ray task layer.
+# They never construct a ReactionNetwork; the Ray tasks perform
+# the network checks and writes through the actor.
+# ============================================================
+def _new_helper_logger():
+    log_container = StringIO()
+    logger = Logger(
+        core=Core(),
+        exception=None,
+        depth=0,
+        record=False,
+        lazy=False,
+        colors=False,
+        raw=False,
+        capture=True,
+        patchers=[],
+        extra={},
+    )
+    logger.add(log_container, level="DEBUG", format=LOGURU_FORMAT)
+    return log_container, logger
+
+
+def compute_optimization(
+    config: Config,
+    graph: Cluster | Gas | System,
+    graph_label: str,
+    *,
+    allow_hash_change: bool = False,
+    allow_not_connected: bool = False,
+    run_vibration: bool = True,
+    deep_copy: bool = True,
+) -> HelperOptimizationResult:
+    """Optimize a graph without touching the reaction network."""
+    _, logger = _new_helper_logger()
+    result, label, cost_time = funcs.helper_optimization(
+        graph=graph,
+        config=config,
+        graph_label=graph_label,
+        allow_hash_change=allow_hash_change,
+        allow_not_connected=allow_not_connected,
+        run_vibration=run_vibration,
+        raise_when_fail=False,
+        deep_copy=deep_copy,
+    )
+    if isinstance(result, Gas | Cluster | System):
+        msg = f"CostTime={cost_time:.2f} for "
+        msg += f"Optimization (success) for {label}({result})."
+        logger.info(msg)
+        return HelperOptimizationResult(
+            result=result,
+            message=msg,
+            cost_time=cost_time,
+        )
+    elif isinstance(result, str):
+        msg = f"CostTime={cost_time:.2f} for optimization failure: {result}"
+        logger.error(msg)
+        return HelperOptimizationResult(
+            result=None,
+            message=msg,
+            cost_time=cost_time,
+        )
+    msg = f"Unknown type of result for optimization: {type(result)}."
+    logger.error(msg)
+    return HelperOptimizationResult(
+        result=None,
+        message=msg,
+        cost_time=cost_time,
+    )
+
+
+def compute_dimer(
+    config: Config,
+    cluster: Cluster,
+    cluster_key: str,
+    *,
+    displacement: np.ndarray | None = None,
+    allow_fixed_bonds_change: bool = False,
+    allow_desorption: bool | Literal["all", "input"] = "all",
+    allow_metal_element_in_gas: bool = False,
+    deep_copy: bool = True,
+) -> HelperDimerResult:
+    """Run the dimer search without touching the reaction network."""
+    _, logger = _new_helper_logger()
+    rxn_or_msg, (_, lst), cost_time, _ = funcs.helper_dimer(
+        config=config,
+        graph=cluster,
+        graph_label=cluster_key,
+        allow_fixed_bonds_change=allow_fixed_bonds_change,
+        allow_metal_element_in_gas=allow_metal_element_in_gas,
+        allow_desorption=allow_desorption,
+        displacement=displacement,
+        raise_when_fail=False,
+        deep_copy=deep_copy,
+    )
+    arr = np.array([a.positions for a in lst])
+    if isinstance(rxn_or_msg, str):
+        msg = f"Dimer search for {cluster_key} failed by "
+        msg += f"{cost_time:.2f} seconds because of {rxn_or_msg}"
+        logger.error(msg)
+        return HelperDimerResult(
+            result=None,
+            message=msg,
+            is_failed=True,
+            displacement_trajectory=arr,
+            for_cluster=cluster_key,
+            cost_time=cost_time,
+        )
+    msg = f"Dimer search for {cluster_key} successfully, and"
+    msg += f" got {rxn_or_msg} by {cost_time:.2f} seconds."
+    logger.info(msg)
+    return HelperDimerResult(
+        result=rxn_or_msg,
+        message=msg,
+        displacement_trajectory=arr,
+        for_cluster=cluster_key,
+        cost_time=cost_time,
+    )
+
+
+def compute_adsorption(
+    gas: Gas,
+    config: Config,
+    graph: Cluster | System,
+    cluster_key: str,
+    gas_key: str,
+    *,
+    initial_atoms: Atoms | None = None,
+    allow_fixed_atoms_adsorption: bool = False,
+    deep_copy: bool = True,
+) -> HelperAdsorptionResult:
+    """Run the adsorption search without touching the reaction network."""
+    _, logger = _new_helper_logger()
+    rxn_or_msg, _, cost_time, _ = funcs.helper_adsorption(
+        gas=gas,
+        graph=graph,
+        config=config,
+        initial_atoms=initial_atoms,
+        graph_label=f"{cluster_key}_{gas_key}",
+        allow_fixed_atoms_adsorption=allow_fixed_atoms_adsorption,
+        allow_hash_change=True,
+        raise_when_fail=False,
+        deep_copy=deep_copy,
+    )
+    msg = f"Adsorption search {cluster_key} with {gas_key} " + r"{}"
+    msg += f" by {cost_time:.2f} seconds because of {rxn_or_msg}"
+    if isinstance(rxn_or_msg, str):
+        msg = msg.format("failed")
+        logger.error(msg)
+        return HelperAdsorptionResult(
+            result=None,
+            message=msg,
+            for_cluster=cluster_key,
+            for_gas=gas_key,
+        )
+    msg = msg.format("successfully")
+    return HelperAdsorptionResult(
+        result=rxn_or_msg,
+        message=msg,
+        for_cluster=cluster_key,
+        for_gas=gas_key,
+    )

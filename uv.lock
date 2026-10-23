@@ -874,6 +874,11 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 
+[package.optional-dependencies]
+ray = [
+    { name = "ray" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "array-api-strict" },
@@ -907,6 +912,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pymatgen", specifier = ">2023.6" },
     { name = "python-snappy", specifier = ">=0.7.3" },
+    { name = "ray", marker = "extra == 'ray'", specifier = ">=2.9" },
     { name = "rdkit", specifier = ">=2025" },
     { name = "scikit-learn", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.10,<2" },
@@ -915,6 +921,7 @@ requires-dist = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
+provides-extras = ["ray"]
 
 [package.metadata.requires-dev]
 dev = [

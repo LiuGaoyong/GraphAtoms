@@ -1,5 +1,6 @@
 from ase import Atoms
 
+from graphatoms.enterpoint.config import Config
 from graphatoms.enterpoint.parallel import executor_map
 from graphatoms.enterpoint.runner.general._expl import ExplorationBase as _Base
 from graphatoms.enterpoint.runner.v2._helperv2 import (
@@ -10,6 +11,30 @@ from graphatoms.enterpoint.runner.v2._helperv2 import (
     helper_dimer,
 )
 from graphatoms.system import Cluster, System
+
+
+def classify_clusters(
+    config: Config,
+    dct: dict[tuple[bool, int, str], Cluster],
+) -> tuple[list[Cluster], list[Cluster], list[Cluster]]:
+    """Split the clusters into bulk, surface and adsorption groups."""
+    ncore_4_adspt = int(config.exploration.max_ncore_for_surface)
+    if bool(config.exploration.surface_only_explore_single_core):
+        ncore_4_surface = 1
+    else:
+        ncore_4_surface = ncore_4_adspt
+    lst_4bulk: list[Cluster] = []
+    lst_4surface: list[Cluster] = []
+    lst_4adsorption: list[Cluster] = []
+    for (is_surface, ncore, _), v in dct.items():
+        if is_surface:
+            if ncore <= ncore_4_surface:
+                lst_4surface.append(v)
+            if ncore <= ncore_4_adspt:
+                lst_4adsorption.append(v)
+        else:
+            lst_4bulk.append(v)
+    return lst_4bulk, lst_4surface, lst_4adsorption
 
 
 class ExplorationBase(_Base):
@@ -99,23 +124,11 @@ class ExplorationBase(_Base):
             return False, energy, []
 
         # 2 step: exploration (only submit)
-        ncore_4_adspt = int(self.config.exploration.max_ncore_for_surface)
-        if bool(self.config.exploration.surface_only_explore_single_core):
-            ncore_4_surface = 1
-        else:
-            ncore_4_surface = ncore_4_adspt
         # 2.1 group the clusters ... ...
-        lst_4bulk: list[Cluster] = []
-        lst_4surface: list[Cluster] = []
-        lst_4adsorption: list[Cluster] = []
-        for (is_surface, ncore, _), v in dct.items():  # type: ignore
-            if is_surface:
-                if ncore <= ncore_4_surface:
-                    lst_4surface.append(v)
-                if ncore <= ncore_4_adspt:
-                    lst_4adsorption.append(v)
-            else:
-                lst_4bulk.append(v)
+        lst_4bulk, lst_4surface, lst_4adsorption = classify_clusters(
+            self.config,
+            dct,
+        )
         msg = f"The system {system_key} will be explored"
         msg += f" with {len(lst_4bulk)}-bulk,{len(lst_4adsorption)}"
         msg += f"-adsorption,{len(lst_4surface)}-surface."
