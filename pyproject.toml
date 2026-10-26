@@ -36,19 +36,18 @@ dependencies = [
     "ase",
     "pymatgen>2023.6",
     "rdkit>=2025",
-
     # Scientific Computing
     "numpy>=2,<3",
     "scipy>=1.10,<2",
     "scikit-learn>=1.5",
     "array-api-compat>=1.10",
     "array_api-extra>=0.10",
+    "sqlalchemy",
+    "sqlmodel",
     "pyarrow",
     "pandas",
-
     # Graph Theory
     "igraph>=0.11", # high performance graph library based on C
-
     # Data Model
     "h5py>=3.16",
     "numpydantic",
@@ -58,7 +57,6 @@ dependencies = [
     "tomli; python_version < '3.11'", # use tomllib in python>=3.11
     "tomli-w",                        # TOML writer
     "typing-extensions",
-
     # Other
     "joblib",
     "executorlib",
@@ -171,3 +169,5 @@ pytest-xdist = ">=3.8.0"
 executorlib = ">=1.8"
 typer = ">=0.20"
 grpcio = ">=1.52.0"
+sqlalchemy = ">=1"
+sqlmodel = ">=0"
