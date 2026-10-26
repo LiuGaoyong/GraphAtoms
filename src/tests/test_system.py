@@ -85,11 +85,11 @@ class Test_ContainerBasic:
         atoms = molecule("C6H6")
         lst = list(range(len(atoms)))
         gas = Gas.from_ase(Atoms([atoms[i] for i in lst]), pressure=101325)
-        data0 = (gas.hash, gas.smiles)
+        data0 = (gas.hash, gas.smiles, gas.get_canonical_key("bliss"))
         random.shuffle(lst)
         gas = Gas.from_ase(Atoms([atoms[i] for i in lst]), pressure=101325)
         print(gas.hash)
-        data1 = (gas.hash, gas.smiles)
+        data1 = (gas.hash, gas.smiles, gas.get_canonical_key("bliss"))
         assert data0 == data1, f"{data0} != {data1}"
 
 
