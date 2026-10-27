@@ -1,4 +1,0 @@
-defaults:
-  - calc_emt
-
-_target_: ase.calculators.emt.EMT
