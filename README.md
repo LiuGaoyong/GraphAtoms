@@ -6,25 +6,23 @@ The Chemical Core Class for Graph Theory Analysis.
 
 ## Overview
 
-The `graphatoms` is a Python library designed for chemical graph theory analysis. It provides core classes for representing chemical systems and reactions with graph-based data structures.
+The `graphatoms` is a Python library designed for chemical graph theory analysis. It provides core classes for representing chemical systems with graph-based data structures.
+
+> **Note**: The application layer — `enterpoint` (CLI, configuration, reaction
+> network, runners and parallel executors), `reaction` (reaction/KMC event
+> classes) and the runnable examples — has moved to
+> [RxNetGen](https://github.com/LiuGaoyong/RxNetGen).  This package now focuses
+> on the chemical core: `arrayapi`, `dataclasses`, `geometry`, `system` and
+> `utils`.
 
 ## Features
 
 - **Graph-based Chemical System Representation**: Represent chemical systems, clusters, and gas molecules using graph theory
-- **Reaction Modeling**: Support for reaction classes, KMC (Kinetic Monte Carlo) events, and MC (Monte Carlo) moves
 - **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), and sampling
 - **Data Storage**: Support for HDF5 and SQLite databases for efficient data persistence
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
 - **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
 - **Subgraph Operations**: Backend-agnostic subgraph extraction with relabeling support using array-api-compat and array-api-extra
-- **CLI Entry Points**: Three console scripts for configuration, execution, and inspection:
-  - `graphatoms-config`: Resolve and print the Hydra/OmegaConf run configuration
-  - `graphatoms-run`: Launch a run
-    - `run_type=otfkmc` for on-the-fly kinetic Monte Carlo simulation
-    - `run_type=rxngen` for reaction network generation
-  - `graphatoms-network`: Inspect and visualize a stored reaction network
-- **Hydra-driven Configuration**: Composable, override-friendly config via Hydra/OmegaConf with grouped groups (`atoms`, `bonds`, `calculator`)
-- **Pluggable Parallel Backends**: Switch executors at the config level — `serial`, `multiprocessing`, `ray`, `dask`, `executorlib` — for distributed/on-the-fly KMC workflows
 
 ## Module Structure
 
@@ -32,18 +30,7 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 src/graphatoms/
 ├── arrayapi/        # Array API compatibility layer
 ├── dataclasses/     # Pydantic-based data models
-├── enterpoint/      # Entry points: CLI, config, runners, network, parallel
-│   ├── config/      # Hydra/OmegaConf configuration (atoms, bonds, calculator)
-│   ├── network/     # Reaction network: scheduler, recorder, metadata
-│   ├── parallel/    # Pluggable executors (serial, multiprocessing, ray, dask, executorlib)
-│   ├── runner/      # Runners (otfkmc, rxngen) and helpers
-│   ├── steps/       # Step primitives for runners
-│   └── view.py      # CLI viewer for reactions
 ├── geometry/        # Geometric operations
-├── reaction/        # Reaction classes and KMC events
-│   ├── _event.py    # Event base and event info
-│   ├── reaction.py  # Reaction class
-│   └── xxsorption.py # Adsorption/Desorption events
 ├── system/          # Core system classes
 │   ├── atoms.py     # Atomic structure handling
 │   ├── bonds.py     # Bond list operations

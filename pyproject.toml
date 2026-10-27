@@ -6,10 +6,6 @@ build-backend = "uv_build"
 Homepage = "https://github.com/LiuGaoyong/GraphAtoms"
 Repository = "https://github.com/LiuGaoyong/GraphAtoms"
 Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
-[project.scripts]
-graphatoms-config = "graphatoms.enterpoint.config:print_config"
-graphatoms-network = "graphatoms.enterpoint.network:main"
-graphatoms-run = "graphatoms.enterpoint.runner:run"
 [project]
 name = "graphatoms"
 version = "2.3.3"
