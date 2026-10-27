@@ -6,13 +6,9 @@ build-backend = "uv_build"
 Homepage = "https://github.com/LiuGaoyong/GraphAtoms"
 Repository = "https://github.com/LiuGaoyong/GraphAtoms"
 Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
-[project.scripts]
-graphatoms-config = "graphatoms.enterpoint.config:print_config"
-graphatoms-network = "graphatoms.enterpoint.network:main"
-graphatoms-run = "graphatoms.enterpoint.runner:run"
 [project]
 name = "graphatoms"
-version = "2.3.3"
+version = "3.0.0"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -32,12 +28,9 @@ classifiers = [
     "Intended Audience :: Science/Research",
 ]
 dependencies = [
-    # Chemoinformatics
     "ase",
     "pymatgen>2023.6",
     "rdkit>=2025",
-
-    # Scientific Computing
     "numpy>=2,<3",
     "scipy>=1.10,<2",
     "scikit-learn>=1.5",
@@ -45,31 +38,21 @@ dependencies = [
     "array_api-extra>=0.10",
     "pyarrow",
     "pandas",
-
-    # Graph Theory
-    "igraph>=0.11", # high performance graph library based on C
-
-    # Data Model
+    "igraph>=0.11",
     "h5py>=3.16",
     "numpydantic",
-    "ovld",                           # singledispatch
     "pydantic>=2.10",
-    "python-snappy>=0.7.3",           # More Fase Data Compression
-    "tomli; python_version < '3.11'", # use tomllib in python>=3.11
-    "tomli-w",                        # TOML writer
+    "tomli; python_version < '3.11'",   # use tomllib in python>=3.11
+    "tomli-w",                          # TOML writer
+    "pyyaml>=6.0",                      # YAML parser
+    "hydra-core>=1.1",                # Hydra config parser
     "typing-extensions",
-
-    # Other
-    "joblib",
-    "executorlib",
-    "hydra-core",
-    "typer",
-    "loguru",
 ]
+
 [dependency-groups]
 dev = [
     "ruff>=0.11",
-    "openbabel-wheel",
+    "python-snappy>=0.7.3",           # More Fase Data Compression
     "array-api-strict",
     "pytest>=8.3",
     "pytest-xdist",
@@ -77,16 +60,14 @@ dev = [
     "chemiscope",
     # "playwright>=1.52", # chemiscope [headless]
     "nglview",
-    "grpcio",
-    "ray",
 ]
 
 # uv config
 [tool.uv]
 package = true
 [[tool.uv.index]]
-# url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
-url = "https://mirrors.nju.edu.cn/pypi/web/simple" # NJU
+url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
+# url = "https://mirrors.nju.edu.cn/pypi/web/simple" # NJU
 default = true
 # [[tool.uv.index]]
 # name = "pytorch-cpu"
@@ -161,13 +142,12 @@ pydantic = ">=2.10.0"
 numpydantic = ">=1.8.1"
 python-snappy = ">=0.7.3"
 h5py = ">=3.16"
-hydra-core = ">=1.3.0"
 tomli-w = ">=1.2.0"
-loguru = ">=0.7.3"
 jupyterlab = ">=4.5.8"
-joblib = ">=1.1.0"
-ovld = ">=0.5.15"
 pytest-xdist = ">=3.8.0"
-executorlib = ">=1.8"
-typer = ">=0.20"
-grpcio = ">=1.52.0"
+nglview = ">=0.14.0"
+ruff = ">=0.11"
+chemiscope = ">=0.1.0"
+pyyaml = ">=6.0"
+hydra-core = ">=1.1"
+typing-extensions = ">=4.12.0"

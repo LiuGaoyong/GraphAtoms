@@ -188,7 +188,10 @@ class Cluster(SysGraph):
             is_core: np.ndarray = movefixtag == 0
             is_fix: np.ndarray = movefixtag < 0
             if "is_fix" in dct:
-                is_fix = np.logical_not(is_fix, dct["is_fix"])
+                # the atoms fixed by the system are still fixed in the
+                # cluster.  (Note: `np.logical_not(x, out)` would invert the
+                # tag and even overwrite the `is_fix` of the system.)
+                is_fix = np.logical_or(is_fix, dct["is_fix"])
             dct.update({"is_core": is_core, "is_fix": is_fix})
         return dct
 

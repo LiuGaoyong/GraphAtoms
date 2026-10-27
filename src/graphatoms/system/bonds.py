@@ -110,8 +110,12 @@ class BondGraph(Matter, OurFrozenModel):
         cn = np.char.mod("%d-", self.CN)
         return np.char.add(z, cn)
 
-    def get_igcolor(self) -> np.ndarray:
-        return self.__COLOR
+    def get_igcolor(self, return_str: bool = False) -> np.ndarray:
+        """Get the igraph color array (string or int)."""
+        if return_str:
+            return self.__COLOR
+        else:
+            return self.CN * 200 + self.numbers
 
     def get_igraph(self) -> IGraph:
         """Return the igraph object which only edges included."""
@@ -371,18 +375,33 @@ class BondGraph(Matter, OurFrozenModel):
         assert self.hashes is not None
         return self.hashes
 
+    def get_canonical_key(
+        self,
+        method: Literal["bliss", "weisfeiler_lehman"] | str = "bliss",
+    ) -> str:
+        """Return the canonical key for the system."""
+        if method == "weisfeiler_lehman":
+            return hash_string(
+                ",".join(
+                    sorted(
+                        self.hashes
+                        if self.hashes is not None
+                        else self.get_weisfeiler_lehman_hashes()
+                    )
+                )
+            )
+        elif method == "bliss":
+            colors = self.get_igcolor(return_str=False)
+            return canonical_key(self.__IGRAPH.copy(), colors)
+        else:
+            raise ValueError(
+                f"Unknown method for `get_canonical_key`: {method}"
+            )
+
     @cached_property
     @override
     def hash(self) -> str:
-        return hash_string(
-            ",".join(
-                sorted(
-                    self.hashes
-                    if self.hashes is not None
-                    else self.get_weisfeiler_lehman_hashes()
-                )
-            )
-        )
+        return self.get_canonical_key(method="weisfeiler_lehman")
 
     ###################################################
     # from/to RDKit
@@ -618,3 +637,32 @@ def matchmode2nmatch(matchmode: np.ndarray) -> int:
     if np.issubdtype(s.dtype, np.floating):
         eq |= np.isnan(s[1:]) & np.isnan(s[:-1])
     return int((1 + (~eq).sum(axis=0)).max())
+
+
+def canonical_key(g: IGraph, colors: list[int] | np.ndarray) -> str:
+    perm = np.asarray(g.canonical_permutation(color=colors))
+    gc = g.permute_vertices(perm.tolist())
+    n = gc.vcount()
+    nbits = n * (n - 1) // 2
+    bits = np.zeros(nbits, dtype=np.uint8)
+    edges = np.asarray(gc.get_edgelist(), dtype=np.int64)
+    if edges.size:
+        i = edges[:, 0]
+        j = edges[:, 1]
+        lo = np.minimum(i, j)
+        hi = np.maximum(i, j)
+        idx = lo * n - lo * (lo + 1) // 2 + (hi - lo - 1)
+        bits[idx] = 1
+    packed = np.packbits(bits, bitorder="little").tobytes()
+    cnew = np.asarray(colors[perm], dtype=int)
+    payload = packed + cnew.tobytes()
+    return hash_string(payload)
+
+
+if __name__ == "__main__":
+    g = IGraph(5, [(0, 1), (1, 2), (2, 3), (3, 4)])
+    colors = np.asarray(list(range(5)))
+    perm = [2, 0, 4, 1, 3]
+    g2 = g.permute_vertices(perm)
+    colors2 = colors[perm]
+    print(canonical_key(g, colors), canonical_key(g2, colors2))

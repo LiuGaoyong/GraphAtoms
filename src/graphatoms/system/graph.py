@@ -2,7 +2,7 @@ import json
 from abc import abstractmethod
 from collections.abc import Mapping, Sequence
 from functools import cached_property, reduce
-from typing import Annotated, Any, Self, override
+from typing import Annotated, Any, Literal, Self, override
 
 import numpy as np
 from ase import Atoms
@@ -17,8 +17,13 @@ from scipy import sparse as sp
 from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
 from graphatoms.geometry import bond_list
 from graphatoms.geometry._inner_outer import check_atom_is_inner
+from graphatoms.geometry.itlee import (
+    ITLIEEResult,
+    itlee_check_permutation,
+    itlee_equiv,
+)
 from graphatoms.system.atoms import Box, Energetics, Matter, Structure
-from graphatoms.system.bonds import BondGraph, _subgraph_edges
+from graphatoms.system.bonds import BondGraph, _subgraph_edges, matchmode2nmatch
 from graphatoms.utils import rdutils
 from graphatoms.utils.bytestool import hash_string
 
@@ -147,6 +152,148 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
         lst.append(AtomTag._string(self))
         return ",".join(lst)
 
+    ###################################################
+    #               Equivalence helpers
+    ###################################################
+    def get_itlee_colors(
+        self,
+        *,
+        fields: tuple[str, ...] = (
+            "numbers",
+            "is_core",
+            "is_fix",
+            "is_adsorbate",
+        ),
+    ) -> np.ndarray:
+        """Return composite colors used by the ITLEE matcher.
+
+        Missing optional fields are skipped.  Callers comparing two
+        objects should pass the same ``fields`` tuple to both sides.
+        """
+        columns: list[np.ndarray] = []
+        for field in fields:
+            value = getattr(self, field, None)
+            if value is None:
+                continue
+            array = np.asarray(value)
+            if array.ndim != 1 or len(array) != self.natoms:
+                raise ValueError(
+                    f"Field {field!r} has invalid shape {array.shape}."
+                )
+            columns.append(np.asarray(array, dtype=str))
+        if not columns:
+            return np.zeros(self.natoms, dtype=str)
+        return np.asarray(
+            ["|".join(items) for items in zip(*columns, strict=True)]
+        )
+
+    def get_itlee_equiv(
+        self,
+        other: "SysGraph",
+        tolerance: float,
+        *,
+        other_tolerance: float | None = None,
+        fields: tuple[str, ...] = ("numbers",),
+        allow_reflection: bool = False,
+        max_branches: int = 200_000,
+    ) -> ITLIEEResult | None:
+        """Return the ITLEE result if ``self`` and ``other`` are equivalent.
+
+        Both objects must have the same number of atoms.  The effective
+        tolerance is ``min(tolerance, other_tolerance)`` when
+        ``other_tolerance`` is provided, following Williams (2024).
+        """
+        if not isinstance(other, SysGraph):
+            return None
+        if len(self) != len(other):
+            return None
+        delta = (
+            float(tolerance)
+            if other_tolerance is None
+            else min(float(tolerance), float(other_tolerance))
+        )
+        if delta <= 0:
+            raise ValueError("tolerance must be positive.")
+        return itlee_equiv(
+            self.positions,
+            other.positions,
+            delta,
+            ref_colors=self.get_itlee_colors(fields=fields),
+            cur_colors=other.get_itlee_colors(fields=fields),
+            allow_reflection=allow_reflection,
+            max_branches=max_branches,
+        )
+
+    def is_equivalent(
+        self,
+        other: "SysGraph",
+        *,
+        method: Literal["graph", "itlee"] = "graph",
+        tolerance: float | None = None,
+        other_tolerance: float | None = None,
+        use_hash_bucket: bool = True,
+        fields: tuple[str, ...] = ("numbers",),
+        allow_reflection: bool = False,
+        verify_graph: bool = True,
+        max_branches: int = 200_000,
+    ) -> bool:
+        """Check equivalence using either graph topology or ITLEE.
+
+        ``method="graph"`` compares the coloured bond graph.  The graph
+        hash is used as a fast necessary-condition veto, not as the
+        equality criterion; when ``verify_graph`` is True an igraph
+        isomorphism check gives the final answer.
+
+        ``method="itlee"`` compares equal-sized coloured point clouds with
+        the ITLEE L2 criterion.  It never compares objects of different
+        sizes; use :meth:`BondGraph.get_match_mode` for pattern-to-system
+        matching.
+        """
+        if not isinstance(other, SysGraph):
+            return False
+        if len(self) != len(other):
+            return False
+        if not np.array_equal(np.sort(self.numbers), np.sort(other.numbers)):
+            return False
+
+        if method == "graph":
+            if use_hash_bucket and self.hash != other.hash:
+                return False
+            if not verify_graph:
+                return True
+            if self.coordination is not None and other.coordination is not None:
+                color1 = np.vectorize(hash)(self.get_igcolor())
+                color2 = np.vectorize(hash)(other.get_igcolor())
+            else:
+                color1, color2 = self.numbers, other.numbers
+            return bool(
+                self.get_igraph().isomorphic_vf2(
+                    other.get_igraph(),
+                    color1=color1,
+                    color2=color2,
+                )
+            )
+        elif method == "itlee":
+            if tolerance is None:
+                raise ValueError(
+                    "method='itlee' requires a positive tolerance."
+                )
+            if use_hash_bucket and self.hash != other.hash:
+                return False
+            return (
+                self.get_itlee_equiv(
+                    other,
+                    tolerance,
+                    other_tolerance=other_tolerance,
+                    fields=fields,
+                    allow_reflection=allow_reflection,
+                    max_branches=max_branches,
+                )
+                is not None
+            )
+        else:
+            raise ValueError(f"Unknown equivalence method: {method!r}.")
+
     @cached_property
     def smarts(self) -> str:
         """Get the SMILES string of this object."""
@@ -197,6 +344,96 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
             return f"{fml}-{self.hash}-{hash_string(pos_str)}"
         else:
             return f"{fml}-{self.hash}"
+
+    @override
+    def get_match_mode(  # type: ignore
+        self,
+        pattern: "SysGraph",
+        algorithm: Literal["lad", "vf2"] = "lad",
+        return_match_target: bool = True,
+        only_number_color: bool = False,
+        only_count: bool = False,
+        *,
+        use_itlee: bool = False,
+        tolerance: float | None = None,
+        other_tolerance: float | None = None,
+        verify_exact: bool = True,
+        relax_coordination: bool = True,
+        allow_reflection: bool = False,
+        return_metrics: bool = False,
+        max_branches: int = 200_000,
+    ) -> int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+        """Match two pattern by subisomorphisms algorithm.
+
+        Args:
+            pattern (AtomsPattern): the target pattern(small).
+            algorithm (Literal["lad", "vf2"], optional): the algorithm of use.
+                VF2 is optimal when max(nodes) < 10^3 and attach more attr.
+                LAD is optimal when max(nodes) > 10^4 and sparse graph.
+                    Defaults to "lad".
+            return_match_target (bool, optional): wether return matched
+                indexes for target pattern. Defaults to True.
+            only_number_color (bool, optional): wether only color
+                by numbers. Defaults to False.
+            only_count (bool, optional): wether only return matching number.
+                Defaults to False.
+            tolerance (float | None, optional): ITLEE L2 tolerance in
+                Angstrom. ``None`` or ``0`` keeps the exact behaviour;
+                negative values raise ``ValueError``.
+            other_tolerance (float | None, optional): second tolerance;
+                the effective value is ``min(tolerance, other_tolerance)``.
+            verify_exact (bool, optional): whether to verify exact
+                candidates with ITLEE before falling back to the
+                element-only colour pass.
+            relax_coordination (bool, optional): retry with element-only
+                colours when the CN-coloured pass has no valid candidate.
+            allow_reflection (bool, optional): allow improper rotations.
+            return_metrics (bool, optional): return ``(mapping, rmsd)``
+                pairs instead of the legacy numpy match-mode array.  The
+                mapping in each pair is a ``(n_pattern,)`` array of target
+                indices.
+            max_branches (int, optional): ITLEE search branch cap.
+
+        Returns:
+            int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+                If only_count is True, the result is the integer.
+                Otherwise, the result is None when no matching found.
+                    If matched, a (N_match, N_pattern)
+                    shape numpy.ndarray will be outputed.
+                If ``return_metrics`` is True, a list of
+                ``(mapping, rmsd)`` tuples is returned instead.
+        """
+        if use_itlee:
+            assert not self.check_induced_graph(), (
+                "Only non-CN instance of BondGraph can call this method."
+            )
+            assert pattern.check_induced_graph(), (
+                "Only has-CN instance can be set as pattern."
+            )
+            return match_itlee(
+                pattern=pattern,
+                pattern4match=self,
+                algorithm=algorithm,
+                return_match_target=return_match_target,
+                only_number_color=only_number_color,
+                only_count=only_count,
+                tolerance=tolerance,
+                other_tolerance=other_tolerance,
+                verify_exact=verify_exact,
+                relax_coordination=relax_coordination,
+                allow_reflection=allow_reflection,
+                return_metrics=return_metrics,
+                max_branches=max_branches,
+            )
+        else:
+            return BondGraph.get_match_mode(
+                self,
+                pattern=pattern,
+                algorithm=algorithm,
+                return_match_target=return_match_target,
+                only_number_color=only_number_color,
+                only_count=only_count,
+            )
 
     def update_adsorption(
         self,
@@ -514,6 +751,251 @@ class SysGraph(BondGraph, Structure, AtomTag, GasMixin):
     def SUPPORTED_CONVERT_FORMATS(cls) -> Sequence[str]:
         # result = ("ase", "pygdata", "igraph", "networkx", "rustworkx")
         return tuple(super().SUPPORTED_CONVERT_FORMATS()) + ("ase", "igraph")
+
+
+def _get_subisomorphisms(
+    graph: IGraph,
+    graph_small: IGraph,
+    color: np.ndarray,
+    color_small: np.ndarray,
+    algorithm: Literal["lad", "vf2"],
+) -> list[list[int]]:
+    """Return subgraph isomorphism mappings for the given colours."""
+    if not np.all(np.isin(color_small, color)):
+        return []
+    if algorithm == "lad":
+        return graph.get_subisomorphisms_lad(
+            pattern=graph_small,
+            domains=[
+                np.argwhere(color == color_small[i]).flatten()
+                for i in range(len(color_small))
+            ],
+            induced=True,
+        )
+    elif algorithm == "vf2":
+        return graph.get_subisomorphisms_vf2(
+            other=graph_small,
+            color1=color,
+            color2=color_small,
+        )
+    else:
+        raise RuntimeError("Impossible !!!")
+
+
+def _filter_matches_by_itlee(
+    pattern: SysGraph,
+    target: SysGraph,
+    matches: list[list[int]] | np.ndarray,
+    tolerance: float,
+    *,
+    allow_reflection: bool,
+) -> list[tuple[np.ndarray, float]]:
+    """Keep graph embeddings whose geometry passes the ITLEE criterion."""
+    if not hasattr(pattern, "positions") or not hasattr(target, "positions"):
+        raise TypeError(
+            "tolerance requires SysGraph-like objects with positions."
+        )
+    n_pattern = len(pattern.numbers)
+    rows = np.asarray(matches, dtype=int)
+    if rows.size == 0:
+        return []
+    rows = rows.reshape(-1, n_pattern)
+    result: list[tuple[np.ndarray, float]] = []
+    for row in rows:
+        checked = itlee_check_permutation(
+            pattern.positions,
+            target.positions[row],
+            np.arange(n_pattern, dtype=int),
+            tolerance,
+            ref_colors=pattern.numbers,
+            cur_colors=target.numbers[row],
+            allow_reflection=allow_reflection,
+        )
+        if checked is not None:
+            result.append((row.copy(), checked.rmsd))
+    return result
+
+
+def _build_match_result(
+    matches: list[np.ndarray],
+    n_target: int,
+    n_pattern: int,
+    *,
+    return_match_target: bool,
+) -> np.ndarray:
+    rows = np.asarray(matches, dtype=int)
+    if rows.size == 0:
+        return np.empty((0, n_target if return_match_target else n_pattern))
+    rows = rows.reshape(-1, n_pattern)
+    if not return_match_target:
+        return rows
+    result = -np.ones(shape=(len(rows), n_target), dtype=int)
+    result[
+        np.column_stack([np.arange(len(rows))] * n_pattern),
+        rows,
+    ] = np.arange(n_pattern, dtype=int)
+    return result
+
+
+def match_itlee(
+    pattern: SysGraph,  # small graph
+    pattern4match: SysGraph,  # big graph
+    algorithm: Literal["lad", "vf2"] = "lad",
+    return_match_target: bool = True,
+    only_number_color: bool = False,
+    only_count: bool = False,
+    *,
+    tolerance: float | None = None,
+    other_tolerance: float | None = None,
+    verify_exact: bool = True,
+    relax_coordination: bool = True,
+    allow_reflection: bool = False,
+    return_metrics: bool = False,
+    max_branches: int = 200_000,
+) -> int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+    """Match two pattern by subisomorphisms algorithm.
+
+    Args:
+        pattern (SysGraph): the target pattern(small).
+        pattern4match (SysGraph): the pattern(big) for matching.
+        algorithm (Literal["lad", "vf2"], optional): the algorithm of use.
+            VF2 is optimal when max(nodes) < 10^3 and attach more attr.
+            LAD is optimal when max(nodes) > 10^4 and sparse graph.
+                Defaults to "lad".
+        return_match_target (bool, optional): wether return matched
+            indexes for target pattern. Defaults to True.
+        only_number_color (bool, optional): wether only color
+            by numbers. Defaults to False.
+        only_count (bool, optional): wether only return matching number.
+            Defaults to False.
+        tolerance (float | None, optional): ITLEE L2 tolerance in Angstrom.
+            ``None`` or ``0`` keeps the exact behaviour; negative values
+            raise ``ValueError``.
+        other_tolerance (float | None, optional): second tolerance; the
+            effective value is ``min(tolerance, other_tolerance)``.
+        verify_exact (bool, optional): verify exact candidates with ITLEE
+            before falling back to the element-only colour pass.
+        relax_coordination (bool, optional): retry with element-only
+            colours when the CN-coloured pass has no valid candidate.
+        allow_reflection (bool, optional): allow improper rotations.
+        return_metrics (bool, optional): return ``(mapping, rmsd)`` pairs;
+            the mapping is a ``(n_pattern,)`` array of target indices.
+        max_branches (int, optional): ITLEE search branch cap.  It is
+            accepted for API symmetry; the current checker does not search.
+
+    Returns:
+        int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+            If only_count is True, the result is the integer.
+            Otherwise, the result is None when no matching found.
+                If matched, a (N_match, N_pattern)
+                shape numpy.ndarray will be outputed.
+            If ``return_metrics`` is True, a list of ``(mapping, rmsd)``
+            tuples is returned instead.
+    """
+    cls: type = BondGraph
+    msg = "The `{:s}` must be a `BondGraph` instance."
+    assert isinstance(pattern, cls), msg.format("pattern")
+    assert isinstance(pattern4match, cls), msg.format("pattern4match")
+    assert algorithm in ["lad", "vf2"], "algorithm must be lad or vf2."
+
+    graph: IGraph = getattr(pattern4match, f"_{cls.__name__}__IGRAPH")
+    graph_small: IGraph = getattr(pattern, f"_{cls.__name__}__IGRAPH")
+    n_pattern = len(pattern.numbers)
+    n_target = len(pattern4match.numbers)
+
+    def exact_colors() -> tuple[np.ndarray, np.ndarray]:
+        if only_number_color:
+            return pattern4match.numbers, pattern.numbers
+        color = getattr(pattern4match, f"_{cls.__name__}__COLOR")
+        color_small = getattr(pattern, f"_{cls.__name__}__COLOR")
+        return (
+            np.vectorize(hash)(color),
+            np.vectorize(hash)(color_small),
+        )
+
+    def relaxed_colors() -> tuple[np.ndarray, np.ndarray]:
+        return pattern4match.numbers, pattern.numbers
+
+    assert n_target >= n_pattern, (
+        f"Pattern(N={n_pattern}) is too big !!! Target(N={n_target})."
+    )
+
+    delta: float | None = None
+    if tolerance is not None:
+        if float(tolerance) < 0:
+            raise ValueError("tolerance must be non-negative.")
+        if float(tolerance) > 0:
+            delta = (
+                float(tolerance)
+                if other_tolerance is None
+                else min(float(tolerance), float(other_tolerance))
+            )
+            if delta <= 0:
+                raise ValueError("tolerance must be positive.")
+
+    if delta is None:
+        color, color_small = exact_colors()
+        out = _get_subisomorphisms(
+            graph,
+            graph_small,
+            color,
+            color_small,
+            algorithm,
+        )
+        if len(out) == 0:
+            return None
+        result = _build_match_result(
+            [np.asarray(row, dtype=int) for row in out],
+            n_target,
+            n_pattern,
+            return_match_target=return_match_target,
+        )
+        return matchmode2nmatch(result) if only_count else result
+
+    color_pairs: list[tuple[bool, np.ndarray, np.ndarray]] = [
+        (True, *exact_colors())
+    ]
+    if (not only_number_color) and relax_coordination:
+        color_pairs.append((False, *relaxed_colors()))
+
+    metrics: list[tuple[np.ndarray, float]] = []
+    for is_exact, color, color_small in color_pairs:
+        out = _get_subisomorphisms(
+            graph,
+            graph_small,
+            color,
+            color_small,
+            algorithm,
+        )
+        if len(out) == 0:
+            continue
+        if (not is_exact) or verify_exact or return_metrics:
+            metrics = _filter_matches_by_itlee(
+                pattern,
+                pattern4match,
+                out,
+                delta,
+                allow_reflection=allow_reflection,
+            )
+        else:
+            metrics = [
+                (np.asarray(row, dtype=int), float("nan")) for row in out
+            ]
+        if len(metrics) > 0:
+            break
+
+    if len(metrics) == 0:
+        return None
+    if return_metrics:
+        return metrics
+    matches = [mapping for mapping, _ in metrics]
+    result = _build_match_result(
+        matches,
+        n_target,
+        n_pattern,
+        return_match_target=return_match_target,
+    )
+    return matchmode2nmatch(result) if only_count else result
 
 
 # class NetworkXConverter(IGraphConverter):
