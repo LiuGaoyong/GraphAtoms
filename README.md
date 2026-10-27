@@ -12,7 +12,7 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 
 - **Graph-based Chemical System Representation**: Represent chemical systems, clusters, and gas molecules using graph theory
 - **Reaction Modeling**: Support for reaction classes, KMC (Kinetic Monte Carlo) events, and MC (Monte Carlo) moves
-- **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), and sampling
+- **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), sampling, and ITLEE (Invariant and Tolerant Local Environment Equivalence, Williams 2024)
 - **Data Storage**: Support for HDF5 and SQLite databases for efficient data persistence
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
 - **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
