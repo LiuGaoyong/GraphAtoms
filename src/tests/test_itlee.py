@@ -191,7 +191,9 @@ class Test_SysGraphEquivalence:
 
 class Test_MatchTolerance:
     def test_exact_unchanged(self, system: System, cluster: Cluster) -> None:
-        matching = system.get_match_mode(cluster, algorithm="lad")
+        matching = system.get_match_mode(
+            cluster, algorithm="lad", use_itlee=True
+        )
         assert isinstance(matching, np.ndarray)
         assert matching.shape == (48, len(system))
         matching0 = np.asarray(
@@ -209,11 +211,12 @@ class Test_MatchTolerance:
         dct.pop("hashes", None)
         dct["coordination"] = (cluster.CN_MATRIX + 1).astype("uint8")
         pattern = Cluster.model_validate(dct)
-        assert system.get_match_mode(pattern) is None
+        assert system.get_match_mode(pattern, use_itlee=True) is None
         matching = system.get_match_mode(
             pattern,
             tolerance=0.05,
             return_metrics=True,
+            use_itlee=True,
         )
         assert isinstance(matching, list)
         assert len(matching) > 0
@@ -232,13 +235,14 @@ class Test_MatchTolerance:
                 pattern,
                 tolerance=0.05,
                 return_metrics=True,
+                use_itlee=True,
             )
             is None
         )
 
     def test_negative_tolerance(self, system: System, cluster: Cluster) -> None:
         with pytest.raises(ValueError):
-            system.get_match_mode(cluster, tolerance=-0.1)
+            system.get_match_mode(cluster, tolerance=-0.1, use_itlee=True)
 
     def test_tolerant_return_options(
         self, system: System, cluster: Cluster
@@ -253,6 +257,7 @@ class Test_MatchTolerance:
             tolerance=0.05,
             only_count=True,
             return_match_target=False,
+            use_itlee=True,
         )
         assert isinstance(count, int) and count >= 1
 
@@ -260,6 +265,7 @@ class Test_MatchTolerance:
             pattern,
             tolerance=0.05,
             return_match_target=False,
+            use_itlee=True,
         )
         assert isinstance(mapping, np.ndarray)
         assert mapping.shape[1] == len(pattern)
@@ -269,6 +275,10 @@ class Test_MatchTolerance:
             tolerance=0.05,
             algorithm="vf2",
             return_metrics=True,
+            use_itlee=True,
         )
         assert isinstance(vf2, list) and len(vf2) > 0
 
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-s"])

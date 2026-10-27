@@ -8,7 +8,7 @@ Repository = "https://github.com/LiuGaoyong/GraphAtoms"
 Issues = "https://github.com/LiuGaoyong/GraphAtoms/issues/"
 [project]
 name = "graphatoms"
-version = "2.3.3"
+version = "3.0.0"
 readme = "README.md"
 description = "The Chemical Core Class for Graph Theory Analysis."
 authors = [{ name = "LiuGaoyong", email = "liugaoyong_88@163.com" }]
@@ -49,9 +49,6 @@ dependencies = [
     "typing-extensions",
 ]
 
-[project.optional-dependencies]
-ray = ["ray>=2.9"]
-
 [dependency-groups]
 dev = [
     "ruff>=0.11",
@@ -69,8 +66,8 @@ dev = [
 [tool.uv]
 package = true
 [[tool.uv.index]]
-# url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
-url = "https://mirrors.nju.edu.cn/pypi/web/simple" # NJU
+url = "https://mirrors.cernet.edu.cn/pypi/web/simple" # CERNET
+# url = "https://mirrors.nju.edu.cn/pypi/web/simple" # NJU
 default = true
 # [[tool.uv.index]]
 # name = "pytorch-cpu"

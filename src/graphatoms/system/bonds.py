@@ -10,7 +10,6 @@ from rdkit.Chem import Mol as RDMol  # type: ignore
 from scipy import sparse as sp
 
 from graphatoms.dataclasses import NDArray, OurFrozenModel, numpy_validator
-from graphatoms.geometry.itlee import itlee_check_permutation
 from graphatoms.system.atoms import Matter
 from graphatoms.utils.bytestool import hash_string
 from graphatoms.utils.rdutils import get_rdmol
@@ -181,15 +180,7 @@ class BondGraph(Matter, OurFrozenModel):
         return_match_target: bool = True,
         only_number_color: bool = False,
         only_count: bool = False,
-        *,
-        tolerance: float | None = None,
-        other_tolerance: float | None = None,
-        verify_exact: bool = True,
-        relax_coordination: bool = True,
-        allow_reflection: bool = False,
-        return_metrics: bool = False,
-        max_branches: int = 200_000,
-    ) -> int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+    ) -> int | None | np.ndarray:
         """Match two pattern by subisomorphisms algorithm.
 
         Args:
@@ -204,31 +195,13 @@ class BondGraph(Matter, OurFrozenModel):
                 by numbers. Defaults to False.
             only_count (bool, optional): wether only return matching number.
                 Defaults to False.
-            tolerance (float | None, optional): ITLEE L2 tolerance in
-                Angstrom. ``None`` or ``0`` keeps the exact behaviour;
-                negative values raise ``ValueError``.
-            other_tolerance (float | None, optional): second tolerance;
-                the effective value is ``min(tolerance, other_tolerance)``.
-            verify_exact (bool, optional): whether to verify exact
-                candidates with ITLEE before falling back to the
-                element-only colour pass.
-            relax_coordination (bool, optional): retry with element-only
-                colours when the CN-coloured pass has no valid candidate.
-            allow_reflection (bool, optional): allow improper rotations.
-            return_metrics (bool, optional): return ``(mapping, rmsd)``
-                pairs instead of the legacy numpy match-mode array.  The
-                mapping in each pair is a ``(n_pattern,)`` array of target
-                indices.
-            max_branches (int, optional): ITLEE search branch cap.
 
         Returns:
-            int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+            int | None | np.ndarray:
                 If only_count is True, the result is the integer.
                 Otherwise, the result is None when no matching found.
                     If matched, a (N_match, N_pattern)
                     shape numpy.ndarray will be outputed.
-                If ``return_metrics`` is True, a list of
-                ``(mapping, rmsd)`` tuples is returned instead.
         """
         assert not self.check_induced_graph(), (
             "Only non-CN instance of BondGraph can call this method."
@@ -243,13 +216,6 @@ class BondGraph(Matter, OurFrozenModel):
             return_match_target=return_match_target,
             only_number_color=only_number_color,
             only_count=only_count,
-            tolerance=tolerance,
-            other_tolerance=other_tolerance,
-            verify_exact=verify_exact,
-            relax_coordination=relax_coordination,
-            allow_reflection=allow_reflection,
-            return_metrics=return_metrics,
-            max_branches=max_branches,
         )
 
     ###################################################
@@ -569,90 +535,6 @@ def _subgraph_edges(
     return igraph.subgraph_edges(active_bonds, delete_vertices=False)
 
 
-def _get_subisomorphisms(
-    graph: IGraph,
-    graph_small: IGraph,
-    color: np.ndarray,
-    color_small: np.ndarray,
-    algorithm: Literal["lad", "vf2"],
-) -> list[list[int]]:
-    """Return subgraph isomorphism mappings for the given colours."""
-    if not np.all(np.isin(color_small, color)):
-        return []
-    if algorithm == "lad":
-        return graph.get_subisomorphisms_lad(
-            pattern=graph_small,
-            domains=[
-                np.argwhere(color == color_small[i]).flatten()
-                for i in range(len(color_small))
-            ],
-            induced=True,
-        )
-    elif algorithm == "vf2":
-        return graph.get_subisomorphisms_vf2(
-            other=graph_small,
-            color1=color,
-            color2=color_small,
-        )
-    else:
-        raise RuntimeError("Impossible !!!")
-
-
-def _filter_matches_by_itlee(
-    pattern: BondGraph,
-    target: BondGraph,
-    matches: list[list[int]] | np.ndarray,
-    tolerance: float,
-    *,
-    allow_reflection: bool,
-) -> list[tuple[np.ndarray, float]]:
-    """Keep graph embeddings whose geometry passes the ITLEE criterion."""
-    if not hasattr(pattern, "positions") or not hasattr(target, "positions"):
-        raise TypeError(
-            "tolerance requires SysGraph-like objects with positions."
-        )
-    n_pattern = len(pattern.numbers)
-    rows = np.asarray(matches, dtype=int)
-    if rows.size == 0:
-        return []
-    rows = rows.reshape(-1, n_pattern)
-    result: list[tuple[np.ndarray, float]] = []
-    for row in rows:
-        checked = itlee_check_permutation(
-            pattern.positions,
-            target.positions[row],
-            np.arange(n_pattern, dtype=int),
-            tolerance,
-            ref_colors=pattern.numbers,
-            cur_colors=target.numbers[row],
-            allow_reflection=allow_reflection,
-        )
-        if checked is not None:
-            result.append((row.copy(), checked.rmsd))
-    return result
-
-
-def _build_match_result(
-    matches: list[np.ndarray],
-    n_target: int,
-    n_pattern: int,
-    *,
-    return_match_target: bool,
-) -> np.ndarray:
-    rows = np.asarray(matches, dtype=int)
-    if rows.size == 0:
-        return np.empty((0, n_target if return_match_target else n_pattern))
-    rows = rows.reshape(-1, n_pattern)
-    if not return_match_target:
-        return rows
-    result = -np.ones(shape=(len(rows), n_target), dtype=int)
-    result[
-        np.column_stack([np.arange(len(rows))] * n_pattern),
-        rows,
-    ] = np.arange(n_pattern, dtype=int)
-    return result
-
-
 def match(
     pattern: BondGraph,
     pattern4match: BondGraph,  # big graph
@@ -660,15 +542,7 @@ def match(
     return_match_target: bool = True,
     only_number_color: bool = False,
     only_count: bool = False,
-    *,
-    tolerance: float | None = None,
-    other_tolerance: float | None = None,
-    verify_exact: bool = True,
-    relax_coordination: bool = True,
-    allow_reflection: bool = False,
-    return_metrics: bool = False,
-    max_branches: int = 200_000,
-) -> int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+) -> int | None | np.ndarray:
     """Match two pattern by subisomorphisms algorithm.
 
     Args:
@@ -684,29 +558,13 @@ def match(
             by numbers. Defaults to False.
         only_count (bool, optional): wether only return matching number.
             Defaults to False.
-        tolerance (float | None, optional): ITLEE L2 tolerance in Angstrom.
-            ``None`` or ``0`` keeps the exact behaviour; negative values
-            raise ``ValueError``.
-        other_tolerance (float | None, optional): second tolerance; the
-            effective value is ``min(tolerance, other_tolerance)``.
-        verify_exact (bool, optional): verify exact candidates with ITLEE
-            before falling back to the element-only colour pass.
-        relax_coordination (bool, optional): retry with element-only
-            colours when the CN-coloured pass has no valid candidate.
-        allow_reflection (bool, optional): allow improper rotations.
-        return_metrics (bool, optional): return ``(mapping, rmsd)`` pairs;
-            the mapping is a ``(n_pattern,)`` array of target indices.
-        max_branches (int, optional): ITLEE search branch cap.  It is
-            accepted for API symmetry; the current checker does not search.
 
     Returns:
-        int | None | np.ndarray | list[tuple[np.ndarray, float]]:
+        int | None | np.ndarray:
             If only_count is True, the result is the integer.
             Otherwise, the result is None when no matching found.
                 If matched, a (N_match, N_pattern)
                 shape numpy.ndarray will be outputed.
-            If ``return_metrics`` is True, a list of ``(mapping, rmsd)``
-            tuples is returned instead.
     """
     cls: type = BondGraph
     msg = "The `{:s}` must be a `BondGraph` instance."
@@ -716,101 +574,49 @@ def match(
 
     graph: IGraph = getattr(pattern4match, f"_{cls.__name__}__IGRAPH")
     graph_small: IGraph = getattr(pattern, f"_{cls.__name__}__IGRAPH")
-    n_pattern = len(pattern.numbers)
-    n_target = len(pattern4match.numbers)
-
-    def exact_colors() -> tuple[np.ndarray, np.ndarray]:
-        if only_number_color:
-            return pattern4match.numbers, pattern.numbers
+    if only_number_color:
+        color, color_small = pattern4match.numbers, pattern.numbers
+    else:
         color = getattr(pattern4match, f"_{cls.__name__}__COLOR")
         color_small = getattr(pattern, f"_{cls.__name__}__COLOR")
-        return (
-            np.vectorize(hash)(color),
-            np.vectorize(hash)(color_small),
-        )
-
-    def relaxed_colors() -> tuple[np.ndarray, np.ndarray]:
-        return pattern4match.numbers, pattern.numbers
-
-    assert n_target >= n_pattern, (
-        f"Pattern(N={n_pattern}) is too big !!! Target(N={n_target})."
+        color_small = np.vectorize(hash)(color_small)
+        color = np.vectorize(hash)(color)
+    assert color.shape[0] >= color_small.shape[0], (
+        f"Pattern(N={color_small.shape[0]}) is "
+        f"too big !!! Target(N={color.shape[0]})."
     )
 
-    delta: float | None = None
-    if tolerance is not None:
-        if float(tolerance) < 0:
-            raise ValueError("tolerance must be non-negative.")
-        if float(tolerance) > 0:
-            delta = (
-                float(tolerance)
-                if other_tolerance is None
-                else min(float(tolerance), float(other_tolerance))
-            )
-            if delta <= 0:
-                raise ValueError("tolerance must be positive.")
-
-    if delta is None:
-        color, color_small = exact_colors()
-        out = _get_subisomorphisms(
-            graph,
-            graph_small,
-            color,
-            color_small,
-            algorithm,
+    if not np.all(np.isin(color_small, color)):
+        out = []
+    elif algorithm == "lad":
+        out = graph.get_subisomorphisms_lad(
+            pattern=graph_small,
+            domains=[
+                np.argwhere(color == color_small[i]).flatten()
+                for i in range(len(color_small))
+            ],
+            induced=True,
+            # time_limit=2,
         )
-        if len(out) == 0:
-            return None
-        result = _build_match_result(
-            [np.asarray(row, dtype=int) for row in out],
-            n_target,
-            n_pattern,
-            return_match_target=return_match_target,
+    elif algorithm == "vf2":
+        out = graph.get_subisomorphisms_vf2(
+            other=graph_small,
+            color1=color,
+            color2=color_small,
         )
-        return matchmode2nmatch(result) if only_count else result
+    else:
+        raise RuntimeError("Impossible !!!")
 
-    color_pairs: list[tuple[bool, np.ndarray, np.ndarray]] = [
-        (True, *exact_colors())
-    ]
-    if (not only_number_color) and relax_coordination:
-        color_pairs.append((False, *relaxed_colors()))
-
-    metrics: list[tuple[np.ndarray, float]] = []
-    for is_exact, color, color_small in color_pairs:
-        out = _get_subisomorphisms(
-            graph,
-            graph_small,
-            color,
-            color_small,
-            algorithm,
-        )
-        if len(out) == 0:
-            continue
-        if (not is_exact) or verify_exact or return_metrics:
-            metrics = _filter_matches_by_itlee(
-                pattern,
-                pattern4match,
-                out,
-                delta,
-                allow_reflection=allow_reflection,
-            )
-        else:
-            metrics = [
-                (np.asarray(row, dtype=int), float("nan")) for row in out
-            ]
-        if len(metrics) > 0:
-            break
-
-    if len(metrics) == 0:
+    if len(out) == 0:
         return None
-    if return_metrics:
-        return metrics
-    matches = [mapping for mapping, _ in metrics]
-    result = _build_match_result(
-        matches,
-        n_target,
-        n_pattern,
-        return_match_target=return_match_target,
-    )
+    elif return_match_target:
+        result = -np.ones(shape=(len(out), len(color)), dtype=int)
+        result[
+            np.column_stack([np.arange(len(out))] * len(out[0])),
+            np.asarray(out, dtype=int),
+        ] = np.arange(len(color_small), dtype=int)
+    else:
+        result: np.ndarray = np.asarray(out, dtype=int)
     return matchmode2nmatch(result) if only_count else result
 
 
