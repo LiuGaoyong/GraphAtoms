@@ -23,6 +23,18 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
 - **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
 - **Subgraph Operations**: Backend-agnostic subgraph extraction with relabeling support using array-api-compat and array-api-extra
+<<<<<<< HEAD
+- **CLI Entry Points**: Three console scripts for configuration, execution, and inspection:
+  - `graphatoms-config`: Resolve and print the Hydra/OmegaConf run configuration
+  - `graphatoms-run`: Launch a run
+    - `run_type=otfkmc` for on-the-fly kinetic Monte Carlo simulation
+    - `run_type=rxngen` for reaction network generation
+  - `graphatoms-network`: Inspect and visualize a stored reaction network
+- **Hydra-driven Configuration**: Composable, override-friendly config via Hydra/OmegaConf with grouped groups (`atoms`, `bonds`, `calculator`)
+- **Pluggable Parallel Backends**: Switch executors at the config level — `serial`, `multiprocessing`, `ray`, `dask`, `executorlib` — for distributed/on-the-fly KMC workflows
+- **Ray-native Runners**: With `parallel=ray`, `run_type=otfkmc` and `run_type=rxngen` use a dedicated Ray runner: one async `ReactionNetwork` actor owns all network reads/writes, while optimization, dimer, adsorption, matching and apply helpers run as Ray tasks that call the actor (install with `pip install 'graphatoms[ray]'`)
+=======
+>>>>>>> refactor/move-enterpoint-reaction-to-rxnetgen
 
 ## Module Structure
 
