@@ -18,12 +18,13 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 ## Features
 
 - **Graph-based Chemical System Representation**: Represent chemical systems, clusters, and gas molecules using graph theory
+- **Reaction Modeling**: Support for reaction classes, KMC (Kinetic Monte Carlo) events, and MC (Monte Carlo) moves
+- **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), sampling, and ITLEE (Invariant and Tolerant Local Environment Equivalence, Williams 2024)
 - **Geometry Operations**: Bond lists, distance calculations, neighbor lists, rotations, MIC (Minimum Image Convention), and sampling
 - **Data Storage**: Support for HDF5 and SQLite databases for efficient data persistence
 - **Dataclasses**: Pydantic-based data models for type-safe data handling
 - **Array API Compatibility**: Full support for array API standard for cross-framework compatibility (NumPy, PyTorch, JAX, CuPy, etc.)
 - **Subgraph Operations**: Backend-agnostic subgraph extraction with relabeling support using array-api-compat and array-api-extra
-<<<<<<< HEAD
 - **CLI Entry Points**: Three console scripts for configuration, execution, and inspection:
   - `graphatoms-config`: Resolve and print the Hydra/OmegaConf run configuration
   - `graphatoms-run`: Launch a run
@@ -33,8 +34,6 @@ The `graphatoms` is a Python library designed for chemical graph theory analysis
 - **Hydra-driven Configuration**: Composable, override-friendly config via Hydra/OmegaConf with grouped groups (`atoms`, `bonds`, `calculator`)
 - **Pluggable Parallel Backends**: Switch executors at the config level — `serial`, `multiprocessing`, `ray`, `dask`, `executorlib` — for distributed/on-the-fly KMC workflows
 - **Ray-native Runners**: With `parallel=ray`, `run_type=otfkmc` and `run_type=rxngen` use a dedicated Ray runner: one async `ReactionNetwork` actor owns all network reads/writes, while optimization, dimer, adsorption, matching and apply helpers run as Ray tasks that call the actor (install with `pip install 'graphatoms[ray]'`)
-=======
->>>>>>> refactor/move-enterpoint-reaction-to-rxnetgen
 
 ## Module Structure
 
