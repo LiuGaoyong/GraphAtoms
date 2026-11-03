@@ -29,6 +29,7 @@ classifiers = [
 ]
 dependencies = [
     "ase",
+    "arrayff>=0.0.1",
     "pymatgen>2023.6",
     "rdkit>=2025",
     "numpy>=2,<3",
@@ -127,6 +128,7 @@ benchmark = "pytest -s src/tests-benchmark/*.py"
 [tool.pixi.dependencies]
 python = ">=3.12"
 pytest = ">=8"
+arrayff = ">=0.0.1"
 array-api-compat = ">=1.15.0"
 array-api-extra = ">=0.11.0"
 array-api-strict = ">=2.5"

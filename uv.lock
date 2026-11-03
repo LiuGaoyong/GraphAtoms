@@ -150,6 +150,23 @@ wheels = [
 ]
 
 [[package]]
+name = "arrayff"
+version = "0.0.1"
+source = { registry = "https://mirrors.cernet.edu.cn/pypi/web/simple" }
+dependencies = [
+    { name = "ase" },
+    { name = "autograd" },
+    { name = "autoray" },
+    { name = "numpy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/cf/42/462753ec9cc34fbfbe0cc37c1d850b223e762341f594e8e1d61eb2806dc6/arrayff-0.0.1.tar.gz", hash = "sha256:9002e0aa31eedaab8943fa4ccb173741f757b5882ad0009d3bf42700d4cc7cfa" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/39/02/f4817a640bfc071cbcbd72c4615b9bf2c7412bce603a2390ec4faed6eb48/arrayff-0.0.1-py3-none-any.whl", hash = "sha256:f7a1bab2a15836f58fd19b67ffba6e59b9f3206a3d4c9f25425460bdc25d1688" },
+]
+
+[[package]]
 name = "arrow"
 version = "1.4.0"
 source = { registry = "https://mirrors.cernet.edu.cn/pypi/web/simple" }
@@ -202,6 +219,27 @@ source = { registry = "https://mirrors.cernet.edu.cn/pypi/web/simple" }
 sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz", hash = "sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32" }
 wheels = [
     { url = "https://mirror.nju.edu.cn/pypi/web/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl", hash = "sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309" },
+]
+
+[[package]]
+name = "autograd"
+version = "1.9.1"
+source = { registry = "https://mirrors.cernet.edu.cn/pypi/web/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/9d/ac/4a8b58364ba865ab545251edbe475e5a35326814a5d274a2211d33ed8a5d/autograd-1.9.1.tar.gz", hash = "sha256:7818c5c69ddf9efb7da74097bd741a4c7920133f41966f68537223a15ef798bc" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/6e/ce/8c98e6604bb1ec9d03c8493c328185b69bb7533fe08f3640f0f3641bd9d1/autograd-1.9.1-py3-none-any.whl", hash = "sha256:b788bae3fa010cbffb4cfb7b8ba2a3f0daa6072a8506da6164c779fe9cf3e05a" },
+]
+
+[[package]]
+name = "autoray"
+version = "0.11.0"
+source = { registry = "https://mirrors.cernet.edu.cn/pypi/web/simple" }
+sdist = { url = "https://mirror.nju.edu.cn/pypi/web/packages/cd/33/0a894071f0635b9f9a208ba4eabc3af80b5316e51ec7de7ada89a2bf097e/autoray-0.11.0.tar.gz", hash = "sha256:ef9c23d8307f2e5030d10dd222d304401450157172a6fcc6f7456b6e82681bf4" }
+wheels = [
+    { url = "https://mirror.nju.edu.cn/pypi/web/packages/58/a1/7e82580da9ad8a2ed06306856d25bc9ebc737db9331f566590ee15b0d4ff/autoray-0.11.0-py3-none-any.whl", hash = "sha256:2e9ca95070834574e054162ee02946d2414f7821f65960308b95f49d08ee9227" },
 ]
 
 [[package]]
@@ -802,6 +840,7 @@ source = { editable = "." }
 dependencies = [
     { name = "array-api-compat" },
     { name = "array-api-extra" },
+    { name = "arrayff" },
     { name = "ase" },
     { name = "h5py" },
     { name = "hydra-core" },
@@ -836,6 +875,7 @@ dev = [
 requires-dist = [
     { name = "array-api-compat", specifier = ">=1.10" },
     { name = "array-api-extra", specifier = ">=0.10" },
+    { name = "arrayff", specifier = ">=0.0.1" },
     { name = "ase" },
     { name = "h5py", specifier = ">=3.16" },
     { name = "hydra-core", specifier = ">=1.1" },

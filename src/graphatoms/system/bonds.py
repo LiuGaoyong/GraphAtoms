@@ -17,6 +17,36 @@ from graphatoms.utils.rdutils import get_rdmol
 __all__ = ["BondGraph"]
 
 
+def _canonicalize_pair(pair: np.ndarray) -> np.ndarray:
+    """Normalize a bond pair array to canonical upper-triangular form.
+
+    Any input shape (upper-triangular, lower-triangular, symmetric
+    bidirectional (i, j)/(j, i), or mixed) is reduced to exactly one row
+    per bond, with the convention ``(min(i, j), max(i, j))``.  Rows are
+    then sorted ascending so the output is deterministic.
+
+    The SysGraph contract is that ``pair`` stores one row per unique bond.
+    Consumers that need a symmetric adjacency view build it locally (e.g.
+    ``MATRIX + MATRIX.T``, or feeding the single-direction edge list into
+    an igraph directed graph and calling ``as_undirected()``).
+
+    Args:
+        pair: (nbonds, 2) int32 array of atom indices.
+
+    Returns:
+        A new ``int32`` array with shape ``(n_unique_bonds, 2)`` where each
+        row satisfies ``row[0] < row[1]``.
+    """
+    pair = np.asarray(pair, dtype="int32")
+    # Canonicalize each edge direction to (min, max).
+    pair = np.sort(pair, axis=1)
+    # Drop symmetric (i, j)/(j, i) and accidental duplicate rows.
+    pair = np.unique(pair, axis=0)
+    # Ascending (i, j) order for deterministic serialization.
+    order = np.lexsort((pair[:, 1], pair[:, 0]))
+    return pair[order]
+
+
 class BondGraph(Matter, OurFrozenModel):
     coordination: Annotated[NDArray, numpy_validator("uint8")] | None = None
     pair: Annotated[NDArray, numpy_validator("int32", (-1, 2))] | None = None
@@ -31,6 +61,13 @@ class BondGraph(Matter, OurFrozenModel):
                     f"Invalid shape for `{k}`: Len({k})="
                     f"{len(v)} but natoms={self.natoms}."
                 )
+        if self.pair is not None:
+            normalized = _canonicalize_pair(self.pair)
+            if normalized.shape != self.pair.shape or not np.array_equal(
+                normalized, self.pair
+            ):
+                # Frozen model — mutate via object.__setattr__.
+                object.__setattr__(self, "pair", normalized)
         if self.nbonds != 0:
             assert isinstance(self.pair, np.ndarray), (
                 "The `pair` should be a numpy array if nbonds > 0."
