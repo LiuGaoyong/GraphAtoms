@@ -1,29 +1,15 @@
 import pytest
-from ase import Atoms
-from ase.build import bulk, fcc111, molecule
+from ase.build import bulk, molecule
 from omegaconf import DictConfig, OmegaConf
 
 from graphatoms.geometry._bond_list import bond_list
 from graphatoms.geometry._inner_outer import _test_inner
-from graphatoms.geometry._neighbor_list import _test_neighbor_list_for_atoms
 
 
 def test_inner() -> None:  # noqa: D103
     from ase.cluster import Octahedron
 
     _test_inner(Octahedron("Cu", 3, 1))
-
-
-@pytest.mark.parametrize(
-    "a",
-    [
-        molecule("H2O"),
-        bulk("Cu", "fcc"),
-        fcc111("Cu", (1, 1, 2), vacuum=8, periodic=True),
-    ],
-)
-def test_neghbor_list(a: Atoms) -> None:  # noqa: D103
-    _test_neighbor_list_for_atoms(a, c=3, idx=[0])
 
 
 @pytest.mark.parametrize(

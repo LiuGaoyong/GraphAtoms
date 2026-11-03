@@ -3,13 +3,13 @@ from typing import Literal
 
 import networkx as nx
 import numpy as np
+from arrayff.neighbors import neighbor_list
 from ase import Atoms
 from ase.data import covalent_radii as COV_R
 from pymatgen.core.structure import Molecule, Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 from scipy import sparse as sp
 
-from graphatoms.geometry._neighbor_list import neighbor_list
 from graphatoms.utils.parser import DictConfig, hydra_parse
 from graphatoms.utils.rdutils import get_adjacency_by_rdkit
 
@@ -53,7 +53,13 @@ def bond_list(
         plus_factor = cfg.get("plus_factor", 0.3)
         multiply_factor = cfg.get("multiply_factor", 1.0)
         max_d: float = 2 * np.max(COV_R[atoms.numbers]) + 5
-        i, j, d = neighbor_list("ijd", atoms, max_d, False, bothways=False)
+        i, j, d = neighbor_list(
+            "ijd",
+            atoms,
+            max_d,
+            self_interaction=False,
+            bothways=False,
+        )
         deq = COV_R[atoms.numbers[i]] + COV_R[atoms.numbers[j]]
         deq = deq * multiply_factor + plus_factor
         mask = np.logical_and(1e-3 < d, d < deq)
@@ -134,33 +140,3 @@ def bond_list(
             infer_order=False,
         )
     return matrix
-
-
-def test_bond_order():
-    from ase.build import molecule
-    from ase.cluster import Octahedron
-
-    atoms = molecule("CH3CH2OH")
-    atoms = Octahedron("Cu", 3, 1)
-    m = bond_list(atoms=atoms)
-
-    m = sp.coo_array(m)
-    edges, data = m.coords, m.data
-    print(edges[0], edges[1], data)
-    m2 = get_adjacency_by_rdkit(
-        numbers=np.array(
-            [
-                1
-                if z not in (1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 32, 35, 53)
-                else z
-                for z in atoms.numbers
-            ]
-        ),
-        geometry=atoms.positions,
-        source=edges[0],
-        target=edges[1],
-        order=data,
-        infer_order=True,
-        charge=-59,
-    )
-    print(m2)

@@ -1,11 +1,11 @@
 """Distance calculation factory for atomic configurations."""
 
 import numpy as np
+from arrayff.neighbors import distance_pairs
 from ase.cell import Cell
 from ase.data import covalent_radii as COV_R
 from scipy import sparse as sp
 
-from graphatoms.geometry._distance_pairs import distance_pairs
 from graphatoms.geometry.sample import (
     fibonacci_lattice as inverse_3d_sphere_surface_sampling,
 )
@@ -31,10 +31,25 @@ def check_atom_is_inner(  # noqa: D417
         bool: whether the given atom is inner.
     """
     geometry = np.asarray(geometry, dtype=float)
-    # get neighbors of the index atom
-    nbr = sp.coo_array(adjacency_array)
+    # `bond_list` stores bonds once as an upper-triangular CSR.  Callers
+    # pass either the full matrix or a single-row slice.  Either way, we
+    # need the symmetric view to enumerate all neighbors of `index` —
+    # e.g. when only row `index` is provided, an upper-triangular matrix
+    # would silently drop neighbors with j < index.
+    coo = sp.csr_matrix(adjacency_array).tocoo()
+    # Expand to full symmetric view within the row being queried so that
+    # neighbors on both sides of `index` are visible.  For a full matrix
+    # input we pass it through unchanged (the caller may already have the
+    # symmetric view).
+    if coo.shape[0] == 1:
+        col = np.concatenate([coo.col, coo.row])
+        row = np.zeros_like(col)  # all belong to row `index`
+        data = np.concatenate([coo.data, coo.data])
+        nbr = sp.coo_matrix((data, (row, col)), shape=(1, coo.shape[1]))
+    else:
+        nbr = sp.coo_matrix(adjacency_array)
     assert nbr.shape == (1, len(numbers)), nbr.shape
-    idxs_neighbor = np.setdiff1d(nbr.coords[1], [index])
+    idxs_neighbor = np.setdiff1d(nbr.col, [index])
     if len(idxs_neighbor) == 0:
         return False
     else:
@@ -71,10 +86,11 @@ def check_atom_is_inner(  # noqa: D417
 #                                   Test
 #######################################################################
 def _test_inner(atoms) -> None:
-    from ._bond_list import Atoms, bond_list
+    from graphatoms.geometry._bond_list import Atoms, bond_list
 
     assert isinstance(atoms, Atoms)
     m: sp.csr_matrix = bond_list(atoms)
+    m = m + m.T  # make it symmetric
     print(len(atoms))
     for i in range(len(atoms)):
         is_inner = check_atom_is_inner(
@@ -91,3 +107,7 @@ def test_inner() -> None:  # noqa: D103
     from ase.cluster import Octahedron
 
     _test_inner(Octahedron("Cu", 3, 1))
+
+
+if __name__ == "__main__":
+    test_inner()

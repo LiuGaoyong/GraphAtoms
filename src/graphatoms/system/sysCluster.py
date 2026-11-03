@@ -1,9 +1,9 @@
 from typing import Literal, Self, override
 
 import numpy as np
+from arrayff.neighbors import distance_pairs
 from pydantic import model_validator
 
-from graphatoms.geometry import distance_pairs
 from graphatoms.system.atoms import Energetics
 from graphatoms.system.graph import GasMixin, SysGraph
 from graphatoms.system.system import System
